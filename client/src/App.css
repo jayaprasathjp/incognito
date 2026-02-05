@@ -1,42 +1,78 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+:root{
+  --bg-1: #0f172a;
+  --bg-2: #071029;
+  --glass: rgba(255,255,255,0.06);
+  --muted: #bcd3ff;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* sensible box model and full-height root for accurate centering */
+*,*::before,*::after{box-sizing:border-box}
+html,body,#root{
+  height:100%;
+  margin:0;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+body{
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: linear-gradient(180deg,var(--bg-1),var(--bg-2));
+  color: white;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.welcome{
+  /* use safe viewport units to avoid mobile vh quirks */
+  min-height:100svh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:2rem;
+  margin:0;
 }
 
-.card {
-  padding: 2em;
+.card{
+  width: min(720px, 92%);
+  padding: 3rem 2.5rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  box-shadow: 0 10px 30px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  backdrop-filter: blur(6px) saturate(120%);
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  gap:0.6rem;
+  align-items:center;
+  animation: fadeInUp 420ms ease both;
 }
 
-.read-the-docs {
-  color: #888;
+.title{
+  margin:0 0 0.6rem 0;
+  font-size: clamp(1.6rem, 3.6vw, 2.4rem);
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, #9be7ff, #8ad0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.subtitle{
+  margin:0;
+  color: var(--muted);
+  font-size: 1rem;
+  opacity:0.95;
+}
+
+.lead{
+  margin:0 0 0.2rem 0;
+  color:#dbeeff;
+  font-weight:600;
+}
+
+@keyframes fadeInUp{
+  from{opacity:0; transform: translateY(8px)}
+  to{opacity:1; transform: translateY(0)}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .card{animation:none}
 }
