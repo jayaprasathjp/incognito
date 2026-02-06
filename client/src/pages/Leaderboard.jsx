@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../utils/api';
 
 const Leaderboard = () => {
     const { user, logout } = useAuth();
@@ -11,12 +12,10 @@ const Leaderboard = () => {
     useEffect(() => {
         const fetchLeaderboard = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/leaderboard');
-                if (response.ok) {
-                    const data = await response.json();
-                    setLeaderboardData(data);
-                }
+                const data = await api.get('/leaderboard');
+                setLeaderboardData(data);
             } catch (error) {
+
                 console.error("Failed to fetch leaderboard", error);
             }
         };

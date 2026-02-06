@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../utils/api';
 
 const ReferralProgram = () => {
     const { token } = useAuth();
@@ -12,19 +13,12 @@ const ReferralProgram = () => {
     useEffect(() => {
         const fetchReferralData = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/user/referral', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                const data = await api.get('/user/referral');
+                setReferralCode(data.referralCode);
+                setStats({
+                    totalReferrals: data.totalReferrals,
+                    rewardsEarned: data.rewardsEarned
                 });
-                if (response.ok) {
-                    const data = await response.json();
-                    setReferralCode(data.referralCode);
-                    setStats({
-                        totalReferrals: data.totalReferrals,
-                        rewardsEarned: data.rewardsEarned
-                    });
-                }
             } catch (error) {
                 console.error("Failed to fetch referral data", error);
                 setReferralCode("Error");
