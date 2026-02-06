@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../utils/api';
 
 const BankDetails = () => {
     const { token } = useAuth();
@@ -16,14 +17,9 @@ const BankDetails = () => {
     useEffect(() => {
         const fetchDetails = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/user/bank-details', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.account_name) {
-                        setFormData(data);
-                    }
+                const data = await api.get('/user/bank-details');
+                if (data.account_name) {
+                    setFormData(data);
                 }
             } catch (error) {
                 console.error("Error fetching bank details", error);
@@ -40,20 +36,9 @@ const BankDetails = () => {
         e.preventDefault();
         setStatus('Saving...');
         try {
-            const response = await fetch('http://localhost:5000/api/user/bank-details', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(formData)
-            });
-            if (response.ok) {
-                setStatus('Saved successfully!');
-                setTimeout(() => setStatus(''), 3000);
-            } else {
-                setStatus('Failed to save.');
-            }
+            await api.post('/user/bank-details', formData);
+            setStatus('Saved successfully!');
+            setTimeout(() => setStatus(''), 3000);
         } catch (error) {
             console.error("Error saving bank details", error);
             setStatus('Error occurred.');

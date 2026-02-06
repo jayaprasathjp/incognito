@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../utils/api';
 
 const MyFixtures = () => {
     const { token, user } = useAuth();
@@ -10,13 +11,8 @@ const MyFixtures = () => {
     useEffect(() => {
         const fetchFixtures = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/matches/my-fixtures', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    setFixtures(data);
-                }
+                const data = await api.get('/matches/my-fixtures');
+                setFixtures(data);
             } catch (error) {
                 console.error("Error fetching fixtures", error);
             }
