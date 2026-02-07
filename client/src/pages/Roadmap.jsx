@@ -20,7 +20,7 @@ const Roadmap = () => {
         <div className="min-h-screen bg-white text-slate-900 font-sans p-6">
             {/* Header */}
             <div className="flex justify-between items-center mb-8 relative">
-                <Link to="/dashboard" className="text-slate-900 focus:outline-none absolute left-0">
+                <Link to="/leaderboard" className="text-slate-900 focus:outline-none absolute left-0">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>

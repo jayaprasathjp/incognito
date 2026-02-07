@@ -3,11 +3,14 @@ import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
+import Loader from '../components/Loader';
 
 const Leaderboard = () => {
     const { user, logout } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [leaderboardData, setLeaderboardData] = useState([]);
+
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchLeaderboard = async () => {
@@ -15,8 +18,9 @@ const Leaderboard = () => {
                 const data = await api.get('/leaderboard');
                 setLeaderboardData(data);
             } catch (error) {
-
                 console.error("Failed to fetch leaderboard", error);
+            } finally {
+                setLoading(false);
             }
         };
         fetchLeaderboard();
@@ -63,7 +67,13 @@ const Leaderboard = () => {
                             </tr>
                         </thead>
                         <tbody className="text-slate-700 text-xs sm:text-sm font-medium">
-                            {leaderboardData.length === 0 ? (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="5" className="p-12">
+                                        <Loader />
+                                    </td>
+                                </tr>
+                            ) : leaderboardData.length === 0 ? (
                                 <tr>
                                     <td colSpan="5" className="p-8 text-center text-slate-400 font-light">
                                         No standings available yet.

@@ -3,6 +3,7 @@ import appIcon from '../assets/app-icon.png';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
+import Loader from '../components/Loader';
 
 const BankDetails = () => {
     const { token } = useAuth();
@@ -12,7 +13,10 @@ const BankDetails = () => {
         bank_name: '',
         account_type: ''
     });
+    const [savedData, setSavedData] = useState(null); // Store fetched data to revert
     const [status, setStatus] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [isEditing, setIsEditing] = useState(true); // Default to editing (for new users)
 
     useEffect(() => {
         const fetchDetails = async () => {
@@ -20,9 +24,13 @@ const BankDetails = () => {
                 const data = await api.get('/user/bank-details');
                 if (data.account_name) {
                     setFormData(data);
+                    setSavedData(data);
+                    setIsEditing(false); // Switch to view mode if data exists
                 }
             } catch (error) {
                 console.error("Error fetching bank details", error);
+            } finally {
+                setLoading(false);
             }
         };
         if (token) fetchDetails();
@@ -32,13 +40,29 @@ const BankDetails = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleEdit = () => {
+        setIsEditing(true);
+        setStatus('');
+    };
+
+    const handleCancel = () => {
+        setFormData(savedData); // Revert to saved data
+        setIsEditing(false);
+        setStatus('');
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatus('Saving...');
         try {
-            await api.post('/user/bank-details', formData);
+            const updated = await api.post('/user/bank-details', formData);
+            setSavedData(updated); // Update saved reference
+            setFormData(updated);
             setStatus('Saved successfully!');
-            setTimeout(() => setStatus(''), 3000);
+            setTimeout(() => {
+                setStatus('');
+                setIsEditing(false); // Switch back to view mode after save
+            }, 1000);
         } catch (error) {
             console.error("Error saving bank details", error);
             setStatus('Error occurred.');
@@ -49,7 +73,7 @@ const BankDetails = () => {
         <div className="min-h-screen bg-white text-slate-900 font-sans p-6">
             {/* Header */}
             <div className="flex justify-between items-center mb-8 relative">
-                <Link to="/dashboard" className="text-slate-900 focus:outline-none absolute left-0">
+                <Link to="/leaderboard" className="text-slate-900 focus:outline-none absolute left-0">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
@@ -64,84 +88,139 @@ const BankDetails = () => {
                     BANK DETAILS
                 </h1>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Account Name */}
-                    <div className="flex flex-col gap-2">
-                        <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Account Name</label>
-                        <input 
-                            type="text" 
-                            name="account_name"
-                            value={formData.account_name || ''}
-                            onChange={handleChange}
-                            placeholder="Full account name" 
-                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 placeholder:text-slate-400 font-medium"
-                        />
-                    </div>
-
-                    {/* Account Number */}
-                    <div className="flex flex-col gap-2">
-                        <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Account Number</label>
-                        <input 
-                            type="text" 
-                            name="account_number"
-                            value={formData.account_number || ''}
-                            onChange={handleChange}
-                            placeholder="0000 0000 00" 
-                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 placeholder:text-slate-400 font-medium tracking-wide"
-                        />
-                    </div>
-
-                    {/* Bank Name Dropdown */}
-                     <div className="flex flex-col gap-2 relative">
-                        <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Bank Name</label>
-                        <div className="relative">
-                            <select 
-                                name="bank_name"
-                                value={formData.bank_name || ''}
-                                onChange={handleChange}
-                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 appearance-none font-medium"
-                            >
-                                <option value="" disabled>Select bank...</option>
-                                <option value="access">Access Bank</option>
-                                <option value="gtb">GTB</option>
-                                <option value="zenith">Zenith Bank</option>
-                                <option value="opay">OPay</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
-                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                {loading ? (
+                    <Loader />
+                ) : !isEditing && savedData ? (
+                    // View Mode
+                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
+                        <div className="space-y-1">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Account Name</h3>
+                            <p className="text-lg font-medium text-slate-900">{savedData.account_name}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Account Number</h3>
+                            <p className="text-lg font-medium text-slate-900 tracking-wide">{savedData.account_number}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bank Name</h3>
+                                <p className="text-base font-medium text-slate-900 capitalize">{savedData.bank_name}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Account Type</h3>
+                                <p className="text-base font-medium text-slate-900 capitalize">{savedData.account_type}</p>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Account Type Dropdown */}
-                    <div className="flex flex-col gap-2 relative">
-                        <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Account Type</label>
-                        <div className="relative">
-                            <select 
-                                name="account_type"
-                                value={formData.account_type || ''}
+                        <button 
+                            onClick={handleEdit}
+                            className="w-full py-3 mt-4 bg-slate-900 text-white rounded-xl font-bold shadow-md hover:bg-slate-800 transition-transform active:scale-95 text-sm uppercase tracking-wide"
+                        >
+                            Edit Details
+                        </button>
+                    </div>
+                ) : (
+                    // Edit Mode (Form)
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Account Name */}
+                        <div className="flex flex-col gap-2">
+                            <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Account Name</label>
+                            <input 
+                                type="text" 
+                                name="account_name"
+                                value={formData.account_name || ''}
                                 onChange={handleChange}
-                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 appearance-none font-medium"
-                            >
-                                <option value="" disabled>Select type...</option>
-                                <option value="savings">Savings</option>
-                                <option value="current">Current</option>
-                            </select>
-                             <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
-                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                                placeholder="Full account name" 
+                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 placeholder:text-slate-400 font-medium"
+                                required
+                            />
+                        </div>
+
+                        {/* Account Number */}
+                        <div className="flex flex-col gap-2">
+                            <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Account Number</label>
+                            <input 
+                                type="text" 
+                                name="account_number"
+                                value={formData.account_number || ''}
+                                onChange={handleChange}
+                                placeholder="0000 0000 00" 
+                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 placeholder:text-slate-400 font-medium tracking-wide"
+                                required
+                            />
+                        </div>
+
+                        {/* Bank Name Dropdown */}
+                        <div className="flex flex-col gap-2 relative">
+                            <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Bank Name</label>
+                            <div className="relative">
+                                <select 
+                                    name="bank_name"
+                                    value={formData.bank_name || ''}
+                                    onChange={handleChange}
+                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 appearance-none font-medium"
+                                    required
+                                >
+                                    <option value="" disabled>Select bank...</option>
+                                    <option value="access">Access Bank</option>
+                                    <option value="gtb">GTB</option>
+                                    <option value="zenith">Zenith Bank</option>
+                                    <option value="opay">OPay</option>
+                                    <option value="kuda">Kuda Bank</option>
+                                    <option value="firstbank">First Bank</option>
+                                    <option value="uba">UBA</option>
+                                </select>
+                                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                     {/* Save Button */}
-                    <button type="submit" className="w-full py-4 mt-8 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95 text-base tracking-wide">
-                        {status || 'SAVE DETAILS'}
-                    </button>
-                </form>
+                        {/* Account Type Dropdown */}
+                        <div className="flex flex-col gap-2 relative">
+                            <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Account Type</label>
+                            <div className="relative">
+                                <select 
+                                    name="account_type"
+                                    value={formData.account_type || ''}
+                                    onChange={handleChange}
+                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 appearance-none font-medium"
+                                    required
+                                >
+                                    <option value="" disabled>Select type...</option>
+                                    <option value="savings">Savings</option>
+                                    <option value="current">Current</option>
+                                </select>
+                                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-3 mt-8">
+                            {savedData && (
+                                <button 
+                                    type="button" 
+                                    onClick={handleCancel}
+                                    className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-colors text-sm uppercase tracking-wide"
+                                >
+                                    Cancel
+                                </button>
+                            )}
+                            <button 
+                                type="submit" 
+                                className={`flex-1 py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95 text-sm uppercase tracking-wide ${!savedData ? 'w-full' : ''}`}
+                            >
+                                {status || 'Save Details'}
+                            </button>
+                        </div>
+                    </form>
+                )}
             </div>
         </div>
     );
