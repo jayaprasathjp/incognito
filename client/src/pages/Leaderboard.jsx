@@ -172,10 +172,10 @@ const Leaderboard = () => {
                                         League bracket
                                     </Link>
                                     <Link to="/referral" className="block w-full py-3 border border-slate-300 rounded-xl text-slate-600 text-left px-6 text-sm hover:border-slate-900 hover:text-slate-900 transition-colors">
-                                        Participate in the referral program
+                                        Referral program
                                     </Link>
                                     <Link to="/bank-details" className="block w-full py-3 border border-slate-300 rounded-xl text-slate-600 text-left px-6 text-sm hover:border-slate-900 hover:text-slate-900 transition-colors">
-                                        Add my bank details
+                                        Bank details
                                     </Link>
                                      <button onClick={logout} className="w-full py-3 border border-red-200 text-red-500 rounded-xl text-left px-6 text-sm hover:bg-red-50 transition-colors mt-4">
                                         Logout
