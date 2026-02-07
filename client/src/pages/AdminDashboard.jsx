@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Loader from '../components/Loader';
 
 const AdminDashboard = () => {
     const [tournaments, setTournaments] = useState([]);
@@ -82,7 +83,11 @@ const AdminDashboard = () => {
                 {/* Tournament List */}
                 <div>
                     <h3>Active Tournaments</h3>
-                    {loading ? <p>Loading...</p> : (
+                    {loading ? (
+                        <div className="flex justify-center p-8">
+                            <Loader />
+                        </div>
+                    ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
                             {tournaments.map(t => (
                                 <div key={t.id} className="glass-card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
