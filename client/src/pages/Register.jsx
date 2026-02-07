@@ -10,10 +10,12 @@ const Register = () => {
         institution: '',
         whatsapp: '',
         email: '',
-        password: ''
+        password: '',
+        referralCode: ''
     });
     const [agreed, setAgreed] = useState(false);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
@@ -30,13 +32,16 @@ const Register = () => {
             return;
         }
 
+        setLoading(true);
+
         try {
             const payload = {
                 username: formData.alias, // Map alias to username
                 email: formData.email,
                 password: formData.password,
                 institution: formData.institution,
-                whatsapp_number: formData.whatsapp
+                whatsapp_number: formData.whatsapp,
+                referralCode: formData.referralCode
             };
 
             const data = await api.post('/auth/register', payload);
@@ -58,6 +63,8 @@ const Register = () => {
             }
         } catch (err) {
             setError(err.message || 'Server error');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -72,7 +79,7 @@ const Register = () => {
                 </div>
 
                 {error && (
-                   <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center mb-6 border border-red-100">
+                    <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center mb-6 border border-red-100">
                         {error}
                     </div>
                 )}
@@ -158,6 +165,19 @@ const Register = () => {
                         />
                     </div>
                     
+                    {/* Referral Code (Optional) */}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm text-slate-600">Referral Code (Optional)</label>
+                        <input 
+                            type="text" 
+                            name="referralCode"
+                            placeholder="Enter referral code" 
+                            value={formData.referralCode} 
+                            onChange={handleChange} 
+                            className="w-full p-3 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400"
+                        />
+                    </div>
+                    
                     {/* Terms Checkbox */}
                     <div className="flex items-start gap-3 mt-4 mb-6">
                         <input 
@@ -175,14 +195,14 @@ const Register = () => {
                     {/* Button */}
                     <button 
                         type="submit" 
-                        disabled={!agreed}
+                        disabled={!agreed || loading}
                         className={`w-full py-4 rounded-lg font-bold shadow-md uppercase tracking-wide text-sm transition-all
-                            ${agreed 
+                            ${agreed && !loading
                                 ? 'bg-slate-900 text-white hover:bg-slate-800 active:scale-95' 
                                 : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                             }`}
                     >
-                        CONTINUE TO PAYMENT
+                        {loading ? 'REGISTERING...' : 'CONTINUE TO PAYMENT'}
                     </button>
                     
                 </form>

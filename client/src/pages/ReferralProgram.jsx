@@ -3,15 +3,18 @@ import appIcon from '../assets/app-icon.png';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
+import Loader from '../components/Loader';
 
 const ReferralProgram = () => {
     const { token } = useAuth();
-    const [referralCode, setReferralCode] = useState("Loading...");
+    const [referralCode, setReferralCode] = useState("");
     const [stats, setStats] = useState({ totalReferrals: 0, rewardsEarned: 0 });
     const [copied, setCopied] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchReferralData = async () => {
+            setLoading(true);
             try {
                 const data = await api.get('/user/referral');
                 setReferralCode(data.referralCode);
@@ -22,6 +25,8 @@ const ReferralProgram = () => {
             } catch (error) {
                 console.error("Failed to fetch referral data", error);
                 setReferralCode("Error");
+            } finally {
+                setLoading(false);
             }
         };
 
@@ -29,18 +34,26 @@ const ReferralProgram = () => {
     }, [token]);
 
     const handleCopy = () => {
-        if (referralCode && referralCode !== "Loading..." && referralCode !== "Error") {
+        if (referralCode && referralCode !== "Error") {
             navigator.clipboard.writeText(referralCode);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         }
     };
 
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-white text-slate-900 font-sans p-6 flex flex-col items-center justify-center">
+                 <Loader />
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans p-6">
             {/* Header */}
             <div className="flex justify-between items-center mb-8 relative">
-                <Link to="/dashboard" className="text-slate-900 focus:outline-none absolute left-0">
+                <Link to="/leaderboard" className="text-slate-900 focus:outline-none absolute left-0">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>

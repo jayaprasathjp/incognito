@@ -8,11 +8,13 @@ const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
         try {
             const data = await api.post('/auth/login', { email, password });
             if (data.token) {
@@ -23,6 +25,8 @@ const Login = () => {
             }
         } catch (err) {
             setError('Server error');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -59,12 +63,16 @@ const Login = () => {
                             value={password} 
                             onChange={(e) => setPassword(e.target.value)} 
                             required 
-                             className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
+                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
                         />
                     </div>
                     
-                    <button type="submit" className="w-full py-4 mt-2 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-transform active:scale-95">
-                        ENTER
+                    <button 
+                        type="submit" 
+                        disabled={loading}
+                        className={`w-full py-4 mt-2 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-transform active:scale-95 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                        {loading ? 'LOGGING IN...' : 'ENTER'}
                     </button>
                     
                     <p className="text-center text-sm text-slate-500 mt-6">

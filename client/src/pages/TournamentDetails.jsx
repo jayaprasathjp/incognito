@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import Loader from '../components/Loader';
 
 const TournamentDetails = () => {
     const { id } = useParams();
@@ -73,7 +74,13 @@ const TournamentDetails = () => {
         }
     };
 
-    if (loading) return <div style={{padding: '2rem'}}>Loading...</div>;
+    if (loading) {
+        return (
+            <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center', minHeight: '50vh', alignItems: 'center' }}>
+                <Loader />
+            </div>
+        );
+    }
     if (!tournament) return <div style={{padding: '2rem'}}>Tournament not found</div>;
 
     const isAdmin = user?.role === 'admin';
