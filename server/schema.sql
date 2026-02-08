@@ -72,3 +72,35 @@ CREATE TABLE IF NOT EXISTS referrals (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(referred_user_id)
 );
+
+-- Disputes table
+CREATE TABLE IF NOT EXISTS disputes (
+    id SERIAL PRIMARY KEY,
+    match_id INTEGER REFERENCES matches(id) ON DELETE CASCADE,
+    submitted_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL,
+    evidence_url VARCHAR(255),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'rejected')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Payments table (Incoming funds / Entry fees)
+CREATE TABLE IF NOT EXISTS payments (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    amount DECIMAL(10, 2) NOT NULL,
+    status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'failed')),
+    reference VARCHAR(100), -- Transaction reference
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Payouts table (Outgoing funds / Winnings)
+CREATE TABLE IF NOT EXISTS payouts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    amount DECIMAL(10, 2) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processed', 'failed')),
+    account_details JSONB, -- Snapshot of bank details at time of payout
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+

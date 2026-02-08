@@ -1,13 +1,15 @@
+import "dotenv/config";
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
 import tournamentRoutes from "./routes/tournaments.js";
 import matchRoutes from "./routes/matches.js";
 import userRoutes from "./routes/users.js";
 import leaderboardRoutes from "./routes/leaderboard.js";
+import adminRoutes from "./routes/admin.js";
 
-dotenv.config();
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +23,7 @@ app.use("/api/tournaments", tournamentRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Basic Route
 app.get("/", (req, res) => {

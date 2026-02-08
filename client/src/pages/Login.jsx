@@ -35,8 +35,8 @@ const Login = () => {
             <div className="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
                 <div className="text-center mb-8">
                     <img src={appIcon} alt="Logo" className="w-16 h-16 object-contain mx-auto mb-4 drop-shadow-md" />
-                    <h2 className="text-3xl font-light tracking-widest text-slate-800">LOG IN</h2>
-                    <p className="text-slate-500 text-sm mt-2">Welcome back to Incognito</p>
+                    <h2 className="text-3xl font-intro tracking-wider text-slate-800">LOG IN</h2>
+                    <p className="text-slate-500 text-sm mt-2">Welcome back to INCØGNITØ</p>
                 </div>
                 
                 {error && (

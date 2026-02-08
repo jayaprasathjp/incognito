@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { pool } from "../db.js";
+import { tryAutoMatch } from "../utils/matchmaking.js";
 
 const router = express.Router();
 
@@ -48,6 +49,19 @@ router.post("/register", async (req, res) => {
                 // If invalid code, we ignore it as it's optional
             }
 
+            // Auto-register for current open tournament
+            const tourneyResult = await client.query("SELECT id FROM tournaments WHERE status = 'open' ORDER BY created_at DESC LIMIT 1");
+            if (tourneyResult.rows.length > 0) {
+                const tourneyId = tourneyResult.rows[0].id;
+                await client.query(
+                    "INSERT INTO participants (user_id, tournament_id, status) VALUES ($1, $2, 'approved')",
+                    [newUser.id, tourneyId]
+                );
+                
+                // Try to auto-match with waiting player
+                await tryAutoMatch(client, tourneyId, newUser.id);
+            }
+
             await client.query('COMMIT');
             res.status(201).json(newUser);
         } catch (e) {
@@ -68,8 +82,16 @@ router.post("/register", async (req, res) => {
 // Login
 router.post("/login", async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        const { email, identifier, password } = req.body;
+        // Support both "email" (legacy/standard) and "identifier" (new admin login)
+        const loginTerm = identifier || email;
+
+        if (!loginTerm) return res.status(400).json({ error: "Email or username required" });
+
+        const result = await pool.query(
+            "SELECT * FROM users WHERE email = $1 OR username = $1", 
+            [loginTerm]
+        );
         
         if (result.rows.length === 0) {
             return res.status(401).json({ error: "Invalid credentials" });
@@ -80,6 +102,10 @@ router.post("/login", async (req, res) => {
 
         if (!validPassword) {
             return res.status(401).json({ error: "Invalid credentials" });
+        }
+
+        if (user.status === 'banned') {
+            return res.status(403).json({ error: "Your account has been banned." });
         }
 
         // Generate JWT
