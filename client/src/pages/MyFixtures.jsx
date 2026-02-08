@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
 import Loader from '../components/Loader';
+import Sidebar from '../components/Sidebar';
 
 const MyFixtures = () => {
     const { token, user } = useAuth();
     const [fixtures, setFixtures] = useState([]);
-
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -31,15 +32,20 @@ const MyFixtures = () => {
         <div className="min-h-screen bg-white text-slate-900 font-sans p-6">
             {/* Header */}
             <div className="flex justify-between items-center mb-8 relative">
-                <Link to="/leaderboard" className="text-slate-900 focus:outline-none absolute left-0">
+                <button 
+                    onClick={() => setIsMenuOpen(true)}
+                    className="text-slate-900 focus:outline-none absolute right-0"
+                >
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
-                </Link>
+                </button>
                 <div className="w-full flex justify-center">
                     <img src={appIcon} alt="Logo" className="w-12 h-12 object-contain drop-shadow-md" />
                 </div>
             </div>
+
+            <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
             {/* Page Title */}
             <div className="text-center mb-10">
