@@ -1,8 +1,74 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken, authorizeAdmin } from "../middleware/auth.js";
+import { tryAutoMatch } from "../utils/matchmaking.js";
 
 const router = express.Router();
+
+// Get Current/Latest Tournament & User Status
+router.get("/current", authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        if (result.rows.length === 0) return res.json({ tournament: null });
+        
+        const tournament = result.rows[0];
+        
+        // Prize Pool (Global for now, or we can filter by date if needed)
+        const prizeRes = await pool.query("SELECT SUM(amount) FROM payments WHERE status = 'completed'");
+        const prizePool = parseInt(prizeRes.rows[0].sum) || 0;
+        
+        // Current Round
+        let currentRound = 0;
+        if (['active', 'paused', 'completed'].includes(tournament.status)) {
+             const roundRes = await pool.query("SELECT MAX(round) FROM matches WHERE tournament_id = $1", [tournament.id]);
+             currentRound = roundRes.rows[0].max || 1;
+        }
+
+        // Winner Info
+        if (tournament.status === 'completed' && tournament.winner_id) {
+            const winnerRes = await pool.query("SELECT username FROM users WHERE id = $1", [tournament.winner_id]);
+            if (winnerRes.rows.length > 0) {
+                tournament.winner_username = winnerRes.rows[0].username;
+            }
+        }
+
+        // Check participation
+        const partResult = await pool.query(
+            "SELECT * FROM participants WHERE tournament_id = $1 AND user_id = $2",
+            [tournament.id, req.user.id]
+        );
+        
+        let currentMatch = null;
+        if (partResult.rows.length > 0) {
+             // Find active match for this user in this tournament
+             // We look for matches where user is p1 or p2 AND status is 'scheduled' or 'pending_review'
+             const matchRes = await pool.query(
+                `SELECT m.*, 
+                        op.username as opponent_name, 
+                        op.id as opponent_id
+                 FROM matches m
+                 LEFT JOIN users op ON (CASE WHEN m.player1_id = $2 THEN m.player2_id ELSE m.player1_id END) = op.id
+                 WHERE m.tournament_id = $1 
+                 AND (m.player1_id = $2 OR m.player2_id = $2)
+                 AND m.status IN ('scheduled', 'pending_review')
+                 ORDER BY m.round DESC LIMIT 1`,
+                [tournament.id, req.user.id]
+             );
+             if (matchRes.rows.length > 0) {
+                 currentMatch = matchRes.rows[0];
+             }
+        }
+
+        res.json({
+            tournament: { ...tournament, prizePool, currentRound },
+            participation: partResult.rows.length > 0 ? partResult.rows[0] : null,
+            currentMatch
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
 
 // Get all tournaments (Public)
 router.get("/", async (req, res) => {
@@ -39,11 +105,16 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
         if (tournamentCheck.rows.length === 0) return res.status(404).json({ error: "Tournament not found" });
         if (tournamentCheck.rows[0].status !== 'open') return res.status(400).json({ error: "Tournament is not open for registration" });
 
-        // Add to participants (default status pending)
+        // Add to participants (default status approved for MVP)
         await pool.query(
-            "INSERT INTO participants (tournament_id, user_id, status) VALUES ($1, $2, 'pending')",
+            "INSERT INTO participants (tournament_id, user_id, status) VALUES ($1, $2, 'approved')",
             [id, req.user.id]
         );
+
+        // Try to auto-match
+        // We need a transaction or just run it. Helper expects client, but pool can also work if we change helper or wrap in transaction here.
+        // Helper takes 'client' object (with query method). Pool has query method too.
+        await tryAutoMatch(pool, id, req.user.id);
         res.status(201).json({ message: "Join request sent" });
     } catch (error) {
         if (error.code === '23505') { // Unique violation

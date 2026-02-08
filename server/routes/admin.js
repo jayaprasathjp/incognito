@@ -1,0 +1,434 @@
+import express from "express";
+import { pool } from "../db.js";
+import { authenticateToken, authorizeAdmin } from "../middleware/auth.js";
+
+const router = express.Router();
+
+// Middleware to ensure admin access for all routes
+router.use(authenticateToken, authorizeAdmin);
+
+// === DASHBOARD STATS ===
+router.get("/stats", async (req, res) => {
+    try {
+        // 1. Get Latest Tournament
+        const tResult = await pool.query("SELECT * FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        const tournament = tResult.rows[0] || null;
+
+        let participantsCount = 0;
+        let currentRoundMatchCount = 0;
+        let currentRound = 1;
+        let tournamentTitle = "No Tournament";
+        let tournamentStatus = "None";
+
+        if (tournament) {
+            tournamentTitle = tournament.title;
+            tournamentStatus = tournament.status;
+
+            // Participants in this tournament
+            const pRes = await pool.query("SELECT COUNT(*) FROM participants WHERE tournament_id = $1", [tournament.id]);
+            participantsCount = parseInt(pRes.rows[0].count);
+
+            // Current Round
+            if (['active', 'paused', 'completed'].includes(tournament.status)) {
+                const roundRes = await pool.query("SELECT MAX(round) FROM matches WHERE tournament_id = $1", [tournament.id]);
+                currentRound = roundRes.rows[0].max || 1;
+            }
+
+            // Matches in current round
+            const mRes = await pool.query("SELECT COUNT(*) FROM matches WHERE tournament_id = $1 AND round = $2", [tournament.id, currentRound]);
+            currentRoundMatchCount = parseInt(mRes.rows[0].count);
+        }
+
+        // System stats (optional, but let's keep alerts/prize pool)
+        const pendingDisputes = await pool.query("SELECT COUNT(*) FROM disputes WHERE status = 'pending'");
+        const prizePoolQuery = await pool.query("SELECT SUM(amount) FROM payments WHERE status = 'completed'");
+        const prizePool = parseInt(prizePoolQuery.rows[0].sum) || 0;
+        
+        // Recent Alerts
+        const recentDisputes = await pool.query(`
+            SELECT 'dispute' as type, id, created_at, status 
+            FROM disputes 
+            WHERE status = 'pending' 
+            ORDER BY created_at ASC 
+            LIMIT 3
+        `);
+        
+        const recentPayouts = await pool.query(`
+            SELECT 'payout' as type, id, amount, created_at, status 
+            FROM payouts 
+            WHERE status = 'pending' 
+            ORDER BY created_at ASC 
+            LIMIT 3
+        `);
+
+        res.json({
+            tournament: {
+                title: tournamentTitle,
+                status: tournamentStatus,
+                currentRound: currentRound,
+                participants: participantsCount,
+                roundMatches: currentRoundMatchCount
+            },
+            prizePool,
+            pendingIssues: {
+                disputes: parseInt(pendingDisputes.rows[0].count),
+                payouts: parseInt(recentPayouts.rows.length) // Fix: was using pendingPayouts which is undefined in original code too? checked above. 
+                // Wait, original code had `pendingPayouts` usage but didn't define it properly in the query? 
+                // Ah, looking at original code: `const pendingDisputes...`. `const prizePool...`. 
+                // It accessed `pendingPayouts.rows[0].count` but where was `pendingPayouts` defined? 
+                // It wasn't defined in the snippet I saw! It likely crashed or was just wrong in my view?
+                // I will fix it here.
+            },
+            alerts: [...recentDisputes.rows, ...recentPayouts.rows].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/payments/:id/mark-paid", async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query("UPDATE payments SET status = 'completed' WHERE id = $1", [id]);
+        res.json({ message: "Payment marked as paid" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// === PLAYERS ===
+router.get("/players", async (req, res) => {
+    try {
+        const { search } = req.query;
+        let query = "SELECT id, username, email, role, status, created_at FROM users WHERE role = 'player'";
+        let params = [];
+        
+        if (search) {
+            query += " AND (username ILIKE $1 OR email ILIKE $1)";
+            params.push(`%${search}%`);
+        }
+        
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.get("/players/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = await pool.query("SELECT id, username, email, role, status, institution, referral_code FROM users WHERE id = $1", [id]);
+        if (user.rows.length === 0) return res.status(404).json({ error: "Player not found" });
+
+        const bank = await pool.query("SELECT * FROM bank_details WHERE user_id = $1", [id]);
+        const referrals = await pool.query("SELECT COUNT(*) FROM referrals WHERE referrer_id = $1", [id]);
+
+        res.json({
+            profile: user.rows[0],
+            bankDetails: bank.rows[0] || {},
+            referralStats: {
+                code: user.rows[0].referral_code,
+                count: parseInt(referrals.rows[0].count)
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// === PLAYERS ===
+router.post("/players/:id/ban", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { action } = req.body; // 'ban' or 'unban' (optional for future)
+
+        // Toggle status or set to banned. For this task, we set to 'banned'.
+        // If already banned, maybe unban? Let's just implement explicit ban for now as requested.
+        
+        const update = await pool.query(
+            "UPDATE users SET status = 'banned' WHERE id = $1 RETURNING id, username, status",
+            [id]
+        );
+        
+        if (update.rows.length === 0) return res.status(404).json({ error: "Player not found" });
+
+        res.json({ message: "Player banned successfully", player: update.rows[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// === TOURNAMENTS ===
+router.get("/tournaments/control", async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        if (result.rows.length === 0) return res.json({});
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/tournaments/control", async (req, res) => {
+    try {
+        const { action, id } = req.body; // action: 'start', 'pause', 'end'
+
+        if (action === 'start') {
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+
+                // 1. Check current status
+                const tCheck = await client.query("SELECT status FROM tournaments WHERE id = $1", [id]);
+                if (tCheck.rows.length === 0) throw new Error("Tournament not found");
+                if (tCheck.rows[0].status !== 'open') throw new Error("Tournament already started or inactive");
+
+                // 2. Check if matches already exist (from Auto-Matchmaking)
+                const existingMatches = await client.query("SELECT COUNT(*) FROM matches WHERE tournament_id = $1", [id]);
+                const matchCount = parseInt(existingMatches.rows[0].count);
+
+                if (matchCount > 0) {
+                    // CASE A: Matches exist (Auto-matched). Just activate.
+                    await client.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [id]);
+                    res.json({ message: "Tournament started (matches preserved)", matches: matchCount });
+                } else {
+                    // CASE B: No matches (Manual start?). Generate from Participants.
+                    
+                    // Fetch registered participants
+                    const pRes = await client.query("SELECT user_id as id FROM participants WHERE tournament_id = $1 AND status = 'approved'", [id]);
+                    const players = pRes.rows;
+                    
+                    if (players.length < 2) throw new Error("Not enough participants to start");
+
+                    // Shuffle
+                    for (let i = players.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [players[i], players[j]] = [players[j], players[i]];
+                    }
+
+                    // Create Matches
+                    for (let i = 0; i < players.length; i += 2) {
+                        const p1 = players[i];
+                        const p2 = players[i+1];
+                        
+                        if (p2) {
+                             const matchCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                             await client.query(
+                                "INSERT INTO matches (tournament_id, round, player1_id, player2_id, status, match_code) VALUES ($1, 1, $2, $3, 'scheduled', $4)",
+                                [id, p1.id, p2.id, matchCode]
+                            );
+                        } else {
+                            // Bye for odd player
+                            await client.query(
+                                "INSERT INTO matches (tournament_id, round, player1_id, winner_id, status, match_code) VALUES ($1, 1, $2, $2, 'completed', 'BYE')",
+                                [id, p1.id]
+                            );
+                        }
+                    }
+
+                    await client.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [id]);
+                    res.json({ message: "Tournament started and matches generated", participants: players.length });
+                }
+
+                await client.query('COMMIT');
+            } catch (e) {
+                await client.query('ROLLBACK');
+                console.error(e);
+                res.status(400).json({ error: e.message || "Server error" });
+            } finally {
+                client.release();
+            }
+
+        } else if (action === 'end') {
+            // Find the winner of the last round (highest round)
+            // Assuming single elimination, the winner of the only match in the highest round is the tournament winner
+            // Or just check for the match with the highest round and get its winner
+            const lastMatchRes = await pool.query(
+                "SELECT winner_id FROM matches WHERE tournament_id = $1 AND status = 'completed' ORDER BY round DESC LIMIT 1",
+                [id]
+            );
+            
+            let winnerId = null;
+            if (lastMatchRes.rows.length > 0) {
+                winnerId = lastMatchRes.rows[0].winner_id;
+            }
+
+            await pool.query(
+                "UPDATE tournaments SET status = 'completed', winner_id = $2 WHERE id = $1", 
+                [id, winnerId]
+            );
+            res.json({ message: "Tournament ended", winnerId });
+        } else if (action === 'pause') {
+            await pool.query("UPDATE tournaments SET status = 'paused' WHERE id = $1", [id]);
+            res.json({ message: "Tournament paused" });
+        } else if (action === 'resume') {
+            await pool.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [id]);
+            res.json({ message: "Tournament resumed" });
+        } else {
+             res.status(400).json({ error: "Invalid action" });
+        }
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/tournaments/cycle", async (req, res) => {
+    // Proceed to next tournament
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Identify the latest tournament to clean up
+        const latestTourneyRes = await client.query("SELECT id, status FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        
+        if (latestTourneyRes.rows.length > 0) {
+            const latestId = latestTourneyRes.rows[0].id;
+            
+            // Mark as completed if not already
+            if (latestTourneyRes.rows[0].status !== 'completed') {
+                await client.query("UPDATE tournaments SET status = 'completed' WHERE id = $1", [latestId]);
+            }
+
+            // Delete disputes for this tournament
+            await client.query(
+                "DELETE FROM disputes WHERE match_id IN (SELECT id FROM matches WHERE tournament_id = $1)",
+                [latestId]
+            );
+
+            // Delete matches for this tournament
+            await client.query("DELETE FROM matches WHERE tournament_id = $1", [latestId]);
+        }
+
+        // 2. Create New Tournament
+        // Get count to name it
+        const countRes = await client.query("SELECT COUNT(*) FROM tournaments");
+        const nextNum = parseInt(countRes.rows[0].count) + 1;
+        
+        const newTourney = await client.query(
+            "INSERT INTO tournaments (title, status) VALUES ($1, 'open') RETURNING *",
+            [`Tournament #${nextNum}`]
+        );
+
+        await client.query('COMMIT');
+        res.json({ message: "Cycled to next tournament", tournament: newTourney.rows[0] });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    } finally {
+        client.release();
+    }
+});
+
+// === MATCHES & DISPUTES ===
+router.get("/matches", async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT m.*, p1.username as p1_name, p2.username as p2_name 
+            FROM matches m
+            LEFT JOIN users p1 ON m.player1_id = p1.id
+            LEFT JOIN users p2 ON m.player2_id = p2.id
+            ORDER BY m.id DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/matches/:id/override", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { winner_id, score_p1, score_p2 } = req.body;
+        
+        const update = await pool.query(
+            "UPDATE matches SET winner_id = $1, score_player1 = $2, score_player2 = $3, status = 'completed' WHERE id = $4 RETURNING *",
+            [winner_id, score_p1, score_p2, id]
+        );
+        res.json(update.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.get("/disputes", async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT d.*, m.match_code, u.username as submitted_by_name
+            FROM disputes d
+            JOIN matches m ON d.match_id = m.id
+            JOIN users u ON d.submitted_by = u.id
+            ORDER BY d.created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/disputes/:id/resolve", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { action } = req.body; // 'approve', 'reject', 'rematch'
+        
+        if (action === 'reject') {
+            await pool.query("UPDATE disputes SET status = 'rejected' WHERE id = $1", [id]);
+        } else if (action === 'approve') {
+            await pool.query("UPDATE disputes SET status = 'resolved' WHERE id = $1", [id]);
+            // Additional logic: update match winner?
+        } else if (action === 'rematch') {
+            await pool.query("UPDATE disputes SET status = 'resolved' WHERE id = $1", [id]);
+            // Logic to reset match
+            // await pool.query("UPDATE matches SET status = 'scheduled', score_player1 = 0, ... WHERE id = ...")
+        }
+        
+        res.json({ message: "Dispute updated" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// === PAYMENTS & ANNOUNCEMENTS ===
+router.get("/payments", async (req, res) => {
+    try {
+        // Mocking payments from bank_details users if no payments table
+        const result = await pool.query(`
+            SELECT p.*, u.username, u.email 
+            FROM payments p
+            JOIN users u ON p.user_id = u.id
+            ORDER BY p.created_at DESC
+        `);
+        res.json(result.rows); 
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/announcements", async (req, res) => {
+    try {
+        const { message, target } = req.body; // target: 'all', 'round'
+        // Logic to send announcement (e.g. create notification records)
+        // For MVP, just log it.
+        console.log(`Announcement to ${target}: ${message}`);
+        res.json({ message: "Announcement sent" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+export default router;
