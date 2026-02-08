@@ -7,10 +7,10 @@ const Welcome = () => {
             {/* Top Section: Logo & Branding */}
             <div className="flex flex-col items-center justify-center w-full mt-12 mb-8">
                 <div className="mb-6">
-                     <img src={appIcon} alt="Incognito Logo" className="w-24 h-24 object-contain drop-shadow-xl" />
+                     <img src={appIcon} alt="INCØGNITØ Logo" className="w-24 h-24 object-contain drop-shadow-xl" />
                 </div>
                 
-                <h1 className="text-4xl font-light tracking-[0.2em] text-slate-900 mb-2">
+                <h1 className="text-4xl font-intro tracking-[0.1em] text-slate-900 mb-2">
                     INCØGNITØ
                 </h1>
                 
@@ -31,7 +31,7 @@ const Welcome = () => {
                 <Link to="/leaderboard" className="block w-full">
                      <button className="w-full bg-white text-slate-900 border-2 border-slate-200 py-4 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all">
                         <div className="text-lg">SPECTATOR</div>
-                        <div className="text-xs font-normal text-slate-500">(Watch the game)</div>
+                        <div className="text-xs font-normal text-slate-500">(Follow the leaderboard)</div>
                     </button>
                 </Link>
 
@@ -39,6 +39,12 @@ const Welcome = () => {
                     <span className="text-slate-500">Already registered? </span>
                     <Link to="/login" className="text-blue-600 font-semibold hover:underline">
                         Log in
+                    </Link>
+                </div>
+
+                <div className="text-center mt-8 cursor-pointer">
+                    <Link to="/admin/login" className="text-xs text-slate-300 hover:text-slate-500 transition-colors uppercase tracking-widest font-medium">
+                        Staff Access
                     </Link>
                 </div>
             </div>
