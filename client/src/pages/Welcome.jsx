@@ -3,9 +3,9 @@ import appIcon from '../assets/app-icon.png';
 
 const Welcome = () => {
     return (
-        <div className="min-h-screen flex flex-col items-center justify-between p-6 bg-white text-slate-900 font-sans" style={{ backgroundColor: '#ffffff', color: '#0f172a' }}>
+        <div className="min-h-screen flex flex-col items-center justify-start gap-8 p-6 bg-white text-slate-900 font-sans" style={{ backgroundColor: '#ffffff', color: '#0f172a' }}>
             {/* Top Section: Logo & Branding */}
-            <div className="flex-1 flex flex-col items-center justify-center w-full mt-10">
+            <div className="flex flex-col items-center justify-center w-full mt-12 mb-8">
                 <div className="mb-6">
                      <img src={appIcon} alt="Incognito Logo" className="w-24 h-24 object-contain drop-shadow-xl" />
                 </div>
