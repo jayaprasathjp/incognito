@@ -160,17 +160,19 @@ const PlayerDashboard = () => {
     const [tournamentData, setTournamentData] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const fetchTournament = async () => {
+        try {
+            setLoading(true);
+            const data = await api.get('/tournaments/current');
+            setTournamentData(data);
+        } catch (error) {
+            console.error("Failed to fetch tournament", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchTournament = async () => {
-            try {
-                const data = await api.get('/tournaments/current');
-                setTournamentData(data);
-            } catch (error) {
-                console.error("Failed to fetch tournament", error);
-            } finally {
-                setLoading(false);
-            }
-        };
         if (token) fetchTournament();
     }, [token]);
 
@@ -179,8 +181,8 @@ const PlayerDashboard = () => {
         try {
             const data = await api.post(`/tournaments/${tournamentData.tournament.id}/join`);
             if (!data.error) {
-                // Refresh
-                window.location.reload(); 
+                // Refresh data without page reload
+                await fetchTournament();
             } else {
                 alert(data.error || "Failed to join");
             }
@@ -263,7 +265,7 @@ const PlayerDashboard = () => {
                                 match={tournamentData.currentMatch} 
                                 user={user} 
                                 token={token} 
-                                onSuccess={() => window.location.reload()} 
+                                onSuccess={fetchTournament} 
                             />
                         )}
                     </div>
@@ -290,10 +292,10 @@ const PlayerDashboard = () => {
                             
                             <div className="mt-6 pt-6 border-t border-slate-100">
                                 <p className="text-xs text-slate-400 font-bold uppercase mb-2">Total Prize Pool</p>
-                                <p className="text-3xl font-black text-slate-900">₹{tournamentData.tournament.prizePool}</p>
+                                <p className="text-3xl font-black text-slate-900">₦{tournamentData.tournament.prizePool}</p>
                             </div>
 
-                            <button onClick={() => window.location.reload()} className="mt-6 text-sm font-bold text-blue-600 hover:text-blue-700">
+                            <button onClick={fetchTournament} className="mt-6 text-sm font-bold text-blue-600 hover:text-blue-700">
                                 Wait for next tournament
                             </button>
                         </div>
@@ -325,19 +327,28 @@ const PlayerDashboard = () => {
                                 tournamentData.tournament.status === 'paused' ? 'text-yellow-600' :
                                 'text-slate-500'
                             }`}>
-                            {tournamentData.tournament.status === 'open' ? 'Registration Open' : 
-                             tournamentData.tournament.status === 'active' ? 'Live Now' :
-                             tournamentData.tournament.status === 'paused' ? 'Paused' :
-                             'Completed'}
+                            {(() => {
+                                if (tournamentData.tournament.status === 'open') {
+                                    const now = new Date();
+                                    const regStart = tournamentData.tournament.registration_start ? new Date(tournamentData.tournament.registration_start) : null;
+                                    if (regStart && now < regStart) return '';
+                                    return 'Registration Open';
+                                }
+                                if (tournamentData.tournament.status === 'active') return 'Live Now';
+                                if (tournamentData.tournament.status === 'paused') return 'Paused';
+                                return 'Completed';
+                            })()}
                             </p>
                         </div>
 
+                        {tournamentData.tournament.status !== 'open' && (
                         <div className="mb-6">
                             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 inline-block px-10">
                                 <p className="text-xs text-slate-500 font-bold uppercase">Prize Pool</p>
-                                <p className="text-lg font-black text-slate-900">₹{tournamentData.tournament.prizePool}</p>
+                                <p className="text-lg font-black text-slate-900">₦{tournamentData.tournament.prizePool}</p>
                             </div>
                         </div>
+                        )}
                         
                         {/* Logic for Buttons/Status */}
                         {tournamentData.participation ? (
@@ -355,19 +366,40 @@ const PlayerDashboard = () => {
                             </div>
                         ) : (
                             <>
-                                {tournamentData.tournament.status === 'open' ? (
-                                    <button 
-                                        onClick={handleJoin}
-                                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-transform active:scale-95 shadow-md flex items-center justify-center gap-2"
-                                    >
-                                        JOIN TOURNAMENT
-                                    </button>
-                                ) : (
-                                    <div className="w-full py-3 bg-slate-100 text-slate-500 rounded-xl font-bold border border-slate-200">
-                                        Registration Closed
-                                        <div className="text-xs font-normal">Wait for next tournament</div>
-                                    </div>
-                                )}
+                                {(() => {
+                                    const now = new Date();
+                                    const regStart = tournamentData.tournament.registration_start ? new Date(tournamentData.tournament.registration_start) : null;
+                                    const regEnd = tournamentData.tournament.registration_end ? new Date(tournamentData.tournament.registration_end) : null;
+                                    const isRegistrationOpen = regStart && regEnd && now >= regStart && now <= regEnd;
+                                    const isBeforeRegistration = regStart && now < regStart;
+
+                                    if (isRegistrationOpen) {
+                                        return (
+                                            <button 
+                                                onClick={handleJoin}
+                                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-transform active:scale-95 shadow-md flex items-center justify-center gap-2"
+                                            >
+                                                JOIN TOURNAMENT
+                                            </button>
+                                        );
+                                    } else if (isBeforeRegistration) {
+                                        return (
+                                            <div className="w-full py-3 bg-amber-50 text-amber-700 rounded-xl font-bold border border-amber-200">
+                                                Registration Opens Soon
+                                                <div className="text-xs font-normal mt-1">
+                                                    Starts {regStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                </div>
+                                            </div>
+                                        );
+                                    } else {
+                                        return (
+                                            <div className="w-full py-3 bg-slate-100 text-slate-500 rounded-xl font-bold border border-slate-200">
+                                                Registration Closed
+                                                <div className="text-xs font-normal">Wait for next tournament</div>
+                                            </div>
+                                        );
+                                    }
+                                })()}
                             </>
                         )}
                     </div>

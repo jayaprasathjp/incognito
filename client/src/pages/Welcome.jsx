@@ -1,7 +1,28 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 
 const Welcome = () => {
+    const [activeModal, setActiveModal] = useState(null); // 'about', 'contact', 'socials'
+
+    const Modal = ({ title, children, onClose }) => (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-slate-900 uppercase tracking-widest">{title}</h3>
+                    <button onClick={onClose} className="p-2 -mr-2 text-slate-400 hover:text-slate-900 transition-colors">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div className="text-slate-600 space-y-4 max-h-[60vh] overflow-y-auto">
+                    {children}
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="min-h-screen flex flex-col items-center justify-start gap-8 p-6 bg-white text-slate-900 font-sans" style={{ backgroundColor: '#ffffff', color: '#0f172a' }}>
             {/* Top Section: Logo & Branding */}
@@ -21,13 +42,6 @@ const Welcome = () => {
 
             {/* Middle Section: Actions */}
             <div className="w-full max-w-md space-y-4 mb-10">
-                <Link to="/register" className="block w-full">
-                    <button className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all">
-                        <div className="text-lg">REGISTER NOW</div>
-                        <div className="text-xs font-normal opacity-80">(Compete & Win)</div>
-                    </button>
-                </Link>
-
                 <Link to="/leaderboard" className="block w-full">
                      <button className="w-full bg-white text-slate-900 border-2 border-slate-200 py-4 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all">
                         <div className="text-lg">SPECTATOR</div>
@@ -35,10 +49,16 @@ const Welcome = () => {
                     </button>
                 </Link>
 
+                <Link to="/login" className="block w-full">
+                    <button className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all">
+                        <div className="text-lg">LOGIN</div>
+                    </button>
+                </Link>
+
                 <div className="text-center mt-6">
-                    <span className="text-slate-500">Already registered? </span>
-                    <Link to="/login" className="text-blue-600 font-semibold hover:underline">
-                        Log in
+                    <span className="text-slate-500">New here? </span>
+                    <Link to="/register" className="text-blue-600 font-semibold hover:underline">
+                        Register now
                     </Link>
                 </div>
 
@@ -49,18 +69,81 @@ const Welcome = () => {
                 </div>
             </div>
 
-            {/* Bottom Section: Footer */}
+            {/* Bottom Section: Footer Links */}
             <div className="w-full text-center space-y-6 mb-4">
-                <div className="flex justify-center gap-6 text-sm text-slate-500">
-                    <a href="#" className="hover:text-slate-900">About</a>
-                    <a href="#" className="hover:text-slate-900">Contact us</a>
-                    <a href="#" className="hover:text-slate-900">Follow our socials</a>
-                </div>
-                
-                <div className="text-xs text-slate-400">
-                    © Play Incøgnitø 2026
+                <div className="flex justify-center gap-6 text-sm text-slate-500 font-medium">
+                    <button onClick={() => setActiveModal('about')} className="hover:text-slate-900 transition-colors hover:underline">About</button>
+                    <button onClick={() => setActiveModal('contact')} className="hover:text-slate-900 transition-colors hover:underline">Contact us</button>
+                    <button onClick={() => setActiveModal('socials')} className="hover:text-slate-900 transition-colors hover:underline">Follow our socials</button>
                 </div>
             </div>
+
+            {/* Modals */}
+            {activeModal === 'about' && (
+                <Modal title="About INCØGNITØ" onClose={() => setActiveModal(null)}>
+                    <p><strong>INCØGNITØ</strong> is an anonymous, student-focused e-football tournament built for pure competition.</p>
+                    <p>We created INCØGNITØ to strip away names, reputations, and popularity and let skill speak for itself. In this tournament, players compete without knowing who they’re facing. No bias. No distractions. Just gameplay.</p>
+                    <p>INCØGNITØ is designed for university students who want something different from the usual campus competitions: a fair, intense, and immersive experience where everyone enters on equal ground.</p>
+                    
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <p className="font-bold mb-2">Our focus is simple:</p>
+                        <ul className="list-disc list-inside space-y-1 text-sm">
+                            <li>Competitive integrity</li>
+                            <li>Anonymity-driven gameplay</li>
+                            <li>A fun but serious tournament environment</li>
+                            <li>A community where performance matters more than identity</li>
+                        </ul>
+                    </div>
+                    
+                    <p className="font-medium italic text-slate-900 text-center pt-2">
+                        "INCØGNITØ isn’t about fame. It’s about proving yourself, anonymously."
+                    </p>
+                </Modal>
+            )}
+
+            {activeModal === 'contact' && (
+                <Modal title="Contact Us" onClose={() => setActiveModal(null)}>
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-xl">📞</div>
+                            <div>
+                                <p className="text-xs font-bold text-slate-400 uppercase">Telephone</p>
+                                <a href="tel:+2348080433495" className="font-bold text-slate-900 hover:text-blue-600">+234 808 043 3495</a>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-xl">✉️</div>
+                            <div>
+                                <p className="text-xs font-bold text-slate-400 uppercase">E-mail</p>
+                                <a href="mailto:playincognito.ng@gmail.com" className="font-bold text-slate-900 hover:text-blue-600">playincognito.ng@gmail.com</a>
+                            </div>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {activeModal === 'socials' && (
+                <Modal title="Follow Our Socials" onClose={() => setActiveModal(null)}>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <a href="https://instagram.com/playincognitohq" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 transition-opacity">
+                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl font-bold">IG</div>
+                            <div>
+                                <p className="text-xs font-bold opacity-80 uppercase">Instagram</p>
+                                <p className="font-bold">@playincognitohq</p>
+                            </div>
+                        </a>
+                        
+                        <a href="https://x.com/playincognitohq" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 bg-black text-white rounded-xl hover:opacity-90 transition-opacity">
+                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl font-bold">X</div>
+                            <div>
+                                <p className="text-xs font-bold opacity-80 uppercase">X (Twitter)</p>
+                                <p className="font-bold">@playincognitohq</p>
+                            </div>
+                        </a>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 };

@@ -83,27 +83,61 @@ router.get("/", async (req, res) => {
 
 // Create Tournament (Admin)
 router.post("/", authenticateToken, authorizeAdmin, async (req, res) => {
-    const { title, description } = req.body;
+    console.log('API: Creating new tournament...');
+    const { title, description, registration_start, registration_end, capacity, entry_fee } = req.body;
+    
+    // Validate
+    if (!title) return res.status(400).json({ error: "Title is required" });
+    if (!registration_start || !registration_end) return res.status(400).json({ error: "Start and End dates are required" });
+
     try {
+        // Calculate prize pool
+        const fee = parseFloat(entry_fee) || 0;
+        const cap = parseInt(capacity) || 0;
+        const prize_pool = fee * cap;
+
         const result = await pool.query(
-            "INSERT INTO tournaments (title, description, created_by) VALUES ($1, $2, $3) RETURNING *",
-            [title, description, req.user.id]
+            `INSERT INTO tournaments 
+            (title, status, registration_start, registration_end, capacity, entry_fee, prize_pool, created_at) 
+            VALUES ($1, 'open', $2, $3, $4, $5, $6, NOW()) 
+            RETURNING *`,
+            [title, registration_start, registration_end, cap, fee, prize_pool]
         );
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Server error" });
+        console.error('Error creating tournament:', error);
+        res.status(500).json({ error: "Server error: " + error.message });
     }
 });
 
 // Join Tournament (Player)
 router.post("/:id/join", authenticateToken, async (req, res) => {
     const { id } = req.params;
+    console.log(`[DEBUG] Join request received for tournament ID: ${id} from user ${req.user.id}`);
     try {
         // Check if tournament is open
-        const tournamentCheck = await pool.query("SELECT status FROM tournaments WHERE id = $1", [id]);
+        const tournamentCheck = await pool.query("SELECT * FROM tournaments WHERE id = $1", [id]);
         if (tournamentCheck.rows.length === 0) return res.status(404).json({ error: "Tournament not found" });
-        if (tournamentCheck.rows[0].status !== 'open') return res.status(400).json({ error: "Tournament is not open for registration" });
+        
+        const tournament = tournamentCheck.rows[0];
+        if (tournament.status !== 'open') return res.status(400).json({ error: "Tournament is not open for registration" });
+
+        const now = new Date();
+        if (tournament.registration_start && now < new Date(tournament.registration_start)) {
+            return res.status(400).json({ error: "Registration has not started yet" });
+        }
+        if (tournament.registration_end && now > new Date(tournament.registration_end)) {
+            return res.status(400).json({ error: "Registration has closed" });
+        }
+
+        // Check capacity
+        if (tournament.capacity) {
+            const countRes = await pool.query("SELECT COUNT(*) FROM participants WHERE tournament_id = $1", [id]);
+            const currentCount = parseInt(countRes.rows[0].count);
+            if (currentCount >= tournament.capacity) {
+                return res.status(400).json({ error: "Tournament is full" });
+            }
+        }
 
         // Add to participants (default status approved for MVP)
         await pool.query(

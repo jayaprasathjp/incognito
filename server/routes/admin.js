@@ -167,7 +167,12 @@ router.post("/players/:id/ban", async (req, res) => {
 // === TOURNAMENTS ===
 router.get("/tournaments/control", async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        const result = await pool.query(`
+            SELECT t.*, 
+            (SELECT COUNT(*) FROM participants p WHERE p.tournament_id = t.id) as participants_count 
+            FROM tournaments t 
+            ORDER BY t.created_at DESC LIMIT 1
+        `);
         if (result.rows.length === 0) return res.json({});
         res.json(result.rows[0]);
     } catch (err) {
@@ -178,6 +183,7 @@ router.get("/tournaments/control", async (req, res) => {
 
 router.post("/tournaments/control", async (req, res) => {
     try {
+        console.log('DEBUG /tournaments/control body:', req.body);
         const { action, id } = req.body; // action: 'start', 'pause', 'end'
 
         if (action === 'start') {
@@ -271,8 +277,42 @@ router.post("/tournaments/control", async (req, res) => {
         } else if (action === 'resume') {
             await pool.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [id]);
             res.json({ message: "Tournament resumed" });
+        } else if (action === 'create') {
+            const { title, description, registration_start, registration_end, capacity, entry_fee } = req.body;
+            
+            // Validate
+            if (!title) return res.status(400).json({ error: "Title is required" });
+            
+            // Calculate prize pool
+            const fee = parseFloat(entry_fee) || 0;
+            const cap = parseInt(capacity) || 0;
+            const prize_pool = fee * cap;
+
+            const newTourney = await pool.query(
+                `INSERT INTO tournaments 
+                (title, description, status, registration_start, registration_end, capacity, entry_fee, prize_pool) 
+                VALUES ($1, $2, 'open', $3, $4, $5, $6, $7) 
+                RETURNING *`,
+                [title, description, registration_start, registration_end, cap, fee, prize_pool]
+            );
+            
+            res.json({ message: "Tournament created successfully", tournament: newTourney.rows[0] });
+
+        } else if (action === 'extend') {
+            const { registration_end } = req.body;
+            if (!registration_end) return res.status(400).json({ error: "New end time required" });
+
+            const updated = await pool.query(
+                "UPDATE tournaments SET registration_end = $1 WHERE id = $2 RETURNING *",
+                [registration_end, id]
+            );
+            res.json({ message: "Registration extended", tournament: updated.rows[0] });
+
         } else {
-             res.status(400).json({ error: "Invalid action" });
+             console.log('Invalid action received:', action, req.body);
+             res.status(400).json({ 
+                error: `Invalid action: ${action}. Body keys: ${Object.keys(req.body).join(', ')}` 
+             });
         }
 
     } catch (err) {
