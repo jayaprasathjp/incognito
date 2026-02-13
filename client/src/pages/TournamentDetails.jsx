@@ -41,7 +41,7 @@ const TournamentDetails = () => {
             loadData();
             alert('Join request sent!');
         } catch (error) {
-            alert('Failed to join');
+            alert(error.response?.data?.error || 'Failed to join');
         }
     };
 

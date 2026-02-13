@@ -202,7 +202,7 @@ const Register = () => {
                                 : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                             }`}
                     >
-                        {loading ? 'REGISTERING...' : 'CONTINUE TO PAYMENT'}
+                        {loading ? 'REGISTERING...' : 'REGISTER'}
                     </button>
                     
                 </form>

@@ -26,21 +26,6 @@ body {
     @apply w-full py-4 rounded-xl font-bold bg-white text-slate-900 border border-white hover:bg-gray-100 transition-transform active:scale-95 shadow-lg;
   }
 
-  /* Custom Fonts */
-  @font-face {
-    font-family: 'Intro';
-    src: url('./assets/fonts/IntroHeadR-Base.otf') format('opentype');
-    font-weight: normal;
-    font-style: normal;
-  }
-
-  @font-face {
-    font-family: 'Intro Rust';
-    src: url('./assets/fonts/IntroRustG-Base2Line.otf') format('opentype');
-    font-weight: normal;
-    font-style: normal;
-  }
-
   .font-intro {
     font-family: 'Intro', sans-serif;
   }
