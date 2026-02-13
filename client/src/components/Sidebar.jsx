@@ -100,6 +100,24 @@ const Sidebar = ({ isOpen, onClose }) => {
                                     Leaderboard
                                 </Link>
                                 <Link 
+                                    to="/roadmap" 
+                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
+                                        isActive('/roadmap') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                                    }`}
+                                    onClick={onClose}
+                                >
+                                    Roadmap
+                                </Link>
+                                <Link 
+                                    to="/rules" 
+                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
+                                        isActive('/rules') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                                    }`}
+                                    onClick={onClose}
+                                >
+                                    Rules
+                                </Link>
+                                <Link 
                                     to="/fixtures" 
                                     className={`block p-4 rounded-xl text-sm font-medium transition-all ${
                                         isActive('/fixtures') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
@@ -107,6 +125,15 @@ const Sidebar = ({ isOpen, onClose }) => {
                                     onClick={onClose}
                                 >
                                     My Fixtures
+                                </Link>
+                                <Link 
+                                    to="/upload" 
+                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
+                                        isActive('/upload') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                                    }`}
+                                    onClick={onClose}
+                                >
+                                    Upload
                                 </Link>
                                 <Link 
                                     to="/bracket" 
@@ -134,24 +161,6 @@ const Sidebar = ({ isOpen, onClose }) => {
                                     onClick={onClose}
                                 >
                                     Bank Details
-                                </Link>
-                                <Link 
-                                    to="/roadmap" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/roadmap') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    Roadmap
-                                </Link>
-                                <Link 
-                                    to="/rules" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/rules') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    Rules
                                 </Link>
                             </>
                         )}
