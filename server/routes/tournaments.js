@@ -1,7 +1,6 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken, authorizeAdmin } from "../middleware/auth.js";
-import { tryAutoMatch } from "../utils/matchmaking.js";
 
 const router = express.Router();
 
@@ -12,10 +11,6 @@ router.get("/current", authenticateToken, async (req, res) => {
         if (result.rows.length === 0) return res.json({ tournament: null });
         
         const tournament = result.rows[0];
-        
-        // Prize Pool (Global for now, or we can filter by date if needed)
-        const prizeRes = await pool.query("SELECT SUM(amount) FROM payments WHERE status = 'completed'");
-        const prizePool = parseInt(prizeRes.rows[0].sum) || 0;
         
         // Current Round
         let currentRound = 0;
@@ -60,7 +55,7 @@ router.get("/current", authenticateToken, async (req, res) => {
         }
 
         res.json({
-            tournament: { ...tournament, prizePool, currentRound },
+            tournament: { ...tournament, currentRound },
             participation: partResult.rows.length > 0 ? partResult.rows[0] : null,
             currentMatch
         });
@@ -91,17 +86,15 @@ router.post("/", authenticateToken, authorizeAdmin, async (req, res) => {
     if (!registration_start || !registration_end) return res.status(400).json({ error: "Start and End dates are required" });
 
     try {
-        // Calculate prize pool
         const fee = parseFloat(entry_fee) || 0;
         const cap = parseInt(capacity) || 0;
-        const prize_pool = fee * cap;
 
         const result = await pool.query(
             `INSERT INTO tournaments 
-            (title, status, registration_start, registration_end, capacity, entry_fee, prize_pool, created_at) 
-            VALUES ($1, 'open', $2, $3, $4, $5, $6, NOW()) 
+            (title, status, registration_start, registration_end, capacity, entry_fee, created_at) 
+            VALUES ($1, 'open', $2, $3, $4, $5, NOW()) 
             RETURNING *`,
-            [title, registration_start, registration_end, cap, fee, prize_pool]
+            [title, registration_start, registration_end, cap, fee]
         );
         res.status(201).json(result.rows[0]);
     } catch (error) {
@@ -113,7 +106,8 @@ router.post("/", authenticateToken, authorizeAdmin, async (req, res) => {
 // Join Tournament (Player)
 router.post("/:id/join", authenticateToken, async (req, res) => {
     const { id } = req.params;
-    console.log(`[DEBUG] Join request received for tournament ID: ${id} from user ${req.user.id}`);
+    const { session_preference } = req.body;
+    console.log(`[DEBUG] Join request received for tournament ID: ${id} from user ${req.user.id}, session: ${session_preference}`);
     try {
         // Check if tournament is open
         const tournamentCheck = await pool.query("SELECT * FROM tournaments WHERE id = $1", [id]);
@@ -141,14 +135,10 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
 
         // Add to participants (default status approved for MVP)
         await pool.query(
-            "INSERT INTO participants (tournament_id, user_id, status) VALUES ($1, $2, 'approved')",
-            [id, req.user.id]
+            "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'approved', $3)",
+            [id, req.user.id, session_preference || null]
         );
 
-        // Try to auto-match
-        // We need a transaction or just run it. Helper expects client, but pool can also work if we change helper or wrap in transaction here.
-        // Helper takes 'client' object (with query method). Pool has query method too.
-        await tryAutoMatch(pool, id, req.user.id);
         res.status(201).json({ message: "Join request sent" });
     } catch (error) {
         if (error.code === '23505') { // Unique violation
@@ -264,6 +254,29 @@ router.post("/:id/start", authenticateToken, authorizeAdmin, async (req, res) =>
 
     } catch (error) {
         console.error(error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// Update Tournament Schedule (Admin)
+router.put("/:id/schedule", authenticateToken, authorizeAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { rounds_config } = req.body;
+
+    try {
+        // Ensure column exists (Lazy migration)
+        await pool.query("ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS rounds_config JSONB;");
+
+        const result = await pool.query(
+            "UPDATE tournaments SET rounds_config = $1, status = 'scheduled' WHERE id = $2 RETURNING *",
+            [rounds_config, id]
+        );
+        
+        if (result.rows.length === 0) return res.status(404).json({ error: "Tournament not found" });
+        
+        res.json({ message: "Schedule updated", tournament: result.rows[0] });
+    } catch (error) {
+        console.error("Error updating schedule:", error);
         res.status(500).json({ error: "Server error" });
     }
 });

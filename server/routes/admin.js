@@ -174,7 +174,34 @@ router.get("/tournaments/control", async (req, res) => {
             ORDER BY t.created_at DESC LIMIT 1
         `);
         if (result.rows.length === 0) return res.json({});
-        res.json(result.rows[0]);
+        
+        const tournament = result.rows[0];
+        
+        // Fetch rounds from dedicated table
+        const roundsRes = await pool.query(
+            "SELECT * FROM rounds WHERE tournament_id = $1 ORDER BY round_number ASC", 
+            [tournament.id]
+        );
+        
+        if (roundsRes.rows.length > 0) {
+            // Reconstruct rounds_config object for frontend compatibility
+            tournament.rounds_config = {
+                type: "Custom Schedule", // Metadata lost with column drop, using default
+                description: "Schedule loaded from database",
+                rounds: roundsRes.rows.map(r => ({
+                    ...r,
+                    // Ensure date is YYYY-MM-DD for input fields (avoid timezone shift)
+                    date: r.date ? (() => {
+                        const d = new Date(r.date);
+                        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    })() : ''
+                }))
+            };
+        } else {
+             tournament.rounds_config = null;
+        }
+
+        res.json(tournament);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });
@@ -307,6 +334,56 @@ router.post("/tournaments/control", async (req, res) => {
                 [registration_end, id]
             );
             res.json({ message: "Registration extended", tournament: updated.rows[0] });
+
+        } else if (action === 'save_schedule') {
+             const { rounds_config } = req.body;
+             
+             if (!rounds_config || !rounds_config.rounds) return res.status(400).json({ error: "Invalid rounds config" });
+
+             const client = await pool.connect();
+             try {
+                 await client.query('BEGIN');
+
+                 // 1. Clear existing schedule for this tournament (to allow re-scheduling)
+                 await client.query("DELETE FROM rounds WHERE tournament_id = $1", [id]);
+
+                 // 2. Insert new rounds
+                 for (let i = 0; i < rounds_config.rounds.length; i++) {
+                     const r = rounds_config.rounds[i];
+                     await client.query(
+                         "INSERT INTO rounds (tournament_id, round_number, name, matches, players, date) VALUES ($1, $2, $3, $4, $5, $6)",
+                         [id, i + 1, r.name, r.matches, r.players, r.date]
+                     );
+                 }
+
+                 // 3. Update tournament status and meta (using JSON for meta if needed, or just status)
+                 // We can keep rounds_config for type/desc or just use rounds table. 
+                 // User requested "tournament config only" in tournament table. 
+                 // Let's store the full config in JSON for backup/meta (type/desc) BUT use rounds table for dates.
+                 // Actually, if we use rounds table, we should rely on it for dates.
+                 
+                 // 3. Update tournament status if needed (ignoring rounds_config column as it matches schema change)
+                 // User removed rounds_config column, so we rely solely on rounds table.
+
+                 // 3. Update tournament status to active
+                 await client.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [id]);
+
+                 await client.query('COMMIT');
+                 
+                 // Allow returning the updated tournament with rounds?
+                 // For now, just return success.
+                 res.json({ message: "Schedule saved successfully" });
+
+             } catch (e) {
+                 await client.query('ROLLBACK');
+                 console.error("SAVE SCHEDULE ERROR:", e);
+                 // Return explicit error
+                 res.status(500).json({ error: "Save Error: " + e.message });
+                 // Prevent falling through to outer catch if we respond here
+                 return; 
+             } finally {
+                 client.release();
+             }
 
         } else {
              console.log('Invalid action received:', action, req.body);
