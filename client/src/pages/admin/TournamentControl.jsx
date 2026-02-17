@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { Play, Pause, Square, Trophy, Settings, Loader2, Calendar, DollarSign, Users, Clock, Plus } from "lucide-react";
+import { Play, Pause, Square, Trophy, Settings, Loader2, Calendar, DollarSign, Users, Clock, Plus, Zap, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../../utils/api";
 import { format } from "date-fns";
@@ -324,6 +324,28 @@ const TournamentControl = () => {
         }
     }, [simulatedCount]);
 
+    // Handle Generate Fixtures for a specific round
+    const handleGenerateFixtures = async (roundNumber) => {
+        if (!confirm(`Generate match fixtures for Round ${roundNumber}? This will pair players and create matches.`)) return;
+        
+        setActionLoading(`generate_fixtures_${roundNumber}`);
+        try {
+            const data = await api.post('/admin/tournaments/control', {
+                action: 'generate_fixtures',
+                id: tournament.id,
+                round_number: roundNumber
+            });
+            toast.success(data.message || `Fixtures generated for Round ${roundNumber}!`);
+            fetchTournament();
+        } catch (error) {
+            console.error('Generate fixtures error:', error);
+            const errorMsg = error.response?.data?.error || 'Failed to generate fixtures';
+            toast.error(errorMsg);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     const estimatedPrizePool = (formData.capacity || 0) * (formData.entry_fee || 0);
     const estimatedRounds = Math.log2(formData.capacity);
 
@@ -608,41 +630,130 @@ const TournamentControl = () => {
                                          }
 
                                          if (activeRound) {
-                                             return (
-                                                 <div className="text-center w-full py-6">
-                                                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-bold animate-pulse">
-                                                         <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-                                                         LIVE NOW
-                                                     </div>
-                                                     <div className="mt-4">
-                                                         <h3 className="text-3xl font-bold text-slate-900">{activeRound.name}</h3>
-                                                         <p className="text-slate-500">is currently active</p>
-                                                     </div>
-                                                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 mt-4 mx-auto max-w-xs">
-                                                         <div className="text-sm text-slate-500 mb-1">Matches Scheduled</div>
-                                                         <div className="text-2xl font-bold text-slate-900">{activeRound.matches}</div>
-                                                     </div>
-                                                 </div>
-                                             );
-                                         } else if (nextRound) {
-                                             return (
-                                                 <div className="w-full">
-                                                     
-                                                     <div className="text-center mb-6">
-                                                         <h3 className="text-2xl font-bold text-slate-900">{nextRound.name}</h3>
-                                                         <p className="text-slate-500 text-sm mt-1">{format(new Date(nextRound.date), "PPP")}</p>
-                                                     </div>
+                                              // Check if 22 hours have passed since active round started (round date 00:00)
+                                              const activeRoundStart = new Date(`${activeRound.date}T00:00:00`);
+                                              const hoursSinceStart = (now - activeRoundStart) / (1000 * 60 * 60);
+                                              const canGenerateNext = hoursSinceStart >= 22;
 
-                                                     <RoundTimer targetDate={`${nextRound.date}T00:00:00`} />
-                                                     
-                                                     <div className="mt-8 pt-6 border-t border-slate-100">
-                                                        <div className="flex justify-between items-center text-sm text-slate-500">
-                                                            <span>Total Players</span>
-                                                            <span className="font-bold text-slate-900">{nextRound.players}</span>
-                                                        </div>
-                                                     </div>
-                                                 </div>
-                                             );
+                                              return (
+                                                  <div className="text-center w-full py-6">
+                                                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-bold animate-pulse">
+                                                          <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                                                          LIVE NOW
+                                                      </div>
+                                                      <div className="mt-4">
+                                                          <h3 className="text-3xl font-bold text-slate-900">{activeRound.name}</h3>
+                                                          <p className="text-slate-500">is currently active</p>
+                                                      </div>
+                                                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 mt-4 mx-auto max-w-xs">
+                                                          <div className="text-sm text-slate-500 mb-1">Matches Scheduled</div>
+                                                          <div className="text-2xl font-bold text-slate-900">{activeRound.matches}</div>
+                                                      </div>
+                                                      {/* Fixture Generation Status */}
+                                                      <div className="mt-4">
+                                                          {activeRound.fixtures_generated ? (
+                                                              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold">
+                                                                  <CheckCircle2 size={14} />
+                                                                  Fixtures Generated
+                                                              </div>
+                                                          ) : (
+                                                              <button
+                                                                  onClick={() => handleGenerateFixtures(activeRound.round_number)}
+                                                                  disabled={actionLoading === `generate_fixtures_${activeRound.round_number}`}
+                                                                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm"
+                                                              >
+                                                                  {actionLoading === `generate_fixtures_${activeRound.round_number}` ? (
+                                                                      <Loader2 className="animate-spin" size={16} />
+                                                                  ) : (
+                                                                      <Zap size={16} />
+                                                                  )}
+                                                                  Generate Fixtures
+                                                              </button>
+                                                          )}
+                                                      </div>
+
+                                                      {/* Next Round Fixture Button - only after 22hrs */}
+                                                      {nextRound && canGenerateNext && (
+                                                          <div className="mt-6 pt-4 border-t border-slate-100">
+                                                              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Next: {nextRound.name}</p>
+                                                              {nextRound.fixtures_generated ? (
+                                                                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold">
+                                                                      <CheckCircle2 size={14} />
+                                                                      Fixtures Ready
+                                                                  </div>
+                                                              ) : (
+                                                                  <button
+                                                                      onClick={() => handleGenerateFixtures(nextRound.round_number)}
+                                                                      disabled={actionLoading === `generate_fixtures_${nextRound.round_number}`}
+                                                                      className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm"
+                                                                  >
+                                                                      {actionLoading === `generate_fixtures_${nextRound.round_number}` ? (
+                                                                          <Loader2 className="animate-spin" size={16} />
+                                                                      ) : (
+                                                                          <Zap size={16} />
+                                                                      )}
+                                                                      Generate {nextRound.name} Fixtures
+                                                                  </button>
+                                                              )}
+                                                          </div>
+                                                      )}
+                                                  </div>
+                                              );
+                                          } else if (nextRound) {
+                                              // No active round today — show next round timer
+                                              // Find the most recent past round to check 22hr gate
+                                              const pastRounds = roundsSchedule.rounds.filter(r => r.date && r.date < todayStr);
+                                              const lastPastRound = pastRounds.length > 0 ? pastRounds[pastRounds.length - 1] : null;
+                                              let canGenerateNextStandalone = true; // default: show button
+                                              if (lastPastRound) {
+                                                  const lastRoundStart = new Date(`${lastPastRound.date}T00:00:00`);
+                                                  const hoursSince = (now - lastRoundStart) / (1000 * 60 * 60);
+                                                  canGenerateNextStandalone = hoursSince >= 22;
+                                              }
+
+                                              return (
+                                                  <div className="w-full">
+                                                      
+                                                      <div className="text-center mb-6">
+                                                          <h3 className="text-2xl font-bold text-slate-900">{nextRound.name}</h3>
+                                                          <p className="text-slate-500 text-sm mt-1">{format(new Date(nextRound.date), "PPP")}</p>
+                                                      </div>
+
+                                                      <RoundTimer targetDate={`${nextRound.date}T00:00:00`} />
+                                                      
+                                                      {/* Fixture Generation Button — gated by 22hrs */}
+                                                      {canGenerateNextStandalone && (
+                                                          <div className="mt-4 text-center">
+                                                              {nextRound.fixtures_generated ? (
+                                                                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold">
+                                                                      <CheckCircle2 size={14} />
+                                                                      Fixtures Ready
+                                                                  </div>
+                                                              ) : (
+                                                                  <button
+                                                                      onClick={() => handleGenerateFixtures(nextRound.round_number)}
+                                                                      disabled={actionLoading === `generate_fixtures_${nextRound.round_number}`}
+                                                                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm"
+                                                                  >
+                                                                      {actionLoading === `generate_fixtures_${nextRound.round_number}` ? (
+                                                                          <Loader2 className="animate-spin" size={16} />
+                                                                      ) : (
+                                                                          <Zap size={16} />
+                                                                      )}
+                                                                      Generate Fixtures
+                                                                  </button>
+                                                              )}
+                                                          </div>
+                                                      )}
+
+                                                      <div className="mt-8 pt-6 border-t border-slate-100">
+                                                         <div className="flex justify-between items-center text-sm text-slate-500">
+                                                             <span>Total Players</span>
+                                                             <span className="font-bold text-slate-900">{nextRound.players}</span>
+                                                         </div>
+                                                      </div>
+                                                  </div>
+                                              );
                                          } else {
                                              // Fallback if no dates found (shouldn't happen if active) or all rounds passed?
                                              // If all rounds passed, maybe show 'Tournament Completed'?
@@ -702,9 +813,20 @@ const TournamentControl = () => {
                                                                             </div>
                                                                             {round.name}
                                                                         </span>
-                                                                        <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">
-                                                                            {round.matches} Matches
-                                                                        </span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            {round.fixtures_generated ? (
+                                                                                <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded font-bold flex items-center gap-1">
+                                                                                    <CheckCircle2 size={12} /> Ready
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded font-bold">
+                                                                                    Pending
+                                                                                </span>
+                                                                            )}
+                                                                            <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">
+                                                                                {round.matches} Matches
+                                                                            </span>
+                                                                        </div>
                                                                     </div>
                                                                     <div className="pl-8">
                                                                         <input 
@@ -791,6 +913,12 @@ const TournamentControl = () => {
                     const nextRound = roundsSchedule.rounds.find(r => r.date > todayStr);
                     
                     if (hasActiveRound && nextRound) {
+                        // 22hr gate: find the active round's date and check elapsed time
+                        const activeRound = roundsSchedule.rounds.find(r => r.date === todayStr);
+                        const activeRoundStart = new Date(`${activeRound.date}T00:00:00`);
+                        const hoursSinceStart = (now - activeRoundStart) / (1000 * 60 * 60);
+                        const canGenerateNext = hoursSinceStart >= 22;
+
                         return (
                             <div className="bg-white px-5 py-4 rounded-xl shadow-sm border border-slate-200">
                                 <div className="flex items-center justify-between mb-2">
@@ -802,6 +930,30 @@ const TournamentControl = () => {
                                     <span className="text-xs text-slate-500">{nextRound.matches} matches · {nextRound.players} players</span>
                                 </div>
                                 <RoundTimer targetDate={`${nextRound.date}T00:00:00`} />
+                                {/* Fixture button — only after 22hrs of active round */}
+                                {canGenerateNext && (
+                                    <div className="mt-3 pt-3 border-t border-slate-100 text-center">
+                                        {nextRound.fixtures_generated ? (
+                                            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold">
+                                                <CheckCircle2 size={14} />
+                                                Fixtures Ready
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleGenerateFixtures(nextRound.round_number)}
+                                                disabled={actionLoading === `generate_fixtures_${nextRound.round_number}`}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm"
+                                            >
+                                                {actionLoading === `generate_fixtures_${nextRound.round_number}` ? (
+                                                    <Loader2 className="animate-spin" size={16} />
+                                                ) : (
+                                                    <Zap size={16} />
+                                                )}
+                                                Generate {nextRound.name} Fixtures
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         );
                     }
