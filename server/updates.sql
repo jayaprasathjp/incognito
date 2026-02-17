@@ -9,3 +9,7 @@ ADD COLUMN IF NOT EXISTS prize_pool DECIMAL(10, 2) DEFAULT 0;
 
 -- Optional: Add check constraint for dates if supported/desired
 -- ALTER TABLE tournaments ADD CONSTRAINT check_dates CHECK (registration_end > registration_start);
+
+-- Add session preference to participants
+ALTER TABLE participants
+ADD COLUMN IF NOT EXISTS session_preference VARCHAR(20);

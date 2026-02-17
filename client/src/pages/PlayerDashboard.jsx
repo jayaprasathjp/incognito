@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Clock, Calendar } from 'lucide-react';
+import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import appIcon from '../assets/app-icon.png';
 import Sidebar from '../components/Sidebar';
@@ -159,6 +160,31 @@ const PlayerDashboard = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [tournamentData, setTournamentData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+    const [joinStep, setJoinStep] = useState(null); // null, 'session', 'payment'
+    const [sessionPreference, setSessionPreference] = useState(null);
+    const [joinLoading, setJoinLoading] = useState(false);
+
+    useEffect(() => {
+        const regEnd = tournamentData?.tournament?.registration_end;
+        if (!regEnd) return;
+        const updateTimer = () => {
+            const diff = new Date(regEnd) - new Date();
+            if (diff <= 0) {
+                setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+                return;
+            }
+            setTimeLeft({
+                days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+                hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
+                minutes: Math.floor((diff / (1000 * 60)) % 60),
+                seconds: Math.floor((diff / 1000) % 60)
+            });
+        };
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [tournamentData?.tournament?.registration_end]);
 
     const fetchTournament = async () => {
         try {
@@ -177,17 +203,23 @@ const PlayerDashboard = () => {
     }, [token]);
 
     const handleJoin = async () => {
-        if (!tournamentData?.tournament?.id) return;
+        if (!tournamentData?.tournament?.id || !sessionPreference) return;
+        setJoinLoading(true);
         try {
-            const data = await api.post(`/tournaments/${tournamentData.tournament.id}/join`);
+            const data = await api.post(`/tournaments/${tournamentData.tournament.id}/join`, {
+                session_preference: sessionPreference
+            });
             if (!data.error) {
-                // Refresh data without page reload
+                setJoinStep(null);
+                setSessionPreference(null);
                 await fetchTournament();
             } else {
                 alert(data.error || "Failed to join");
             }
         } catch (e) {
             console.error(e);
+        } finally {
+            setJoinLoading(false);
         }
     };
 
@@ -195,13 +227,15 @@ const PlayerDashboard = () => {
         <div className="min-h-screen bg-white text-slate-900 font-sans relative">
             
             {/* Header / Menu Icon */}
-            <div className="flex justify-end p-6">
+            <div className="flex items-center justify-center p-4 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm relative">
+                <img src={appIcon} alt="Logo" className="absolute left-4 w-8 h-8 object-contain" />
+                <span className="font-bold text-lg tracking-wider text-slate-800">INCØGNITØ</span>
                 <button 
                     onClick={() => setIsMenuOpen(true)}
-                    className="p-2 -mr-2 focus:outline-none"
+                    className="absolute right-4 p-2 text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 focus:outline-none"
                     aria-label="Menu"
                 >
-                    <svg className="w-8 h-8 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
                 </button>
@@ -209,10 +243,6 @@ const PlayerDashboard = () => {
 
             {/* Content Centered - Welcome Screen */}
             <div className="flex flex-col items-center justify-center mt-4 px-6">
-                 {/* Avatar / Logo */}
-                 <div className="w-20 h-20 flex items-center justify-center mb-6">
-                    <img src={appIcon} alt="Logo" className="w-full h-full object-contain drop-shadow-xl" />
-                </div>
 
                 {/* Welcome Text & Alias */}
                 <div className="text-center mb-8">
@@ -322,16 +352,20 @@ const PlayerDashboard = () => {
                         
                         <div className="flex items-center justify-center gap-2 mb-6">
                             <p className={`text-sm font-bold uppercase tracking-wider ${
-                                tournamentData.tournament.status === 'open' ? 'text-green-600' :
+                                tournamentData.tournament.status === 'open' ? 
+                                    (tournamentData.tournament.registration_end && new Date() > new Date(tournamentData.tournament.registration_end) ? 'text-red-500' : 'text-green-600') :
                                 tournamentData.tournament.status === 'active' ? 'text-blue-600' :
                                 tournamentData.tournament.status === 'paused' ? 'text-yellow-600' :
                                 'text-slate-500'
                             }`}>
                             {(() => {
                                 if (tournamentData.tournament.status === 'open') {
+                                    if (tournamentData.participation) return '';
                                     const now = new Date();
                                     const regStart = tournamentData.tournament.registration_start ? new Date(tournamentData.tournament.registration_start) : null;
+                                    const regEnd = tournamentData.tournament.registration_end ? new Date(tournamentData.tournament.registration_end) : null;
                                     if (regStart && now < regStart) return '';
+                                    if (regEnd && now > regEnd) return 'Registration Closed';
                                     return 'Registration Open';
                                 }
                                 if (tournamentData.tournament.status === 'active') return 'Live Now';
@@ -341,30 +375,97 @@ const PlayerDashboard = () => {
                             </p>
                         </div>
 
-                        {tournamentData.tournament.status !== 'open' && (
-                        <div className="mb-6">
-                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 inline-block px-10">
-                                <p className="text-xs text-slate-500 font-bold uppercase">Prize Pool</p>
-                                <p className="text-lg font-black text-slate-900">₦{tournamentData.tournament.prizePool}</p>
-                            </div>
-                        </div>
-                        )}
-                        
-                        {/* Logic for Buttons/Status */}
-                        {tournamentData.participation ? (
-                            <div className="w-full py-3 bg-green-50 text-green-700 rounded-xl font-bold border border-green-100 flex flex-col items-center">
-                                <span>✅ REGISTERED</span>
-                                <span className="text-xs font-normal opacity-75">
-                                {tournamentData.tournament.status === 'open' ? (
-                                    <div className="flex flex-col items-center gap-2 py-2">
-                                        <span className="text-xs font-medium text-green-700">Waiting for tournament to start...</span>
+                        {/* Registration Timer - only show if NOT registered */}
+                        {tournamentData.tournament.status === 'open' && !tournamentData.participation && (() => {
+                            const now = new Date();
+                            const regStart = tournamentData.tournament.registration_start ? new Date(tournamentData.tournament.registration_start) : null;
+                            const regEnd = tournamentData.tournament.registration_end ? new Date(tournamentData.tournament.registration_end) : null;
+                            
+                            if (regEnd && now > regEnd) return null;
+                            const isBeforeStart = regStart && now < regStart;
+
+                            return (
+                                <div className="w-full mb-4 flex flex-col items-center space-y-3">
+                                    {isBeforeStart ? (
+                                        <>
+                                            <div className="flex items-center gap-2 text-slate-500">
+                                                <Calendar size={18} />
+                                                <span className="text-xs font-semibold uppercase tracking-wider">Registration</span>
+                                            </div>
+                                            <div className="py-1">
+                                                <p className="text-slate-500 text-sm">Starts on</p>
+                                                <p className="text-xl font-bold text-slate-900 mt-1">
+                                                    {format(new Date(tournamentData.tournament.registration_start), "PPP")}
+                                                </p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-slate-500">
+                                                <span className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-center">Registration - Time Remaining</span>
+                                            </div>
+                                            <div className="grid grid-cols-4 gap-2 w-full">
+                                                {[
+                                                    { value: timeLeft.days, label: 'Days' },
+                                                    { value: timeLeft.hours, label: 'Hrs' },
+                                                    { value: timeLeft.minutes, label: 'Min' },
+                                                    { value: timeLeft.seconds, label: 'Sec' }
+                                                ].map(({ value, label }) => (
+                                                    <div key={label} className="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                                                        <div className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
+                                                            {String(value).padStart(2, '0')}
+                                                        </div>
+                                                        <div className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">{label}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {tournamentData.tournament.registration_end && (
+                                                <p className="text-xs text-slate-400">
+                                                    Ends on {format(new Date(tournamentData.tournament.registration_end), "PPP")}
+                                                </p>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
+                        {/* Registered View - show when user has joined */}
+                        {tournamentData.participation && (
+                            <div className="w-full mb-4">
+                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </div>
+                                <p className="text-lg font-bold text-green-700 mb-1">You're In!</p>
+                                <p className="text-xs text-slate-500 mb-4">Successfully registered for this tournament</p>
+                                
+                                {tournamentData.participation.session_preference && (
+                                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 inline-flex items-center gap-2 mb-3">
+                                        <span className="text-lg">
+                                            {tournamentData.participation.session_preference === 'morning' && '☀️'}
+                                            {tournamentData.participation.session_preference === 'afternoon' && '🌤️'}
+                                            {tournamentData.participation.session_preference === 'evening' && '🌙'}
+                                        </span>
+                                        <div className="text-left">
+                                            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Session Preference</p>
+                                            <p className="text-sm font-bold text-slate-900 capitalize">{tournamentData.participation.session_preference}</p>
+                                        </div>
                                     </div>
-                                ) : (
-                                    'Good luck!'
                                 )}
-                                </span>
+                                
+                                <div className="mt-2">
+                                    <p className="text-xs text-slate-400 animate-pulse">
+                                        {tournamentData.tournament.status === 'open' 
+                                            ? '⏳ Waiting for tournament to start...' 
+                                            : '🎮 Good luck!'}
+                                    </p>
+                                </div>
                             </div>
-                        ) : (
+                        )}
+                        {/* Join/Registration Buttons - only show if NOT registered */}
+                        {!tournamentData.participation && (
                             <>
                                 {(() => {
                                     const now = new Date();
@@ -376,7 +477,7 @@ const PlayerDashboard = () => {
                                     if (isRegistrationOpen) {
                                         return (
                                             <button 
-                                                onClick={handleJoin}
+                                                onClick={() => setJoinStep('session')}
                                                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-transform active:scale-95 shadow-md flex items-center justify-center gap-2"
                                             >
                                                 JOIN TOURNAMENT
@@ -386,10 +487,18 @@ const PlayerDashboard = () => {
                                         return (
                                             <div className="w-full py-3 bg-amber-50 text-amber-700 rounded-xl font-bold border border-amber-200">
                                                 Registration Opens Soon
-                                                <div className="text-xs font-normal mt-1">
-                                                    Starts {regStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                </div>
                                             </div>
+                                        );
+                                    } else if (tournamentData.tournament.status === 'active') {
+                                        return (
+                                            <Link to={`/tournament/${tournamentData.tournament.id}`} className="block w-full">
+                                                <div className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold border border-blue-100 flex items-center justify-center gap-2 mb-2">
+                                                    <span className="animate-pulse">●</span> Tournament Live
+                                                </div>
+                                                <button className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold shadow-md hover:bg-slate-800 transition-colors">
+                                                    VIEW TOURNAMENT
+                                                </button>
+                                            </Link>
                                         );
                                     } else {
                                         return (
@@ -421,6 +530,136 @@ const PlayerDashboard = () => {
                     </Link>
                 </div>
             </div>
+
+            {/* Join Tournament Modal */}
+            {joinStep && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setJoinStep(null); setSessionPreference(null); }} />
+                    <div className="relative bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 pb-8 sm:p-8 shadow-2xl animate-in slide-in-from-bottom z-10">
+                        
+                        {/* Step Indicator */}
+                        <div className="flex items-center justify-center gap-3 mb-6">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                joinStep === 'session' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'
+                            }`}>1</div>
+                            <div className="w-8 h-0.5 bg-slate-200" />
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                joinStep === 'payment' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'
+                            }`}>2</div>
+                        </div>
+
+                        {/* Close Button */}
+                        <button 
+                            onClick={() => { setJoinStep(null); setSessionPreference(null); }}
+                            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+
+                        {joinStep === 'session' && (
+                            <>
+                                <h3 className="text-xl font-bold text-slate-900 text-center mb-2">Choose Your Session</h3>
+                                <p className="text-sm text-slate-500 text-center mb-2">When do you prefer to play your matches?</p>
+                                <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center mb-6">⚠️ Session preference is not guaranteed and may vary based on scheduling.</p>
+                                
+                                <div className="space-y-3 mb-6">
+                                    {[
+                                        { value: 'morning', label: 'Morning', icon: '☀️', time: '10:30 AM – 1:30 PM' },
+                                        { value: 'afternoon', label: 'Afternoon', icon: '🌤️', time: '2:00 PM – 5:00 PM' },
+                                        { value: 'evening', label: 'Evening', icon: '🌙', time: '5:30 PM – 8:30 PM' }
+                                    ].map(({ value, label, icon, time }) => (
+                                        <button
+                                            key={value}
+                                            onClick={() => setSessionPreference(value)}
+                                            className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                                                sessionPreference === value
+                                                    ? 'border-blue-600 bg-blue-50 shadow-sm'
+                                                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                                            }`}
+                                        >
+                                            <span className="text-2xl">{icon}</span>
+                                            <div className="text-left">
+                                                <div className="font-bold text-slate-900">{label}</div>
+                                                <div className="text-xs text-slate-500">{time}</div>
+                                            </div>
+                                            {sessionPreference === value && (
+                                                <div className="ml-auto w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </div>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <button
+                                    disabled={!sessionPreference}
+                                    onClick={() => setJoinStep('payment')}
+                                    className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wide transition-all ${
+                                        sessionPreference
+                                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md active:scale-95'
+                                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    }`}
+                                >
+                                    Continue to Payment
+                                </button>
+                            </>
+                        )}
+
+                        {joinStep === 'payment' && (
+                            <>
+                                <h3 className="text-xl font-bold text-slate-900 text-center mb-2">Payment Summary</h3>
+                                <p className="text-sm text-slate-500 text-center mb-6">Review and confirm your entry</p>
+
+                                <div className="bg-slate-50 rounded-xl p-5 border border-slate-100 space-y-4 mb-6">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm text-slate-500">Tournament</span>
+                                        <span className="text-sm font-bold text-slate-900">{tournamentData?.tournament?.title}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm text-slate-500">Session</span>
+                                        <span className="text-sm font-bold text-slate-900 capitalize">
+                                            {sessionPreference === 'morning' && '☀️ '}
+                                            {sessionPreference === 'afternoon' && '🌤️ '}
+                                            {sessionPreference === 'evening' && '🌙 '}
+                                            {sessionPreference}
+                                        </span>
+                                    </div>
+                                    <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
+                                        <span className="text-sm font-bold text-slate-700">Entry Fee</span>
+                                        <span className="text-lg font-black text-slate-900">₦{tournamentData?.tournament?.entry_fee || 0}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setJoinStep('session')}
+                                        className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-sm uppercase tracking-wide transition-colors"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        onClick={handleJoin}
+                                        disabled={joinLoading}
+                                        className="flex-[2] py-3.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-sm uppercase tracking-wide shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        {joinLoading ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            <>PAY ₦{tournamentData?.tournament?.entry_fee || 0}</>
+                                        )}
+                                    </button>
+                                </div>
+
+                                <p className="text-[10px] text-slate-400 text-center mt-4">Payment powered by Paystack (coming soon)</p>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
 
             <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 

@@ -174,7 +174,63 @@ router.get("/tournaments/control", async (req, res) => {
             ORDER BY t.created_at DESC LIMIT 1
         `);
         if (result.rows.length === 0) return res.json({});
-        res.json(result.rows[0]);
+        
+        const tournament = result.rows[0];
+        
+        // Fetch rounds from dedicated table
+        const roundsRes = await pool.query(
+            "SELECT * FROM rounds WHERE tournament_id = $1 ORDER BY round_number ASC", 
+            [tournament.id]
+        );
+        
+        if (roundsRes.rows.length > 0) {
+            // Auto-generate fixtures for rounds whose date has arrived
+            if (tournament.status === 'active') {
+                const now = new Date();
+                const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                
+                for (const round of roundsRes.rows) {
+                    const roundDateStr = round.date ? (() => {
+                        const d = new Date(round.date);
+                        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    })() : null;
+                    
+                    if (roundDateStr && roundDateStr <= todayStr && !round.fixtures_generated) {
+                        console.log(`[AUTO-TRIGGER] Generating fixtures for round ${round.round_number}`);
+                        try {
+                            await generateFixturesForRound(tournament.id, round.round_number);
+                        } catch (autoErr) {
+                            console.error(`[AUTO-TRIGGER] Failed for round ${round.round_number}:`, autoErr.message);
+                        }
+                    }
+                }
+                
+                // Re-fetch rounds after auto-generation
+                const updatedRoundsRes = await pool.query(
+                    "SELECT * FROM rounds WHERE tournament_id = $1 ORDER BY round_number ASC", 
+                    [tournament.id]
+                );
+                roundsRes.rows = updatedRoundsRes.rows;
+            }
+
+            // Reconstruct rounds_config object for frontend compatibility
+            tournament.rounds_config = {
+                type: "Custom Schedule",
+                description: "Schedule loaded from database",
+                rounds: roundsRes.rows.map(r => ({
+                    ...r,
+                    fixtures_generated: r.fixtures_generated || false,
+                    date: r.date ? (() => {
+                        const d = new Date(r.date);
+                        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    })() : ''
+                }))
+            };
+        } else {
+             tournament.rounds_config = null;
+        }
+
+        res.json(tournament);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });
@@ -307,6 +363,68 @@ router.post("/tournaments/control", async (req, res) => {
                 [registration_end, id]
             );
             res.json({ message: "Registration extended", tournament: updated.rows[0] });
+
+        } else if (action === 'save_schedule') {
+             const { rounds_config } = req.body;
+             
+             if (!rounds_config || !rounds_config.rounds) return res.status(400).json({ error: "Invalid rounds config" });
+
+             const client = await pool.connect();
+             try {
+                 await client.query('BEGIN');
+
+                 // 1. Clear existing schedule for this tournament (to allow re-scheduling)
+                 await client.query("DELETE FROM rounds WHERE tournament_id = $1", [id]);
+
+                 // 2. Insert new rounds
+                 for (let i = 0; i < rounds_config.rounds.length; i++) {
+                     const r = rounds_config.rounds[i];
+                     await client.query(
+                         "INSERT INTO rounds (tournament_id, round_number, name, matches, players, date) VALUES ($1, $2, $3, $4, $5, $6)",
+                         [id, i + 1, r.name, r.matches, r.players, r.date]
+                     );
+                 }
+
+                 // 3. Update tournament status and meta (using JSON for meta if needed, or just status)
+                 // We can keep rounds_config for type/desc or just use rounds table. 
+                 // User requested "tournament config only" in tournament table. 
+                 // Let's store the full config in JSON for backup/meta (type/desc) BUT use rounds table for dates.
+                 // Actually, if we use rounds table, we should rely on it for dates.
+                 
+                 // 3. Update tournament status if needed (ignoring rounds_config column as it matches schema change)
+                 // User removed rounds_config column, so we rely solely on rounds table.
+
+                 // 3. Update tournament status to active
+                 await client.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [id]);
+
+                 await client.query('COMMIT');
+                 
+                 // Allow returning the updated tournament with rounds?
+                 // For now, just return success.
+                 res.json({ message: "Schedule saved successfully" });
+
+             } catch (e) {
+                 await client.query('ROLLBACK');
+                 console.error("SAVE SCHEDULE ERROR:", e);
+                 // Return explicit error
+                 res.status(500).json({ error: "Save Error: " + e.message });
+                 // Prevent falling through to outer catch if we respond here
+                 return; 
+             } finally {
+                 client.release();
+             }
+
+        } else if (action === 'generate_fixtures') {
+            const { round_number } = req.body;
+            if (!round_number) return res.status(400).json({ error: "round_number is required" });
+
+            try {
+                const count = await generateFixturesForRound(id, round_number);
+                res.json({ message: `Fixtures generated for Round ${round_number}`, matches_created: count });
+            } catch (genErr) {
+                console.error('Generate fixtures error:', genErr);
+                res.status(400).json({ error: genErr.message || "Failed to generate fixtures" });
+            }
 
         } else {
              console.log('Invalid action received:', action, req.body);
@@ -470,5 +588,90 @@ router.post("/announcements", async (req, res) => {
         res.status(500).json({ error: "Server error" });
     }
 });
+
+// === FIXTURE GENERATION HELPER ===
+async function generateFixturesForRound(tournamentId, roundNumber) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // Check round exists and hasn't been generated yet
+        const roundRes = await client.query(
+            "SELECT * FROM rounds WHERE tournament_id = $1 AND round_number = $2",
+            [tournamentId, roundNumber]
+        );
+        if (roundRes.rows.length === 0) throw new Error(`Round ${roundNumber} not found`);
+        if (roundRes.rows[0].fixtures_generated) throw new Error(`Fixtures already generated for Round ${roundNumber}`);
+
+        let players = [];
+
+        if (roundNumber === 1) {
+            // Round 1: All approved participants
+            const pRes = await client.query(
+                "SELECT user_id as id FROM participants WHERE tournament_id = $1 AND status = 'approved'",
+                [tournamentId]
+            );
+            players = pRes.rows;
+        } else {
+            // Round 2+: Winners from previous round
+            const prevRound = roundNumber - 1;
+            const winnersRes = await client.query(
+                "SELECT winner_id as id FROM matches WHERE tournament_id = $1 AND round = $2 AND winner_id IS NOT NULL",
+                [tournamentId, prevRound]
+            );
+            players = winnersRes.rows;
+
+            if (players.length === 0) {
+                throw new Error(`No winners found from Round ${prevRound}. Ensure all matches are completed first.`);
+            }
+        }
+
+        if (players.length < 2) throw new Error("Not enough players to generate fixtures");
+
+        // Shuffle players
+        for (let i = players.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [players[i], players[j]] = [players[j], players[i]];
+        }
+
+        // Create matches
+        let matchesCreated = 0;
+        for (let i = 0; i < players.length; i += 2) {
+            const p1 = players[i];
+            const p2 = players[i + 1];
+
+            if (p2) {
+                const matchCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                await client.query(
+                    "INSERT INTO matches (tournament_id, round, player1_id, player2_id, status, match_code) VALUES ($1, $2, $3, $4, 'scheduled', $5)",
+                    [tournamentId, roundNumber, p1.id, p2.id, matchCode]
+                );
+                matchesCreated++;
+            } else {
+                // BYE for odd player
+                await client.query(
+                    "INSERT INTO matches (tournament_id, round, player1_id, winner_id, status, match_code) VALUES ($1, $2, $3, $3, 'completed', 'BYE')",
+                    [tournamentId, roundNumber, p1.id]
+                );
+                matchesCreated++;
+            }
+        }
+
+        // Mark round as fixtures generated
+        await client.query(
+            "UPDATE rounds SET fixtures_generated = true WHERE tournament_id = $1 AND round_number = $2",
+            [tournamentId, roundNumber]
+        );
+
+        await client.query('COMMIT');
+        console.log(`[FIXTURES] Generated ${matchesCreated} matches for tournament ${tournamentId}, round ${roundNumber}`);
+        return matchesCreated;
+    } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+    } finally {
+        client.release();
+    }
+}
 
 export default router;
