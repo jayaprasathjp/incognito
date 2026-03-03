@@ -8,6 +8,7 @@ import matchRoutes from "./routes/matches.js";
 import userRoutes from "./routes/users.js";
 import leaderboardRoutes from "./routes/leaderboard.js";
 import adminRoutes from "./routes/admin.js";
+import paymentRoutes from "./routes/payment.js";
 
 
 
@@ -30,6 +31,7 @@ app.use("/api/matches", matchRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/payment", paymentRoutes);
 
 // Basic Route
 app.get("/", (req, res) => {
