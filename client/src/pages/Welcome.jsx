@@ -1,9 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
+import { api } from '../utils/api';
 
 const Welcome = () => {
-    const [activeModal, setActiveModal] = useState(null); // 'about', 'contact', 'socials'
+    const [activeModal, setActiveModal] = useState(null);
+    const [registrationEnded, setRegistrationEnded] = useState(false);
+
+    useEffect(() => {
+        const checkTournament = async () => {
+            try {
+                const data = await api.get('/tournaments/current');
+                const regEnd = data?.tournament?.registration_end;
+                if (regEnd && new Date() > new Date(regEnd)) {
+                    setRegistrationEnded(true);
+                }
+            } catch (e) {
+                // silently fail
+            }
+        };
+        checkTournament();
+    }, []);
 
     const Modal = ({ title, children, onClose }) => (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -42,12 +59,21 @@ const Welcome = () => {
 
             {/* Middle Section: Actions */}
             <div className="w-full max-w-md space-y-4 mb-10">
+                {registrationEnded ? (
                 <Link to="/leaderboard" className="block w-full">
                      <button className="w-full bg-white text-slate-900 border-2 border-slate-200 py-4 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all">
                         <div className="text-lg">SPECTATOR</div>
                         <div className="text-xs font-normal text-slate-500">(Follow the leaderboard)</div>
                     </button>
                 </Link>
+                ) : (
+                <div className="block w-full">
+                     <button disabled className="w-full bg-slate-50 text-slate-400 border-2 border-slate-100 py-4 rounded-xl font-bold cursor-not-allowed opacity-60">
+                        <div className="text-lg">SPECTATOR</div>
+                        <div className="text-xs font-normal text-slate-400">(Enables once tournament starts)</div>
+                    </button>
+                </div>
+                )}
 
                 <Link to="/login" className="block w-full">
                     <button className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all">

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import appIcon from '../assets/app-icon.png';
+import nigerianUniversities from '../data/nigerianUniversities';
 
 const Register = () => {
     const [formData, setFormData] = useState({
@@ -19,6 +20,25 @@ const Register = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
 
+    // Institution search state
+    const [institutionSearch, setInstitutionSearch] = useState('');
+    const [showDropdown, setShowDropdown] = useState(false);
+    const dropdownRef = useRef(null);
+
+    const filteredUniversities = nigerianUniversities.filter(uni =>
+        uni.toLowerCase().includes(institutionSearch.toLowerCase())
+    ).slice(0, 20); // Show max 20 results for performance
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
@@ -26,6 +46,11 @@ const Register = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+
+        if (!formData.institution) {
+            setError('Please select your institution.');
+            return;
+        }
 
         if (!agreed) {
             setError('You must agree to the tournament rules.');
@@ -99,28 +124,58 @@ const Register = () => {
                         />
                     </div>
 
-                    {/* Institution */}
-                    <div className="flex flex-col gap-1 relative">
+                    {/* Institution - Searchable Dropdown */}
+                    <div className="flex flex-col gap-1 relative" ref={dropdownRef}>
                         <label className="text-sm text-slate-600">Select your institution</label>
                         <div className="relative">
-                            <select
-                                name="institution"
-                                value={formData.institution}
-                                onChange={handleChange}
-                                required
-                                className="w-full p-3 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 appearance-none"
-                            >
-                                <option value="" disabled>Select institution...</option>
-                                <option value="University A">University A</option>
-                                <option value="University B">University B</option>
-                                <option value="Other">Other</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500">
-                                <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-                                    <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path>
-                                </svg>
-                            </div>
+                            <input
+                                type="text"
+                                placeholder="Search university..."
+                                value={formData.institution ? formData.institution : institutionSearch}
+                                onChange={(e) => {
+                                    setInstitutionSearch(e.target.value);
+                                    setFormData({ ...formData, institution: '' });
+                                    setShowDropdown(true);
+                                }}
+                                onFocus={() => setShowDropdown(true)}
+                                className="w-full p-3 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400 pr-10"
+                            />
+                            {formData.institution && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setFormData({ ...formData, institution: '' });
+                                        setInstitutionSearch('');
+                                        setShowDropdown(true);
+                                    }}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                >
+                                    ✕
+                                </button>
+                            )}
                         </div>
+                        {showDropdown && !formData.institution && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
+                                {filteredUniversities.length > 0 ? (
+                                    filteredUniversities.map((uni, i) => (
+                                        <button
+                                            key={i}
+                                            type="button"
+                                            onClick={() => {
+                                                setFormData({ ...formData, institution: uni });
+                                                setInstitutionSearch('');
+                                                setShowDropdown(false);
+                                            }}
+                                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+                                        >
+                                            {uni}
+                                        </button>
+                                    ))
+                                ) : (
+                                    <div className="px-4 py-3 text-sm text-slate-400">No universities found</div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* WhatsApp */}
@@ -206,19 +261,6 @@ const Register = () => {
                     </button>
                     
                 </form>
-
-                {/* Footer Links */}
-                 <div className="w-full text-center space-y-6 mt-10 mb-4">
-                    <div className="flex justify-center gap-6 text-sm text-slate-500">
-                        <a href="#" className="hover:text-slate-900">About</a>
-                        <a href="#" className="hover:text-slate-900">Contact us</a>
-                        <a href="#" className="hover:text-slate-900">Follow our socials</a>
-                    </div>
-                    
-                    <div className="text-xs text-slate-400">
-                        © Play Incøgnitø 2026
-                    </div>
-                </div>
             </div>
         </div>
     );

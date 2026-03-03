@@ -354,22 +354,15 @@ const TournamentControl = () => {
              return;
         }
 
-        // Calculate start and end times based on selected dates
-        // Start: 00:00 on Start Date
-        // End: 00:00 on End Date
-        const startDate = new Date(formData.start_date);
-        startDate.setHours(0, 0, 0, 0); 
-
-        const endDate = new Date(formData.end_date);
-        endDate.setHours(0, 0, 0, 0); 
-
+        // Send dates as-is to avoid timezone shift
+        // formData.start_date is "YYYY-MM-DD", append T00:00:00 to keep the intended date
         try {
             const data = await api.post('/tournaments', {
                 title: formData.title,
                 capacity: formData.capacity,
                 entry_fee: formData.entry_fee,
-                registration_start: startDate.toISOString(),
-                registration_end: endDate.toISOString()
+                registration_start: `${formData.start_date}T00:00:00`,
+                registration_end: `${formData.end_date}T00:00:00`
             });
             if (data.error) {
                 throw { response: { data } };
@@ -444,12 +437,12 @@ const TournamentControl = () => {
                     <form onSubmit={handleCreate} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="col-span-1 md:col-span-2 space-y-2">
-                                <label className="text-sm font-medium text-slate-700">Tournament Name</label>
+                                <label className="text-sm font-semibold text-slate-700">Tournament Name</label>
                                 <input 
                                     required
                                     type="text" 
                                     className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                                    placeholder="e.g. Winter Championship 2024"
+                                    placeholder="e.g. Winter Championship 2026"
                                     value={formData.title}
                                     onChange={e => setFormData({...formData, title: e.target.value})}
                                 />
@@ -458,7 +451,7 @@ const TournamentControl = () => {
                             <div className="col-span-1 md:col-span-2 space-y-2">
                                 <div className="grid grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium text-slate-700">Start Date</label>
+                                        <label className="text-sm font-semibold text-slate-700">Registration Start</label>
                                         <input 
                                             required
                                             type="date" 
@@ -474,7 +467,7 @@ const TournamentControl = () => {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium text-slate-700">End Date</label>
+                                        <label className="text-sm font-semibold text-slate-700">Registration End</label>
                                         <input 
                                             required
                                             type="date" 
@@ -485,12 +478,12 @@ const TournamentControl = () => {
                                         />
                                     </div>
                                 </div>
-                                <p className="text-xs text-slate-500">Tournament runs from 12:00 AM Start Date to 12:00 AM End Date.</p>
+                                <p className="text-xs text-slate-500">Registration opens at 12:00 AM on start date and closes at 11:59 PM on end date.</p>
                             </div>
 
                             <div className="col-span-1 md:col-span-2 grid grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-700">Entry Fee (₦)</label>
+                                    <label className="text-sm font-semibold text-slate-700">Entry Fee (₦)</label>
                                     <input 
                                         required
                                         type="number" 
@@ -502,7 +495,7 @@ const TournamentControl = () => {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-700">Total Capacity</label>
+                                    <label className="text-sm font-semibold text-slate-700">Total Capacity</label>
                                     <select 
                                         className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={formData.capacity}
