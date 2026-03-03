@@ -1,10 +1,29 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { createPortal } from 'react-dom';
+import { api } from '../utils/api';
 
 const Sidebar = ({ isOpen, onClose }) => {
-    const { logout, user } = useAuth();
+    const { logout, user, token } = useAuth();
     const location = useLocation();
+    const [registrationEnded, setRegistrationEnded] = useState(false);
+
+    useEffect(() => {
+        if (!user || !token) return;
+        const checkTournament = async () => {
+            try {
+                const data = await api.get('/tournaments/current');
+                const regEnd = data?.tournament?.registration_end;
+                if (regEnd && new Date() > new Date(regEnd)) {
+                    setRegistrationEnded(true);
+                }
+            } catch (e) {
+                // silently fail
+            }
+        };
+        checkTournament();
+    }, [user, token]);
 
     const isActive = (path) => location.pathname === path;
 
@@ -90,6 +109,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                                 >
                                     Dashboard
                                 </Link>
+                                {registrationEnded && (
                                 <Link 
                                     to="/leaderboard" 
                                     className={`block p-4 rounded-xl text-sm font-medium transition-all ${
@@ -99,6 +119,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                                 >
                                     Leaderboard
                                 </Link>
+                                )}
                                 <Link 
                                     to="/roadmap" 
                                     className={`block p-4 rounded-xl text-sm font-medium transition-all ${

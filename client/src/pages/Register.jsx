@@ -206,19 +206,6 @@ const Register = () => {
                     </button>
                     
                 </form>
-
-                {/* Footer Links */}
-                 <div className="w-full text-center space-y-6 mt-10 mb-4">
-                    <div className="flex justify-center gap-6 text-sm text-slate-500">
-                        <a href="#" className="hover:text-slate-900">About</a>
-                        <a href="#" className="hover:text-slate-900">Contact us</a>
-                        <a href="#" className="hover:text-slate-900">Follow our socials</a>
-                    </div>
-                    
-                    <div className="text-xs text-slate-400">
-                        © Play Incøgnitø 2026
-                    </div>
-                </div>
             </div>
         </div>
     );
