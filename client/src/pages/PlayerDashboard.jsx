@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, Clock, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
@@ -6,6 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import appIcon from '../assets/app-icon.png';
 import Sidebar from '../components/Sidebar';
 import { api } from '../utils/api';
+
+const FLW_PUBLIC_KEY = import.meta.env.VITE_FLW_PUBLIC_KEY || '';
 
 const MatchSubmission = ({ match, user, token, onSuccess }) => {
     const [step, setStep] = useState('select'); // select, win, loss
@@ -202,23 +204,102 @@ const PlayerDashboard = () => {
         if (token) fetchTournament();
     }, [token]);
 
+    // Load Flutterwave inline script
+    useEffect(() => {
+        if (!document.getElementById('flutterwave-script')) {
+            const script = document.createElement('script');
+            script.id = 'flutterwave-script';
+            script.src = 'https://checkout.flutterwave.com/v3.js';
+            script.async = true;
+            document.body.appendChild(script);
+        }
+    }, []);
+
     const handleJoin = async () => {
         if (!tournamentData?.tournament?.id || !sessionPreference) return;
         setJoinLoading(true);
         try {
-            const data = await api.post(`/tournaments/${tournamentData.tournament.id}/join`, {
+            // 1. Initialize payment on backend
+            const initData = await api.post('/payment/initialize', {
+                tournament_id: tournamentData.tournament.id,
                 session_preference: sessionPreference
             });
-            if (!data.error) {
+
+            if (initData.error) {
+                alert(initData.error);
+                setJoinLoading(false);
+                return;
+            }
+
+            // 2. Dev bypass mode — server handled everything
+            if (initData.status === 'bypass') {
+                alert(initData.message || 'Joined successfully (dev bypass)!');
                 setJoinStep(null);
                 setSessionPreference(null);
                 await fetchTournament();
-            } else {
-                alert(data.error || "Failed to join");
+                setJoinLoading(false);
+                return;
             }
+
+            // 3. Open Flutterwave inline checkout (direct script method)
+            if (!window.FlutterwaveCheckout) {
+                alert('Payment system loading. Please try again in a moment.');
+                setJoinLoading(false);
+                return;
+            }
+
+            window.FlutterwaveCheckout({
+                public_key: FLW_PUBLIC_KEY,
+                tx_ref: initData.config.tx_ref,
+                amount: initData.config.amount,
+                currency: initData.config.currency || 'NGN',
+                payment_options: 'card,banktransfer,ussd',
+                customer: initData.config.customer,
+                customizations: {
+                    title: 'INCØGNITØ Tournament',
+                    description: `Entry fee for ${tournamentData.tournament.title}`,
+                    logo: '',
+                },
+                meta: initData.config.meta,
+                callback: async (response) => {
+                    // Close the Flutterwave modal
+                    document.getElementsByName('checkout')[0]?.setAttribute('style', 'position:fixed;top:0;left:0;z-index:-1;border:none;opacity:0;pointer-events:none;width:100%;height:100%;');
+                    document.body.style.overflow = '';
+                    
+                    if (response.status === 'successful' || response.status === 'completed') {
+                        // 4. Verify payment on backend
+                        try {
+                            const verifyData = await api.post('/payment/verify', {
+                                transaction_id: response.transaction_id,
+                                tx_ref: response.tx_ref,
+                                session_preference: sessionPreference
+                            });
+
+                            if (verifyData.status === 'success') {
+                                alert('Payment successful! You have joined the tournament.');
+                                setJoinStep(null);
+                                setSessionPreference(null);
+                                await fetchTournament();
+                            } else {
+                                alert(verifyData.error || 'Payment verification failed');
+                            }
+                        } catch (verifyErr) {
+                            console.error('Verification error:', verifyErr);
+                            alert('Payment received but verification failed. Please contact support.');
+                        }
+                    } else {
+                        alert('Payment was not completed.');
+                    }
+                    setJoinLoading(false);
+                },
+                onclose: () => {
+                    setJoinLoading(false);
+                },
+            });
+
         } catch (e) {
             console.error(e);
-        } finally {
+            alert('Error initiating payment. Please try again.');
             setJoinLoading(false);
         }
     };
@@ -656,7 +737,7 @@ const PlayerDashboard = () => {
                                     </button>
                                 </div>
 
-                                <p className="text-[10px] text-slate-400 text-center mt-4">Payment powered by Paystack (coming soon)</p>
+                                <p className="text-[10px] text-slate-400 text-center mt-4">Payments powered by Flutterwave 🔒</p>
                             </>
                         )}
                     </div>
