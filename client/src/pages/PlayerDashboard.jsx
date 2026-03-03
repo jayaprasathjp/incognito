@@ -522,6 +522,7 @@ const PlayerDashboard = () => {
                 )}
 
                 {/* Action Buttons */}
+                {tournamentData?.tournament?.registration_end && new Date() > new Date(tournamentData.tournament.registration_end) && (
                 <div className="w-full max-w-xs space-y-4">
                     <Link to="/leaderboard" className="block w-full">
                         <button className="w-full py-4 bg-slate-900 text-white rounded-full text-lg font-bold shadow-lg hover:bg-slate-800 transition-all active:scale-95">
@@ -529,6 +530,7 @@ const PlayerDashboard = () => {
                         </button>
                     </Link>
                 </div>
+                )}
             </div>
 
             {/* Join Tournament Modal */}

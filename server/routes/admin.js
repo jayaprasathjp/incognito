@@ -67,7 +67,9 @@ router.get("/stats", async (req, res) => {
                 status: tournamentStatus,
                 currentRound: currentRound,
                 participants: participantsCount,
-                roundMatches: currentRoundMatchCount
+                roundMatches: currentRoundMatchCount,
+                registration_start: tournament?.registration_start || null,
+                registration_end: tournament?.registration_end || null
             },
             prizePool,
             pendingIssues: {

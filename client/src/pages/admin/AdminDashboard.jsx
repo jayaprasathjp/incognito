@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
 import { api } from "../../utils/api";
-import { Users, Trophy, Swords, AlertTriangle, ChevronRight, DollarSign } from "lucide-react";
+import { Users, Trophy, Swords, AlertTriangle, ChevronRight, DollarSign, Plus } from "lucide-react";
 import Loader from "../../components/Loader";
 
 const AdminDashboard = () => {
@@ -100,25 +100,55 @@ const AdminDashboard = () => {
                         Tournament Status
                     </h2>
                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <h3 className="text-lg font-black text-slate-900 mb-4">{stats.tournament?.title || 'No Tournament'}</h3>
-                        
-                        <div className="flex justify-between items-center mb-3">
-                            <span className="text-slate-500 font-medium">Status</span>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                                stats.tournament?.status === 'active' ? 'bg-green-100 text-green-700' : 
-                                stats.tournament?.status === 'open' ? 'bg-blue-100 text-blue-700' : 
-                                'bg-slate-200 text-slate-600'
-                            }`}>
-                                {stats.tournament?.status || 'Inactive'}
-                            </span>
-                        </div>
-                         <div className="flex justify-between items-center pt-3 border-t border-slate-200">
-                            <span className="text-slate-500 font-medium">Current Round</span>
-                            <span className="font-bold text-slate-900">Round {stats.tournament?.currentRound || 1}</span>
-                        </div>
-                         <Link to="/admin/tournament" className="mt-6 block w-full py-3 text-center bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-transform active:scale-95 shadow-lg">
-                            Manage Tournament
-                        </Link>
+                        {stats.tournament?.status === 'None' ? (
+                            <>
+                                <div className="text-center py-4">
+                                    <h3 className="text-lg font-black text-slate-900 mb-1">No Active Tournament</h3>
+                                    <p className="text-sm text-slate-500 mb-6">Create a new tournament to get started</p>
+                                    <Link to="/admin/tournament" className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold transition-all active:scale-95 shadow-lg shadow-blue-500/25">
+                                        <Plus size={18} />
+                                        Create Tournament
+                                    </Link>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <h3 className="text-lg font-black text-slate-900 mb-4">{stats.tournament?.title || 'No Tournament'}</h3>
+                                
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-slate-500 font-medium">Status</span>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                                        stats.tournament?.status === 'active' ? 'bg-green-100 text-green-700' : 
+                                        stats.tournament?.status === 'open' ? 'bg-blue-100 text-blue-700' : 
+                                        'bg-slate-200 text-slate-600'
+                                    }`}>
+                                        {stats.tournament?.status || 'Inactive'}
+                                    </span>
+                                </div>
+                                 <div className="flex justify-between items-center pt-3 border-t border-slate-200">
+                                    <span className="text-slate-500 font-medium">Progress</span>
+                                    <span className="font-bold text-slate-900 text-sm text-right">
+                                        {(() => {
+                                            const t = stats.tournament;
+                                            if (t?.status === 'active') return `Round ${t.currentRound} in progress`;
+                                            if (t?.status === 'paused') return 'Tournament paused';
+                                            if (t?.status === 'completed') return 'Tournament completed';
+                                            // status is 'open'
+                                            const now = new Date();
+                                            const regStart = t?.registration_start ? new Date(t.registration_start) : null;
+                                            const regEnd = t?.registration_end ? new Date(t.registration_end) : null;
+                                            if (regStart && now < regStart) return 'Registration not started';
+                                            if (regEnd && now > regEnd) return 'Schedule rounds';
+                                            if (regStart && regEnd) return 'Registration ongoing';
+                                            return 'Awaiting setup';
+                                        })()}
+                                    </span>
+                                </div>
+                                 <Link to="/admin/tournament" className="mt-6 block w-full py-3 text-center bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-transform active:scale-95 shadow-lg">
+                                    Manage Tournament
+                                </Link>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
