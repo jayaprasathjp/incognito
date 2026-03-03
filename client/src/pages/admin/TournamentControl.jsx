@@ -75,11 +75,9 @@ const TournamentControl = () => {
     // Rounds Configuration State
     const [roundsSchedule, setRoundsSchedule] = useState(null);
     
-    // Debug / Simulation State
-    const [simulatedCount, setSimulatedCount] = useState(null);
 
     const calculateRounds = () => {
-        const participants = simulatedCount !== null ? simulatedCount : (tournament.participants_count || 0);
+        const participants = tournament.participants_count || 0;
         const capacity = tournament.capacity;
         let rounds = [];
         let type = "";
@@ -318,11 +316,7 @@ const TournamentControl = () => {
         }
     }, [tournament]);
 
-    useEffect(() => {
-        if (simulatedCount !== null) {
-            setRoundsSchedule(null); // Reset generated bracket so user must regenerate with new count
-        }
-    }, [simulatedCount]);
+
 
     // Handle Generate Fixtures for a specific round
     const handleGenerateFixtures = async (roundNumber) => {
@@ -989,11 +983,7 @@ const TournamentControl = () => {
                         <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
                             <span className="text-slate-500 flex items-center gap-2"><Users size={16}/> Capacity</span>
                             <span className="font-bold text-slate-900">
-                                {simulatedCount !== null ? (
-                                    <span className="text-amber-600">{simulatedCount} (Simulated)</span>
-                                ) : (
-                                    <span>{tournament.participants_count}</span>
-                                )} / {tournament.capacity} Players
+                                {tournament.participants_count} / {tournament.capacity} Players
                             </span>
                         </div>
                         <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
@@ -1054,73 +1044,6 @@ const TournamentControl = () => {
                     </div>
                 </div>
 
-                    {/* Debug Simulation Panel */}
-                    <div className="bg-amber-50 p-6 rounded-2xl border border-amber-200 space-y-4">
-                        <h3 className="font-bold text-amber-800 flex items-center gap-2">
-                            <Settings size={18} /> Debug: Simulation
-                        </h3>
-                        
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-xs font-bold text-amber-800 uppercase tracking-wider">Simulate Participants</label>
-                                <div className="flex gap-2 mt-1">
-                                    <input 
-                                        type="number" 
-                                        value={simulatedCount ?? ''}
-                                        onChange={(e) => setSimulatedCount(e.target.value ? parseInt(e.target.value) : null)}
-                                        placeholder={`Real: ${tournament.participants_count || 0}`}
-                                        className="flex-1 p-2 text-sm border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none bg-white"
-                                    />
-                                    <button 
-                                        onClick={() => setSimulatedCount(null)}
-                                        className="px-3 py-1 bg-white text-amber-700 text-xs rounded-lg border border-amber-300 hover:bg-amber-100"
-                                        title="Reset to Real"
-                                    >
-                                        Reset
-                                    </button>
-                                </div>
-                                <div className="flex gap-2 mt-2">
-                                    <button 
-                                        onClick={() => setSimulatedCount(tournament.capacity)}
-                                        className="px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded border border-amber-300 hover:bg-amber-200 flex-1"
-                                    >
-                                        Exact ({tournament.capacity})
-                                    </button>
-                                    <button 
-                                        onClick={() => setSimulatedCount(Math.floor(tournament.capacity * 1.1))} 
-                                        className="px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded border border-amber-300 hover:bg-amber-200 flex-1"
-                                    >
-                                        Over ({Math.floor(tournament.capacity * 1.1)})
-                                    </button>
-                                     <button 
-                                        onClick={() => setSimulatedCount(Math.floor(tournament.capacity * 0.8))} 
-                                        className="px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded border border-amber-300 hover:bg-amber-200 flex-1"
-                                    >
-                                        Under ({Math.floor(tournament.capacity * 0.8)})
-                                    </button>
-                                </div>
-                                {simulatedCount !== null && (
-                                    <p className="text-xs text-amber-700 mt-1">
-                                        Using simulated count: <b>{simulatedCount}</b>
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="pt-3 border-t border-amber-200">
-                                 <button 
-                                    onClick={() => {
-                                        const ended = new Date();
-                                        ended.setDate(ended.getDate() - 1);
-                                        setTournament(prev => ({...prev, registration_end: ended.toISOString()}));
-                                        toast.success("Forced 'Registration Ended' state");
-                                    }}
-                                    className="w-full py-2 bg-amber-600 text-white text-sm font-bold rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
-                                >
-                                    Force "Registration Ended"
-                                </button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
         </div>
     );
