@@ -22,16 +22,23 @@ router.post("/initialize", authenticateToken, async (req, res) => {
             return res.status(400).json({ error: "Tournament is not open for registration" });
         }
 
-        // 2. Check registration window
+        // 2. Check registration window (date-only comparison to avoid timezone issues)
         const now = new Date();
-        const regStart = tournament.registration_start ? new Date(tournament.registration_start) : null;
-        const regEnd = tournament.registration_end ? new Date(tournament.registration_end) : null;
-
-        if (regStart && now < regStart) {
-            return res.status(400).json({ error: "Registration has not started yet" });
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        if (tournament.registration_start) {
+            const regStart = new Date(tournament.registration_start);
+            const regStartDate = new Date(regStart.getFullYear(), regStart.getMonth(), regStart.getDate());
+            if (today < regStartDate) {
+                return res.status(400).json({ error: "Registration has not started yet" });
+            }
         }
-        if (regEnd && now > regEnd) {
-            return res.status(400).json({ error: "Registration has ended" });
+        if (tournament.registration_end) {
+            const regEnd = new Date(tournament.registration_end);
+            const regEndDate = new Date(regEnd.getFullYear(), regEnd.getMonth(), regEnd.getDate());
+            if (today > regEndDate) {
+                return res.status(400).json({ error: "Registration has ended" });
+            }
         }
 
         // 3. Check if already joined
