@@ -9,6 +9,17 @@ import { api } from '../utils/api';
 
 const FLW_PUBLIC_KEY = import.meta.env.VITE_FLW_PUBLIC_KEY || '';
 
+// Helper: compare registration dates by date-only (ignores time/timezone)
+const toDateOnly = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+};
+const todayDateOnly = () => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
 const MatchSubmission = ({ match, user, token, onSuccess }) => {
     const [step, setStep] = useState('select'); // select, win, loss
     const [myScore, setMyScore] = useState('');
@@ -442,9 +453,9 @@ const PlayerDashboard = () => {
                             {(() => {
                                 if (tournamentData.tournament.status === 'open') {
                                     if (tournamentData.participation) return '';
-                                    const now = new Date();
-                                    const regStart = tournamentData.tournament.registration_start ? new Date(tournamentData.tournament.registration_start) : null;
-                                    const regEnd = tournamentData.tournament.registration_end ? new Date(tournamentData.tournament.registration_end) : null;
+                                    const now = todayDateOnly();
+                                    const regStart = toDateOnly(tournamentData.tournament.registration_start);
+                                    const regEnd = toDateOnly(tournamentData.tournament.registration_end);
                                     if (regStart && now < regStart) return '';
                                     if (regEnd && now > regEnd) return 'Registration Closed';
                                     return 'Registration Open';
@@ -458,9 +469,9 @@ const PlayerDashboard = () => {
 
                         {/* Registration Timer - only show if NOT registered */}
                         {tournamentData.tournament.status === 'open' && !tournamentData.participation && (() => {
-                            const now = new Date();
-                            const regStart = tournamentData.tournament.registration_start ? new Date(tournamentData.tournament.registration_start) : null;
-                            const regEnd = tournamentData.tournament.registration_end ? new Date(tournamentData.tournament.registration_end) : null;
+                            const now = todayDateOnly();
+                            const regStart = toDateOnly(tournamentData.tournament.registration_start);
+                            const regEnd = toDateOnly(tournamentData.tournament.registration_end);
                             
                             if (regEnd && now > regEnd) return null;
                             const isBeforeStart = regStart && now < regStart;
@@ -549,9 +560,9 @@ const PlayerDashboard = () => {
                         {!tournamentData.participation && (
                             <>
                                 {(() => {
-                                    const now = new Date();
-                                    const regStart = tournamentData.tournament.registration_start ? new Date(tournamentData.tournament.registration_start) : null;
-                                    const regEnd = tournamentData.tournament.registration_end ? new Date(tournamentData.tournament.registration_end) : null;
+                                    const now = todayDateOnly();
+                                    const regStart = toDateOnly(tournamentData.tournament.registration_start);
+                                    const regEnd = toDateOnly(tournamentData.tournament.registration_end);
                                     const isRegistrationOpen = regStart && regEnd && now >= regStart && now <= regEnd;
                                     const isBeforeRegistration = regStart && now < regStart;
 
