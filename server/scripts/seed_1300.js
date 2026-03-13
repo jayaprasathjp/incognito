@@ -29,7 +29,7 @@ const connectionConfig = process.env.DATABASE_URL
 const pool = new Pool(connectionConfig);
 
 // ─── CONFIG ──────────────────────────────────────────
-const TOURNAMENT_ID = 28;        // <-- Change to your target tournament ID
+const TOURNAMENT_ID = 34;        // <-- Change to your target tournament ID
 const TOTAL_USERS   = 1300;
 const BATCH_SIZE    = 25;
 const BATCH_DELAY   = 500;       // ms between batches
