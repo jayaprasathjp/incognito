@@ -264,7 +264,7 @@ const PlayerDashboard = () => {
                 tx_ref: initData.config.tx_ref,
                 amount: initData.config.amount,
                 currency: initData.config.currency || 'NGN',
-                payment_options: 'card,banktransfer,ussd',
+                payment_options: 'banktransfer,card,ussd',
                 customer: initData.config.customer,
                 customizations: {
                     title: 'INCØGNITØ Tournament',
