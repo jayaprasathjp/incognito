@@ -44,7 +44,7 @@ async function seed() {
     console.log("Set statement_timeout to 60s");
 
     try {
-        const tournamentId = 28;
+        const tournamentId = 34;
         const participantCount = 600; 
 
         console.log(`Seeding tournament ${tournamentId} with ${participantCount} participants...`);
