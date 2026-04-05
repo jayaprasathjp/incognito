@@ -19,6 +19,27 @@ router.get("/current", authenticateToken, async (req, res) => {
              currentRound = roundRes.rows[0].max || 1;
         }
 
+        // Fetch rounds schedule from DB to reconstruct rounds_config for players
+        const roundsQueryRes = await pool.query(
+            "SELECT * FROM rounds WHERE tournament_id = $1 ORDER BY round_number ASC", 
+            [tournament.id]
+        );
+        
+        let rounds_config = null;
+        if (roundsQueryRes.rows.length > 0) {
+            rounds_config = {
+                type: "Schedule",
+                description: "Official Tournament Schedule",
+                rounds: roundsQueryRes.rows.map(r => ({
+                    ...r,
+                    date: r.date ? (() => {
+                        const d = new Date(r.date);
+                        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    })() : ''
+                }))
+            };
+        }
+
         // Winner Info
         if (tournament.status === 'completed' && tournament.winner_id) {
             const winnerRes = await pool.query("SELECT username FROM users WHERE id = $1", [tournament.winner_id]);
@@ -34,9 +55,10 @@ router.get("/current", authenticateToken, async (req, res) => {
         );
         
         let currentMatch = null;
+        let projectedBye = false;
+        
         if (partResult.rows.length > 0) {
-             // Find active match for this user in this tournament
-             // We look for matches where user is p1 or p2 AND status is 'scheduled' or 'pending_review'
+             // We look for the user's match in the current round so they can see BYEs or completed matches.
              const matchRes = await pool.query(
                 `SELECT m.*, 
                         op.username as opponent_name, 
@@ -45,18 +67,40 @@ router.get("/current", authenticateToken, async (req, res) => {
                  LEFT JOIN users op ON (CASE WHEN m.player1_id = $2 THEN m.player2_id ELSE m.player1_id END) = op.id
                  WHERE m.tournament_id = $1 
                  AND (m.player1_id = $2 OR m.player2_id = $2)
-                 AND m.status IN ('scheduled', 'pending_review')
-                 ORDER BY m.round DESC LIMIT 1`,
-                [tournament.id, req.user.id]
+                 AND m.round = $3
+                 ORDER BY m.id DESC LIMIT 1`,
+                [tournament.id, req.user.id, currentRound]
              );
              if (matchRes.rows.length > 0) {
                  currentMatch = matchRes.rows[0];
              }
+             
+             // If we're in scheduled mode or active round 1 (and no match generated yet), project BYE status
+             if (tournament.status === 'scheduled' || (tournament.status === 'active' && currentRound === 1)) {
+                 const allParts = await pool.query(
+                     `SELECT user_id FROM participants 
+                      WHERE tournament_id = $1 AND status = 'approved' 
+                      ORDER BY joined_at ASC`,
+                     [tournament.id]
+                 );
+                 
+                 const totalPlayers = allParts.rows.length;
+                 if (totalPlayers > 1) {
+                     let nextPow2 = 1;
+                     while (nextPow2 < totalPlayers) nextPow2 *= 2;
+                     const byeCount = nextPow2 - totalPlayers;
+                     
+                     const userRank = allParts.rows.findIndex(p => p.user_id === req.user.id);
+                     if (userRank !== -1 && userRank < byeCount) {
+                         projectedBye = true;
+                     }
+                 }
+             }
         }
 
         res.json({
-            tournament: { ...tournament, currentRound },
-            participation: partResult.rows.length > 0 ? partResult.rows[0] : null,
+            tournament: { ...tournament, rounds_config, currentRound },
+            participation: partResult.rows.length > 0 ? { ...partResult.rows[0], projectedBye } : null,
             currentMatch
         });
     } catch (error) {
@@ -190,73 +234,8 @@ router.put("/:id/participants/:userId", authenticateToken, authorizeAdmin, async
 });
 
 
-// Start Tournament (Admin)
-router.post("/:id/start", authenticateToken, authorizeAdmin, async (req, res) => {
-    const { id } = req.params;
-    try {
-        // 1. Check tournament status and participant count
-        const tournamentRes = await pool.query("SELECT * FROM tournaments WHERE id = $1", [id]);
-        if (tournamentRes.rows.length === 0) return res.status(404).json({ error: "Tournament not found" });
-        if (tournamentRes.rows[0].status !== 'open') return res.status(400).json({ error: "Tournament already started or completed" });
-
-        const participantsRes = await pool.query("SELECT user_id FROM participants WHERE tournament_id = $1 AND status = 'approved'", [id]);
-        const participants = participantsRes.rows;
-
-        if (participants.length < 2) return res.status(400).json({ error: "Need at least 2 approved participants to start" });
-
-        // MVP: Don't strictly enforce power of 2, just handle byes if needed (but logic is complex)
-        // ideally strictly enforce power of 2 for simplicity: 2, 4, 8, 16...
-        // For now, let's just shuffle and pair. If odd, last one gets a bye (or we error).
-        
-        // Shuffle
-        for (let i = participants.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [participants[i], participants[j]] = [participants[j], participants[i]];
-        }
-
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-
-            // 2. Update status to active
-            await client.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [id]);
-
-            // 3. Create Matches
-            let matchOrder = 1;
-            for (let i = 0; i < participants.length; i += 2) {
-                const p1 = participants[i].user_id;
-                const p2 = participants[i + 1] ? participants[i + 1].user_id : null; // Handle odd number (bye) logic if we supported it
-
-                if (p2) {
-                    await client.query(
-                        "INSERT INTO matches (tournament_id, round, match_order, player1_id, player2_id, status) VALUES ($1, 1, $2, $3, $4, 'scheduled')",
-                        [id, matchOrder++, p1, p2]
-                    );
-                } else {
-                    // Bye: Automatically advance p1 to round 2? Or just create a completed match?
-                    // For MVP simplicity, let's just create a match with no p2 and mark p1 as winner immediately?
-                    // Alternatively, error out if not even.
-                   await client.query(
-                        "INSERT INTO matches (tournament_id, round, match_order, player1_id, winner_id, status) VALUES ($1, 1, $2, $3, $3, 'completed')",
-                        [id, matchOrder++, p1]
-                    );
-                }
-            }
-
-            await client.query('COMMIT');
-            res.json({ message: "Tournament started", count: participants.length });
-        } catch (e) {
-            await client.query('ROLLBACK');
-            throw e;
-        } finally {
-            client.release();
-        }
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Server error" });
-    }
-});
+// The tournament start logic has been moved to the admin control endpoint. 
+// Do not use this legacy endpoint.
 
 // Update Tournament Schedule (Admin)
 router.put("/:id/schedule", authenticateToken, authorizeAdmin, async (req, res) => {

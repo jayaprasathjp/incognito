@@ -34,8 +34,8 @@ router.get("/stats", async (req, res) => {
                 currentRound = roundRes.rows[0].max || 1;
             }
 
-            // Matches in current round
-            const mRes = await pool.query("SELECT COUNT(*) FROM matches WHERE tournament_id = $1 AND round = $2", [tournament.id, currentRound]);
+            // Matches in current round (excluding BYEs so the number reflects actual games)
+            const mRes = await pool.query("SELECT COUNT(*) FROM matches WHERE tournament_id = $1 AND round = $2 AND match_code != 'BYE'", [tournament.id, currentRound]);
             currentRoundMatchCount = parseInt(mRes.rows[0].count);
         }
 
@@ -187,9 +187,10 @@ router.get("/tournaments/control", async (req, res) => {
         
         if (roundsRes.rows.length > 0) {
             // Auto-generate fixtures for rounds whose date has arrived
-            if (tournament.status === 'active') {
+            if (tournament.status === 'active' || tournament.status === 'scheduled') {
                 const now = new Date();
                 const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                let fixturesGeneratedNow = false;
                 
                 for (const round of roundsRes.rows) {
                     const roundDateStr = round.date ? (() => {
@@ -201,10 +202,17 @@ router.get("/tournaments/control", async (req, res) => {
                         console.log(`[AUTO-TRIGGER] Generating fixtures for round ${round.round_number}`);
                         try {
                             await generateFixturesForRound(tournament.id, round.round_number);
+                            fixturesGeneratedNow = true;
                         } catch (autoErr) {
                             console.error(`[AUTO-TRIGGER] Failed for round ${round.round_number}:`, autoErr.message);
                         }
                     }
+                }
+                
+                // If it was just scheduled but fixtures dropped, automatically start the tournament!
+                if (fixturesGeneratedNow && tournament.status === 'scheduled') {
+                    await pool.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [tournament.id]);
+                    tournament.status = 'active';
                 }
                 
                 // Re-fetch rounds after auto-generation
@@ -263,42 +271,33 @@ router.post("/tournaments/control", async (req, res) => {
                     await client.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [id]);
                     res.json({ message: "Tournament started (matches preserved)", matches: matchCount });
                 } else {
-                    // CASE B: No matches (Manual start?). Generate from Participants.
+                    // CASE B: No matches yet. Use generateFixturesForRound for Round 1.
+                    // This handles power-of-2 BYEs, session-based pairing, and staggered times.
                     
-                    // Fetch registered participants
-                    const pRes = await client.query("SELECT user_id as id FROM participants WHERE tournament_id = $1 AND status = 'approved'", [id]);
-                    const players = pRes.rows;
+                    // Check if round 1 exists in rounds table
+                    const round1Check = await client.query(
+                        "SELECT id FROM rounds WHERE tournament_id = $1 AND round_number = 1",
+                        [id]
+                    );
                     
-                    if (players.length < 2) throw new Error("Not enough participants to start");
-
-                    // Shuffle
-                    for (let i = players.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [players[i], players[j]] = [players[j], players[i]];
-                    }
-
-                    // Create Matches
-                    for (let i = 0; i < players.length; i += 2) {
-                        const p1 = players[i];
-                        const p2 = players[i+1];
-                        
-                        if (p2) {
-                             const matchCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                             await client.query(
-                                "INSERT INTO matches (tournament_id, round, player1_id, player2_id, status, match_code) VALUES ($1, 1, $2, $3, 'scheduled', $4)",
-                                [id, p1.id, p2.id, matchCode]
-                            );
-                        } else {
-                            // Bye for odd player
-                            await client.query(
-                                "INSERT INTO matches (tournament_id, round, player1_id, winner_id, status, match_code) VALUES ($1, 1, $2, $2, 'completed', 'BYE')",
-                                [id, p1.id]
-                            );
-                        }
-                    }
-
                     await client.query("UPDATE tournaments SET status = 'active' WHERE id = $1", [id]);
-                    res.json({ message: "Tournament started and matches generated", participants: players.length });
+                    await client.query('COMMIT');
+                    client.release();
+                    
+                    // Generate fixtures using the dedicated function (it manages its own transaction)
+                    if (round1Check.rows.length > 0) {
+                        try {
+                            const result = await generateFixturesForRound(id, 1);
+                            const msg = `Tournament started. Created ${result.scheduled} matches` + (result.byes ? ` and ${result.byes} BYEs` : '');
+                            res.json({ message: msg, matches_created: result.scheduled, byes_created: result.byes });
+                        } catch (genErr) {
+                            console.error('Auto-generate R1 on start error:', genErr.message);
+                            res.json({ message: "Tournament started, but fixture generation failed: " + genErr.message });
+                        }
+                    } else {
+                        res.json({ message: "Tournament started. Generate fixtures via schedule." });
+                    }
+                    return; // Already committed and responded
                 }
 
                 await client.query('COMMIT');
@@ -421,8 +420,9 @@ router.post("/tournaments/control", async (req, res) => {
             if (!round_number) return res.status(400).json({ error: "round_number is required" });
 
             try {
-                const count = await generateFixturesForRound(id, round_number);
-                res.json({ message: `Fixtures generated for Round ${round_number}`, matches_created: count });
+                const result = await generateFixturesForRound(id, round_number);
+                const msg = `Created ${result.scheduled} matches` + (result.byes ? ` and ${result.byes} BYEs` : '') + ` for Round ${round_number}`;
+                res.json({ message: msg, matches_created: result.scheduled, byes_created: result.byes });
             } catch (genErr) {
                 console.error('Generate fixtures error:', genErr);
                 res.status(400).json({ error: genErr.message || "Failed to generate fixtures" });
@@ -592,87 +592,195 @@ router.post("/announcements", async (req, res) => {
 });
 
 // === FIXTURE GENERATION HELPER ===
+
+// Session time slot definitions (30-min intervals within each session window)
+const SESSION_TIME_SLOTS = {
+    morning:   ['10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30'],
+    afternoon: ['14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'],
+    evening:   ['17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30']
+};
+
+// Get next power of 2 >= n
+function nextPowerOf2(n) {
+    let p = 1;
+    while (p < n) p *= 2;
+    return p;
+}
+
+// Fisher-Yates shuffle
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
 async function generateFixturesForRound(tournamentId, roundNumber) {
-    const client = await pool.connect();
+    roundNumber = Number(roundNumber); // Ensure numeric comparison
+    console.log(`[FIXTURES] Starting generation for tournament ${tournamentId}, round ${roundNumber} (type: ${typeof roundNumber})`);
+    
+    // 1. Pre-checks (no transaction needed)
+    const roundRes = await pool.query(
+        "SELECT * FROM rounds WHERE tournament_id = $1 AND round_number = $2",
+        [tournamentId, roundNumber]
+    );
+    if (roundRes.rows.length === 0) throw new Error(`Round ${roundNumber} not found`);
+    if (roundRes.rows[0].fixtures_generated) throw new Error(`Fixtures already generated for Round ${roundNumber}`);
+
+    // 2. Lock the round immediately to prevent double-generation
+    await pool.query(
+        "UPDATE rounds SET fixtures_generated = true WHERE tournament_id = $1 AND round_number = $2",
+        [tournamentId, roundNumber]
+    );
+
     try {
-        await client.query('BEGIN');
-
-        // Check round exists and hasn't been generated yet
-        const roundRes = await client.query(
-            "SELECT * FROM rounds WHERE tournament_id = $1 AND round_number = $2",
-            [tournamentId, roundNumber]
-        );
-        if (roundRes.rows.length === 0) throw new Error(`Round ${roundNumber} not found`);
-        if (roundRes.rows[0].fixtures_generated) throw new Error(`Fixtures already generated for Round ${roundNumber}`);
-
-        let players = [];
+        // 3. Build all match data in memory
+        const byeMatchPlayerIds = [];
+        const schedMatchData = [];  // { p1Id, p2Id, matchCode, matchTime }
 
         if (roundNumber === 1) {
-            // Round 1: All approved participants
-            const pRes = await client.query(
-                "SELECT user_id as id FROM participants WHERE tournament_id = $1 AND status = 'approved'",
+            console.log(`[FIXTURES] >>> Entering ROUND 1 branch (power-of-2 BYEs)`);
+            // ═══ ROUND 1: Power-of-2 BYEs + Session-Based Matching ═══
+            const pRes = await pool.query(
+                `SELECT p.user_id as id, p.session_preference, p.joined_at 
+                 FROM participants p 
+                 WHERE p.tournament_id = $1 AND p.status = 'approved' 
+                 ORDER BY p.joined_at ASC`,
                 [tournamentId]
             );
-            players = pRes.rows;
+            const allPlayers = pRes.rows;
+            if (allPlayers.length < 2) throw new Error("Not enough players to generate fixtures");
+
+            const totalPlayers = allPlayers.length;
+            const nextPow2 = nextPowerOf2(totalPlayers);
+            const byeCount = nextPow2 - totalPlayers;
+
+            console.log(`[FIXTURES R1] Total: ${totalPlayers}, Next POW2: ${nextPow2}, BYEs: ${byeCount}, Playing: ${totalPlayers - byeCount}`);
+
+            // Early joiners get BYEs
+            for (let i = 0; i < byeCount; i++) byeMatchPlayerIds.push(allPlayers[i].id);
+            const playingPlayers = allPlayers.slice(byeCount);
+
+            // Group by session
+            const sessionGroups = { morning: [], afternoon: [], evening: [] };
+            for (const player of playingPlayers) {
+                const s = player.session_preference || 'morning';
+                (sessionGroups[s] || sessionGroups.morning).push(player);
+            }
+            console.log(`[FIXTURES R1] Sessions — morning: ${sessionGroups.morning.length}, afternoon: ${sessionGroups.afternoon.length}, evening: ${sessionGroups.evening.length}`);
+
+            // Pair within sessions
+            const leftoverPlayers = [];
+            const rawMatches = [];
+            for (const session of ['morning', 'afternoon', 'evening']) {
+                const group = shuffle(sessionGroups[session]);
+                for (let i = 0; i < group.length - 1; i += 2) {
+                    rawMatches.push({ p1: group[i], p2: group[i + 1], session });
+                }
+                if (group.length % 2 !== 0) leftoverPlayers.push(group[group.length - 1]);
+            }
+
+            // Cross-session leftovers
+            shuffle(leftoverPlayers);
+            for (let i = 0; i < leftoverPlayers.length - 1; i += 2) {
+                rawMatches.push({ p1: leftoverPlayers[i], p2: leftoverPlayers[i + 1], session: leftoverPlayers[i].session_preference || 'morning' });
+            }
+            if (leftoverPlayers.length % 2 !== 0) {
+                byeMatchPlayerIds.push(leftoverPlayers[leftoverPlayers.length - 1].id);
+            }
+
+            // Assign staggered times
+            const counters = { morning: 0, afternoon: 0, evening: 0 };
+            for (const m of rawMatches) {
+                const slots = SESSION_TIME_SLOTS[m.session] || SESSION_TIME_SLOTS.morning;
+                const matchTime = slots[counters[m.session] % slots.length];
+                counters[m.session]++;
+                schedMatchData.push({ p1Id: m.p1.id, p2Id: m.p2.id, matchCode: Math.random().toString(36).substring(2, 8).toUpperCase(), matchTime });
+            }
+
         } else {
-            // Round 2+: Winners from previous round
-            const prevRound = roundNumber - 1;
-            const winnersRes = await client.query(
-                "SELECT winner_id as id FROM matches WHERE tournament_id = $1 AND round = $2 AND winner_id IS NOT NULL",
-                [tournamentId, prevRound]
+            // ═══ ROUND 2+: Winners from previous round ═══
+            const winnersRes = await pool.query(
+                `SELECT m.winner_id as id, COALESCE(p.session_preference, 'morning') as session_preference
+                 FROM matches m
+                 LEFT JOIN participants p ON m.winner_id = p.user_id AND p.tournament_id = $1
+                 WHERE m.tournament_id = $1 AND m.round = $2 AND m.winner_id IS NOT NULL`,
+                [tournamentId, roundNumber - 1]
             );
-            players = winnersRes.rows;
+            const allPlayers = winnersRes.rows;
+            if (allPlayers.length === 0) throw new Error(`No winners found from Round ${roundNumber - 1}`);
+            if (allPlayers.length < 2) throw new Error("Not enough players");
 
-            if (players.length === 0) {
-                throw new Error(`No winners found from Round ${prevRound}. Ensure all matches are completed first.`);
+            const sessionGroups = { morning: [], afternoon: [], evening: [] };
+            for (const p of allPlayers) (sessionGroups[p.session_preference] || sessionGroups.morning).push(p);
+
+            const leftoverPlayers = [];
+            const rawMatches = [];
+            for (const session of ['morning', 'afternoon', 'evening']) {
+                const group = shuffle(sessionGroups[session]);
+                for (let i = 0; i < group.length - 1; i += 2) rawMatches.push({ p1: group[i], p2: group[i + 1], session });
+                if (group.length % 2 !== 0) leftoverPlayers.push(group[group.length - 1]);
+            }
+            shuffle(leftoverPlayers);
+            for (let i = 0; i < leftoverPlayers.length - 1; i += 2) {
+                rawMatches.push({ p1: leftoverPlayers[i], p2: leftoverPlayers[i + 1], session: leftoverPlayers[i].session_preference || 'morning' });
+            }
+            if (leftoverPlayers.length % 2 !== 0) byeMatchPlayerIds.push(leftoverPlayers[leftoverPlayers.length - 1].id);
+
+            const counters = { morning: 0, afternoon: 0, evening: 0 };
+            for (const m of rawMatches) {
+                const slots = SESSION_TIME_SLOTS[m.session] || SESSION_TIME_SLOTS.morning;
+                const matchTime = slots[counters[m.session] % slots.length];
+                counters[m.session]++;
+                schedMatchData.push({ p1Id: m.p1.id, p2Id: m.p2.id, matchCode: Math.random().toString(36).substring(2, 8).toUpperCase(), matchTime });
             }
         }
 
-        if (players.length < 2) throw new Error("Not enough players to generate fixtures");
-
-        // Shuffle players
-        for (let i = players.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [players[i], players[j]] = [players[j], players[i]];
-        }
-
-        // Create matches
+        // 4. BULK INSERT — no wrapping transaction, just batch queries
         let matchesCreated = 0;
-        for (let i = 0; i < players.length; i += 2) {
-            const p1 = players[i];
-            const p2 = players[i + 1];
+        const BATCH = 200;
 
-            if (p2) {
-                const matchCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                await client.query(
-                    "INSERT INTO matches (tournament_id, round, player1_id, player2_id, status, match_code) VALUES ($1, $2, $3, $4, 'scheduled', $5)",
-                    [tournamentId, roundNumber, p1.id, p2.id, matchCode]
-                );
-                matchesCreated++;
-            } else {
-                // BYE for odd player
-                await client.query(
-                    "INSERT INTO matches (tournament_id, round, player1_id, winner_id, status, match_code) VALUES ($1, $2, $3, $3, 'completed', 'BYE')",
-                    [tournamentId, roundNumber, p1.id]
-                );
-                matchesCreated++;
+        // Insert BYEs
+        for (let b = 0; b < byeMatchPlayerIds.length; b += BATCH) {
+            const batch = byeMatchPlayerIds.slice(b, b + BATCH);
+            const values = []; const params = []; let idx = 1;
+            for (const pid of batch) {
+                values.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+2}, 'completed', 'BYE', NULL)`);
+                params.push(tournamentId, roundNumber, pid);
+                idx += 3;
             }
+            await pool.query(`INSERT INTO matches (tournament_id, round, player1_id, winner_id, status, match_code, match_time) VALUES ${values.join(', ')}`, params);
+            matchesCreated += batch.length;
         }
+        console.log(`[FIXTURES] ${byeMatchPlayerIds.length} BYEs inserted`);
 
-        // Mark round as fixtures generated
-        await client.query(
-            "UPDATE rounds SET fixtures_generated = true WHERE tournament_id = $1 AND round_number = $2",
-            [tournamentId, roundNumber]
-        );
+        // Insert scheduled matches
+        for (let b = 0; b < schedMatchData.length; b += BATCH) {
+            const batch = schedMatchData.slice(b, b + BATCH);
+            const values = []; const params = []; let idx = 1;
+            for (const m of batch) {
+                values.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, 'scheduled', $${idx+4}, $${idx+5})`);
+                params.push(tournamentId, roundNumber, m.p1Id, m.p2Id, m.matchCode, m.matchTime);
+                idx += 6;
+            }
+            await pool.query(`INSERT INTO matches (tournament_id, round, player1_id, player2_id, status, match_code, match_time) VALUES ${values.join(', ')}`, params);
+            matchesCreated += batch.length;
+        }
+        console.log(`[FIXTURES] ${schedMatchData.length} scheduled matches inserted`);
+        console.log(`[FIXTURES] Total: ${matchesCreated} matches for tournament ${tournamentId}, round ${roundNumber}`);
+        return {
+            total: matchesCreated,
+            byes: byeMatchPlayerIds.length,
+            scheduled: schedMatchData.length
+        };
 
-        await client.query('COMMIT');
-        console.log(`[FIXTURES] Generated ${matchesCreated} matches for tournament ${tournamentId}, round ${roundNumber}`);
-        return matchesCreated;
     } catch (e) {
-        await client.query('ROLLBACK');
+        // Rollback: unlock the round and clean up any partial inserts
+        console.error(`[FIXTURES] Error, rolling back:`, e.message);
+        await pool.query("DELETE FROM matches WHERE tournament_id = $1 AND round = $2", [tournamentId, roundNumber]);
+        await pool.query("UPDATE rounds SET fixtures_generated = false WHERE tournament_id = $1 AND round_number = $2", [tournamentId, roundNumber]);
         throw e;
-    } finally {
-        client.release();
     }
 }
 

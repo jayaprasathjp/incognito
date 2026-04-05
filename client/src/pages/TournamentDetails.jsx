@@ -67,10 +67,10 @@ const TournamentDetails = () => {
     const handleStart = async () => {
         if (!window.confirm("Start tournament? This will generate fixtures.")) return;
         try {
-            await api.post(`/tournaments/${id}/start`, {});
+            await api.post(`/admin/tournaments/control`, { action: 'start', id: parseInt(id) });
             loadData();
         } catch (error) {
-            alert('Failed to start tournament: ' + (error.error || 'Unknown error'));
+            alert('Failed to start tournament: ' + (error.response?.data?.error || error.error || 'Unknown error'));
         }
     };
 
