@@ -17,6 +17,7 @@ import Upload from './pages/Upload';
 import LeagueBracket from './pages/LeagueBracket';
 import ReferralProgram from './pages/ReferralProgram';
 import BankDetails from './pages/BankDetails';
+import ActiveMatch from './pages/ActiveMatch';
 
 import AdminLayout from './layouts/AdminLayout';
 import AdminLogin from './pages/admin/AdminLogin';
@@ -54,7 +55,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
-              
+              <Route path="/match/:id" element={<ActiveMatch />} />
               
               {/* Admin Routes */}
               <Route path="/admin/login" element={<AdminLogin />} />

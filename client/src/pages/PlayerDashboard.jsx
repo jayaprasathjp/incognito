@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Clock, Calendar } from 'lucide-react';
+import { Loader2, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import appIcon from '../assets/app-icon.png';
 import Sidebar from '../components/Sidebar';
 import { api } from '../utils/api';
-
+import ActiveMatchCard from '../components/ActiveMatchCard';
 const FLW_PUBLIC_KEY = import.meta.env.VITE_FLW_PUBLIC_KEY || '';
 
 // Helper: compare registration dates by date-only (ignores time/timezone)
@@ -20,153 +20,7 @@ const todayDateOnly = () => {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 };
 
-const MatchSubmission = ({ match, user, token, onSuccess }) => {
-    const [step, setStep] = useState('select'); // select, win, loss
-    const [myScore, setMyScore] = useState('');
-    const [oppScore, setOppScore] = useState('');
-    const [proof, setProof] = useState('');
-    const [submitting, setSubmitting] = useState(false);
 
-    const handleSubmit = async (isWin) => {
-        if (!confirm(isWin ? "Are you sure you want to report a WIN?" : "Are you sure you want to report a LOSS?")) return;
-
-        setSubmitting(true);
-        try {
-            const isP1 = match.player1_id === user.id;
-            
-            // If Loss: My Score 0, Opp Score 1, Proof 'Conceded'
-            // If Win: Use form values
-            const score1 = isWin ? (isP1 ? myScore : oppScore) : (isP1 ? 0 : 1);
-            const score2 = isWin ? (isP1 ? oppScore : myScore) : (isP1 ? 1 : 0);
-            const proofVal = isWin ? proof : 'Conceded';
-
-            const body = {
-                score_player1: score1,
-                score_player2: score2,
-                proof_image: proofVal
-            };
-
-            const data = await api.post(`/matches/${match.id}/submit`, body);
-
-            if (!data.error) {
-                alert(isWin ? "Victory reported! Waiting for admin." : "Loss reported. Better luck next time!");
-                onSuccess();
-            } else {
-                alert(data.error || "Failed to submit result");
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Error submitting result");
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    if (step === 'select') {
-        return (
-            <div className="grid grid-cols-2 gap-4">
-                <button 
-                    onClick={() => setStep('win')}
-                    className="py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold shadow-md transition-transform active:scale-95 flex flex-col items-center justify-center gap-1"
-                >
-                    <span>I WON</span>
-                </button>
-                <button 
-                    onClick={() => setStep('loss')}
-                    className="py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold shadow-md transition-transform active:scale-95 flex flex-col items-center justify-center gap-1"
-                >
-                    <span>I LOST</span>
-                </button>
-            </div>
-        );
-    }
-
-    if (step === 'loss') {
-        return (
-            <div className="space-y-4">
-                <div className="p-4 bg-red-50 text-red-800 rounded-xl border border-red-100 text-sm">
-                    <p className="font-bold mb-1">Confirm Defeat?</p>
-                    <p>This will maintain your honor and help the tournament proceed.</p>
-                </div>
-                <div className="flex gap-4">
-                    <button 
-                        onClick={() => setStep('select')}
-                        className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl"
-                    >
-                        CANCEL
-                    </button>
-                    <button 
-                        onClick={() => handleSubmit(false)}
-                        disabled={submitting}
-                        className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl shadow-md"
-                    >
-                        {submitting ? '...' : 'CONFIRM LOSS'}
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    // Step 'win'
-    return (
-        <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Your Score</label>
-                    <input 
-                        type="number" 
-                        required
-                        min="0"
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={myScore}
-                        onChange={e => setMyScore(e.target.value)}
-                    />
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Opp. Score</label>
-                    <input 
-                        type="number" 
-                        required
-                        min="0"
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={oppScore}
-                        onChange={e => setOppScore(e.target.value)}
-                    />
-                </div>
-            </div>
-
-            <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 text-left">Proof Image URL</label>
-                <input 
-                    type="url" 
-                    required
-                    placeholder="https://imgur.com/..."
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={proof}
-                    onChange={e => setProof(e.target.value)}
-                />
-                <p className="text-[10px] text-slate-400 text-left mt-1">Upload screenshot to Imgur/Drive and paste link</p>
-            </div>
-
-            <div className="flex gap-4">
-                <button 
-                    onClick={() => setStep('select')}
-                    type="button"
-                    className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl"
-                >
-                    BACK
-                </button>
-                <button 
-                    onClick={() => handleSubmit(true)}
-                    disabled={submitting}
-                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-bold transition-transform active:scale-95 shadow-md"
-                >
-                    {submitting ? '...' : 'SUBMIT WIN'}
-                </button>
-            </div>
-        </div>
-    );
-};
 
 const PlayerDashboard = () => {
     const { user, token } = useAuth();
@@ -355,42 +209,15 @@ const PlayerDashboard = () => {
                 )}
 
                 {/* Current Match Card */}
+                {/* Current Match Card via ActiveMatchCard */}
                 {!loading && tournamentData?.currentMatch && tournamentData?.tournament?.status === 'active' && (
-                    <div className="w-full max-w-sm mb-8 p-6 bg-white rounded-2xl border border-blue-100 shadow-xl text-center relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
-                        
-                        <h3 className="text-xs text-blue-500 font-bold uppercase tracking-wider mb-4">Your Match - Round {tournamentData.currentMatch.round}</h3>
-                        
-                        <div className="flex justify-between items-center mb-6 px-4">
-                            <div className="text-center">
-                                <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
-                                    {user?.username?.[0]?.toUpperCase()}
-                                </div>
-                                <p className="font-bold text-sm text-slate-900">You</p>
-                            </div>
-                            <div className="text-slate-300 font-black text-xl">VS</div>
-                            <div className="text-center">
-                                <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
-                                    {tournamentData.currentMatch.opponent_name?.[0]?.toUpperCase() || '?'}
-                                </div>
-                                <p className="font-bold text-sm text-slate-900">{tournamentData.currentMatch.opponent_name || 'Waiting'}</p>
-                            </div>
-                        </div>
-
-                        {tournamentData.currentMatch.status === 'pending_review' ? (
-                            <div className="bg-yellow-50 text-yellow-700 p-4 rounded-xl border border-yellow-100 mb-2">
-                                <p className="font-bold text-sm">Result Submitted</p>
-                                <p className="text-xs mt-1">Waiting for admin verification.</p>
-                            </div>
-                        ) : (
-                            <MatchSubmission 
-                                match={tournamentData.currentMatch} 
-                                user={user} 
-                                token={token} 
-                                onSuccess={fetchTournament} 
-                            />
-                        )}
-                    </div>
+                    <ActiveMatchCard 
+                        matchId={tournamentData.currentMatch.id} 
+                        round={tournamentData.currentMatch.round} 
+                        currentRound={tournamentData.tournament.rounds_config?.rounds?.find(r => r.round_number === tournamentData.currentMatch.round)}
+                        nextRound={tournamentData.tournament.rounds_config?.rounds?.find(r => r.round_number === (tournamentData.currentMatch.round + 1))}
+                        onComplete={fetchTournament} 
+                    />
                 )}
 
                 {/* Winner Card */}
@@ -525,13 +352,56 @@ const PlayerDashboard = () => {
                         {/* Registered View - show when user has joined */}
                         {tournamentData.participation && (
                             <div className="w-full mb-4">
-                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                </div>
-                                <p className="text-lg font-bold text-green-700 mb-1">You're In!</p>
-                                <p className="text-xs text-slate-500 mb-4">Successfully registered for this tournament</p>
+                                {tournamentData.tournament.status === 'scheduled' || (tournamentData.tournament.status === 'active' && !tournamentData.currentMatch) ? (() => {
+                                    const rounds = tournamentData.tournament.rounds_config?.rounds || [];
+                                    const rData = rounds.find(r => r.round_number == (tournamentData.tournament.currentRound || 1)) || rounds[0];
+                                    const isProjectedBye = tournamentData.participation?.projectedBye;
+                                    
+                                    return (
+                                        <>
+                                            {isProjectedBye ? (
+                                                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                    <div className="text-2xl">⭐</div>
+                                                </div>
+                                            ) : (
+                                                tournamentData.tournament.status != 'active' && (
+                                                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                    <Calendar className="w-8 h-8 text-blue-600" />
+                                                </div>
+                                                )
+                                            )}
+                                            
+                                            <p className="text-lg font-bold text-blue-700 mb-2">
+                                                {isProjectedBye ? "Free Pass Secured!" : (tournamentData.tournament.status !== 'active' && "Tournament Scheduled")}
+                                            </p>
+                                            
+                                            {rData ? (
+                                                <div className="bg-white/50 rounded-xl p-3 inline-block border border-blue-200 shadow-sm text-left">
+                                                    <p className="text-sm font-bold text-slate-800 mb-1">
+                                                        {rData.name || `Round ${rData.round_number}`} <span className="text-blue-500 font-normal">on {rData.date ? new Date(rData.date).toLocaleDateString() : 'TBD'}</span>
+                                                    </p>
+                                                    {isProjectedBye ? (
+                                                        <p className="text-xs text-slate-600 font-bold text-emerald-600">You registered early! You will receive a BYE for this round.</p>
+                                                    ) : (
+                                                        <p className="text-xs text-slate-600">Fixtures and exact match times will be announced soon!</p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-slate-500 mb-4">Awaiting your next match or fixture assignment.</p>
+                                            )}
+                                        </>
+                                    );
+                                })() : (
+                                    <>
+                                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </div>
+                                        <p className="text-lg font-bold text-green-700 mb-1">You're In!</p>
+                                        <p className="text-xs text-slate-500 mb-4">Successfully registered for this tournament</p>
+                                    </>
+                                )}
                                 
                                 {tournamentData.participation.session_preference && (
                                     <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 inline-flex items-center gap-2 mb-3">
