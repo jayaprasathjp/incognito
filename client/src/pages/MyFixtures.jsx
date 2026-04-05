@@ -78,9 +78,9 @@ const MyFixtures = () => {
                                      <span className="text-slate-400 text-xs font-medium">• {match.status}</span>
                                 </div>
                             </div>
-                            <button className="bg-slate-900 text-white px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-slate-800 transition-transform active:scale-95 shadow-md">
+                            <Link to={`/match/${match.id}`} className="bg-slate-900 text-white px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-slate-800 transition-transform active:scale-95 shadow-md">
                                 View
-                            </button>
+                            </Link>
                         </div>
                     );
                 })}
