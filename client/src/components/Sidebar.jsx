@@ -139,31 +139,13 @@ const Sidebar = ({ isOpen, onClose }) => {
                                     Rules
                                 </Link>
                                 <Link 
-                                    to="/fixtures" 
+                                    to="/matches" 
                                     className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/fixtures') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                                        isActive('/matches') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
                                     }`}
                                     onClick={onClose}
                                 >
-                                    My Fixtures
-                                </Link>
-                                <Link 
-                                    to="/upload" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/upload') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    Upload
-                                </Link>
-                                <Link 
-                                    to="/bracket" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/bracket') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    League Bracket
+                                    My Matches
                                 </Link>
                                 <Link 
                                     to="/referral" 

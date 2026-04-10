@@ -109,7 +109,7 @@ const ActiveMatch = () => {
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
                 <div className="flex items-center justify-center p-4 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm relative mb-4">
-                    <span className="font-bold text-lg tracking-wider text-slate-800" onClick={() => navigate('/my-fixtures')} style={{cursor: 'pointer'}}>
+                    <span className="font-bold text-lg tracking-wider text-slate-800" onClick={() => navigate('/matches')} style={{cursor: 'pointer'}}>
                         &larr; BACK
                     </span>
                 </div>
@@ -233,8 +233,8 @@ const ActiveMatch = () => {
                                         {matchState === 'cancelled' && "This match was cancelled."}
                                     </p>
                                     <div className="mt-8">
-                                         <button onClick={() => navigate('/my-fixtures')} className="text-blue-600 font-medium hover:underline">
-                                             &larr; Back to my fixtures
+                                         <button onClick={() => navigate('/matches')} className="text-blue-600 font-medium hover:underline">
+                                             &larr; Back to my matches
                                          </button>
                                     </div>
                                 </div>

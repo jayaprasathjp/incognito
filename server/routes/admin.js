@@ -1,6 +1,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken, authorizeAdmin } from "../middleware/auth.js";
+import { checkIfTournamentFinished } from "../utils/tournamentHelpers.js";
 
 const router = express.Router();
 
@@ -309,25 +310,24 @@ router.post("/tournaments/control", async (req, res) => {
                 client.release();
             }
 
-        } else if (action === 'end') {
-            // Find the winner of the last round (highest round)
-            // Assuming single elimination, the winner of the only match in the highest round is the tournament winner
-            // Or just check for the match with the highest round and get its winner
-            const lastMatchRes = await pool.query(
-                "SELECT winner_id FROM matches WHERE tournament_id = $1 AND status = 'completed' ORDER BY round DESC LIMIT 1",
-                [id]
-            );
-            
-            let winnerId = null;
-            if (lastMatchRes.rows.length > 0) {
-                winnerId = lastMatchRes.rows[0].winner_id;
+        } else if (action === 'reset') {
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                await client.query("DELETE FROM disputes WHERE match_id IN (SELECT id FROM matches WHERE tournament_id = $1)", [id]);
+                await client.query("DELETE FROM matches WHERE tournament_id = $1", [id]);
+                await client.query("DELETE FROM rounds WHERE tournament_id = $1", [id]);
+                await client.query("DELETE FROM participants WHERE tournament_id = $1", [id]);
+                
+                await client.query("UPDATE tournaments SET status = 'completed' WHERE id = $1", [id]);
+                await client.query('COMMIT');
+                res.json({ message: "Tournament data cleared" });
+            } catch (e) {
+                await client.query('ROLLBACK');
+                throw e;
+            } finally {
+                client.release();
             }
-
-            await pool.query(
-                "UPDATE tournaments SET status = 'completed', winner_id = $2 WHERE id = $1", 
-                [id, winnerId]
-            );
-            res.json({ message: "Tournament ended", winnerId });
         } else if (action === 'pause') {
             await pool.query("UPDATE tournaments SET status = 'paused' WHERE id = $1", [id]);
             res.json({ message: "Tournament paused" });
@@ -515,7 +515,50 @@ router.post("/matches/:id/override", async (req, res) => {
             "UPDATE matches SET winner_id = $1, score_player1 = $2, score_player2 = $3, status = 'completed' WHERE id = $4 RETURNING *",
             [winner_id, score_p1, score_p2, id]
         );
+        await checkIfTournamentFinished(id);
         res.json(update.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/matches/:id/rematch", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const updateRes = await client.query(
+                `UPDATE matches SET 
+                    status = 'scheduled', 
+                    winner_id = NULL, 
+                    score_player1 = 0, score_player2 = 0, 
+                    p1_score = NULL, p2_score = NULL, 
+                    p1_opp_score = NULL, p2_opp_score = NULL,
+                    match_code = NULL,
+                    checked_in_at = NULL,
+                    p1_checked_in = false,
+                    p2_checked_in = false
+                 WHERE id = $1 RETURNING tournament_id`,
+                [id]
+            );
+            
+            if (updateRes.rows.length > 0) {
+                // If tournament was paused due to no winner, reactivate it!
+                await client.query(
+                    "UPDATE tournaments SET status = 'active' WHERE id = $1 AND status = 'paused'",
+                    [updateRes.rows[0].tournament_id]
+                );
+            }
+            await client.query('COMMIT');
+            res.json({ message: "Rematch initiated" });
+        } catch(e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });

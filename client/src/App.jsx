@@ -12,9 +12,7 @@ import TournamentDetails from './pages/TournamentDetails';
 import PlayerDashboard from './pages/PlayerDashboard';
 import Roadmap from './pages/Roadmap';
 import Rules from './pages/Rules';
-import MyFixtures from './pages/MyFixtures';
-import Upload from './pages/Upload';
-import LeagueBracket from './pages/LeagueBracket';
+import MyMatches from './pages/MyMatches';
 import ReferralProgram from './pages/ReferralProgram';
 import BankDetails from './pages/BankDetails';
 import ActiveMatch from './pages/ActiveMatch';
@@ -74,9 +72,7 @@ function App() {
                  <Route path="/dashboard" element={<PlayerDashboard />} />
                  <Route path="/roadmap" element={<Roadmap />} />
                  <Route path="/rules" element={<Rules />} />
-                 <Route path="/fixtures" element={<MyFixtures />} />
-                 <Route path="/upload" element={<Upload />} />
-                 <Route path="/bracket" element={<LeagueBracket />} />
+                 <Route path="/matches" element={<MyMatches />} />
                  <Route path="/referral" element={<ReferralProgram />} />
                  <Route path="/bank-details" element={<BankDetails />} />
                  <Route path="/tournament/:id" element={<TournamentDetails />} />

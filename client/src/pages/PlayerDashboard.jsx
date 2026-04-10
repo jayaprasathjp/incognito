@@ -26,6 +26,7 @@ const PlayerDashboard = () => {
     const { user, token } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [tournamentData, setTournamentData] = useState(null);
+    const [hasBankDetails, setHasBankDetails] = useState(false);
     const [loading, setLoading] = useState(true);
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
     const [joinStep, setJoinStep] = useState(null); // null, 'session', 'payment'
@@ -56,10 +57,14 @@ const PlayerDashboard = () => {
     const fetchTournament = async () => {
         try {
             setLoading(true);
-            const data = await api.get('/tournaments/current');
+            const [data, bankData] = await Promise.all([
+                api.get('/tournaments/current'),
+                api.get('/user/bank-details').catch(() => ({}))
+            ]);
             setTournamentData(data);
+            setHasBankDetails(!!bankData?.account_number);
         } catch (error) {
-            console.error("Failed to fetch tournament", error);
+            console.error("Failed to fetch dashboard data", error);
         } finally {
             setLoading(false);
         }
@@ -208,9 +213,8 @@ const PlayerDashboard = () => {
                     </div>
                 )}
 
-                {/* Current Match Card */}
                 {/* Current Match Card via ActiveMatchCard */}
-                {!loading && tournamentData?.currentMatch && tournamentData?.tournament?.status === 'active' && (
+                {!loading && tournamentData?.currentMatch && (tournamentData?.tournament?.status === 'active' || tournamentData?.tournament?.status === 'scheduled') && (
                     <ActiveMatchCard 
                         matchId={tournamentData.currentMatch.id} 
                         round={tournamentData.currentMatch.round} 
@@ -222,31 +226,77 @@ const PlayerDashboard = () => {
 
                 {/* Winner Card */}
                 {!loading && tournamentData?.tournament?.status === 'completed' && (
-                    <div className="w-full max-w-sm mb-8 p-8 bg-white rounded-2xl border border-yellow-200 shadow-xl text-center relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500"></div>
-                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-yellow-100 rounded-full blur-3xl opacity-50"></div>
+                    <div className="w-full max-w-sm mb-8 relative group">
+                        {/* Glowing backdrop */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 rounded-3xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity duration-700"></div>
                         
-                        <div className="relative z-10">
-                            <div className="text-4xl mb-2">🏆</div>
-                            <h3 className="text-xs text-yellow-600 font-bold uppercase tracking-wider mb-2">Tournament Winner</h3>
+                        <div className="relative p-8 bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl text-center overflow-hidden">
+                            {/* Inner ambient light */}
+                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-amber-500 rounded-full blur-[80px] opacity-30"></div>
+                            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-orange-600 rounded-full blur-[80px] opacity-20"></div>
                             
-                            <div className="w-20 h-20 bg-yellow-50 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl font-black text-yellow-600 border-4 border-white shadow-lg">
-                                {tournamentData.tournament.winner_username?.[0]?.toUpperCase() || '?'}
-                            </div>
-                            
-                            <p className="text-2xl font-black text-slate-900 mb-1">
-                                {tournamentData.tournament.winner_username || 'To be announced'}
-                            </p>
-                            <p className="text-sm text-slate-500 font-medium">Champion of {tournamentData.tournament.title}</p>
-                            
-                            <div className="mt-6 pt-6 border-t border-slate-100">
-                                <p className="text-xs text-slate-400 font-bold uppercase mb-2">Total Prize Pool</p>
-                                <p className="text-3xl font-black text-slate-900">₦{tournamentData.tournament.prizePool}</p>
-                            </div>
+                            <div className="relative z-10">
+                                <div className="text-5xl mb-4 animate-[bounce_2s_ease-in-out_infinite]">🏆</div>
+                                <h3 className="text-xs text-amber-500 font-black uppercase tracking-[0.3em] mb-4 drop-shadow-md">Tournament Champion</h3>
+                                
+                                <div className="w-24 h-24 bg-gradient-to-br from-amber-400 via-yellow-500 to-orange-500 p-1 rounded-full mx-auto mb-6 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
+                                    <div className="w-full h-full bg-slate-900 rounded-full flex items-center justify-center text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-amber-200 to-amber-500">
+                                        {tournamentData.tournament.winner_username?.[0]?.toUpperCase() || '?'}
+                                    </div>
+                                </div>
+                                
+                                <p className="text-3xl font-black text-white mb-2 drop-shadow-lg">
+                                    {tournamentData.tournament.winner_username || 'To be announced'}
+                                </p>
+                                <p className="text-sm text-slate-400 font-medium mb-8">Master of {tournamentData.tournament.title}</p>
+                                
+                                <div className="bg-white/5 backdrop-blur-md rounded-2xl p-5 border border-white/10 relative overflow-hidden">
+                                     <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-transparent to-amber-500/10"></div>
+                                     <p className="text-xs text-amber-500 font-bold uppercase tracking-wider mb-1">Total Prize Pool</p>
+                                     <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500">
+                                        ₦{(tournamentData.tournament.prize_pool || tournamentData.tournament.prizePool || 0).toLocaleString()}
+                                     </p>
+                                </div>
 
-                            <button onClick={fetchTournament} className="mt-6 text-sm font-bold text-blue-600 hover:text-blue-700">
-                                Wait for next tournament
-                            </button>
+                                {/* Winner Action / Info */}
+                                {user?.id === tournamentData.tournament.winner_id && (
+                                    <div className={`mt-6 p-4 rounded-2xl border backdrop-blur-md transition-all ${
+                                        hasBankDetails 
+                                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                                            : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                    }`}>
+                                        {hasBankDetails ? (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <div className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                                                    <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </div>
+                                                <p className="text-sm font-bold">Prize money will be transferred to your account shortly!</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <div className="w-8 h-8 bg-rose-500/20 rounded-full flex items-center justify-center animate-pulse">
+                                                    <svg className="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                </div>
+                                                <p className="text-sm font-bold mb-2 text-rose-200">Action Required: Bank details missing!</p>
+                                                <Link 
+                                                    to="/bank-details" 
+                                                    className="px-4 py-2 bg-rose-500 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-rose-600 transition-colors shadow-lg shadow-rose-500/40"
+                                                >
+                                                    FILL BANK DETAILS
+                                                </Link>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <button onClick={fetchTournament} className="mt-8 text-xs font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-widest flex items-center justify-center gap-2 mx-auto">
+                                    <Loader2 className="w-3 h-3 animate-spin"/> Awaiting Next Season
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -352,7 +402,7 @@ const PlayerDashboard = () => {
                         {/* Registered View - show when user has joined */}
                         {tournamentData.participation && (
                             <div className="w-full mb-4">
-                                {tournamentData.tournament.status === 'scheduled' || (tournamentData.tournament.status === 'active' && !tournamentData.currentMatch) ? (() => {
+                                {((tournamentData.tournament.status === 'scheduled' || tournamentData.tournament.status === 'active') && !tournamentData.currentMatch) ? (() => {
                                     const rounds = tournamentData.tournament.rounds_config?.rounds || [];
                                     const rData = rounds.find(r => r.round_number == (tournamentData.tournament.currentRound || 1)) || rounds[0];
                                     const isProjectedBye = tournamentData.participation?.projectedBye;
