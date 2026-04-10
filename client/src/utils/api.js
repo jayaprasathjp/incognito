@@ -35,5 +35,16 @@ export const api = {
             body: JSON.stringify(data)
         });
         return res.json();
+    },
+    upload: async (endpoint, formData) => {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+        return res.json();
     }
 };

@@ -5,38 +5,45 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
     try {
-        // Fetch all Completed Matches
-        const matchesResult = await pool.query(`
-            SELECT m.*, 
-                   u1.username as p1_name, u1.institution as p1_ins,
-                   u2.username as p2_name, u2.institution as p2_ins
-            FROM matches m
-            LEFT JOIN users u1 ON m.player1_id = u1.id
-            LEFT JOIN users u2 ON m.player2_id = u2.id
-            WHERE m.status = 'completed'
-        `);
-
-        // Need to fetch ALL players to ensure those with 0 matches also show up?
-        // For MVP, maybe just those in active matches or all 'player' role users?
-        // Let's get all players involved in the tournament or just all players in DB.
-        // Better: Get all users with role='player'
-        const playersResult = await pool.query("SELECT id, username, institution FROM users WHERE role = 'player'");
+        // Fetch the most recent tournament
+        const tourneyRes = await pool.query("SELECT id, status, winner_id FROM tournaments ORDER BY created_at DESC LIMIT 1");
         
+        if (tourneyRes.rows.length === 0) {
+            return res.json({ tournament: null, leaderboard: [] });
+        }
+
+        const tournament = tourneyRes.rows[0];
+
+        // Fetch participants FOR THIS TOURNAMENT ONLY
+        const playersResult = await pool.query(`
+            SELECT u.id, u.username, u.institution 
+            FROM participants p
+            JOIN users u ON p.user_id = u.id
+            WHERE p.tournament_id = $1
+        `, [tournament.id]);
+        
+        // Fetch Completed Matches FOR THIS TOURNAMENT ONLY
+        const matchesResult = await pool.query(`
+            SELECT m.*
+            FROM matches m
+            WHERE m.status = 'completed' AND m.tournament_id = $1
+        `, [tournament.id]);
+
         const standings = {};
 
-        // Initialize Standings
+        // Initialize Standings from registered participants
         playersResult.rows.forEach(p => {
             standings[p.id] = {
                 id: p.id,
                 alias: p.username,
                 institution: p.institution || 'N/A',
                 pts: 0,
-                gb: 0,
-                gs: 0 // Goals Scored
+                gs: 0, // Goals Scored
+                gc: 0  // Goals Conceded
             };
         });
 
-        // Calculate Points
+        // Calculate Points using real match data
         matchesResult.rows.forEach(m => {
             const p1 = standings[m.player1_id];
             const p2 = standings[m.player2_id];
@@ -46,35 +53,39 @@ router.get("/", async (req, res) => {
                 p1.gs += (m.score_player1 || 0);
                 p2.gs += (m.score_player2 || 0);
 
-                // Goal Difference (GB? usually GD but user used GB. Let's assume GB = Goal Balance/Difference)
-                p1.gb += (m.score_player1 || 0) - (m.score_player2 || 0);
-                p2.gb += (m.score_player2 || 0) - (m.score_player1 || 0);
+                // Goals Conceded
+                p1.gc += (m.score_player2 || 0);
+                p2.gc += (m.score_player1 || 0);
 
-                // Points
+                // Points System
                 if (m.winner_id === m.player1_id) {
                     p1.pts += 3;
                 } else if (m.winner_id === m.player2_id) {
                     p2.pts += 3;
                 } else {
-                    // Draw?
                     p1.pts += 1;
                     p2.pts += 1;
                 }
             }
         });
 
-        // Convert to Array and Sort
-        // Sorting Logic: Pts DESC, then GB DESC, then GS DESC
+        // Convert to Array and Sort: Pts DESC -> GS DESC -> GC ASC -> Alias Alphabetical
         const leaderboard = Object.values(standings).sort((a, b) => {
-            if (b.pts !== a.pts) return b.pts - a.pts;
-            if (b.gb !== a.gb) return b.gb - a.gb;
-            return b.gs - a.gs;
+            if (b.pts !== a.pts) return b.pts - a.pts;  // Highest points first
+            if (b.gs !== a.gs) return b.gs - a.gs;      // Then highest goals scored
+            if (a.gc !== b.gc) return a.gc - b.gc;      // Then LOWEST goals conceded FIRST (therefore a - b)
+            // Alphabetical fallback (essential for pre-game or matched standings)
+            return a.alias.localeCompare(b.alias);
         });
 
-        // Add Position
+        // Add Position Index
         leaderboard.forEach((p, index) => p.position = index + 1);
 
-        res.json(leaderboard);
+        // Send Structured Payload
+        res.json({
+            tournament,
+            leaderboard
+        });
 
     } catch (error) {
         console.error(error);
