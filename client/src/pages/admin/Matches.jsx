@@ -47,6 +47,22 @@ const Matches = () => {
         }
     };
 
+    const handleRematch = async (e) => {
+        e.preventDefault();
+        try {
+            const data = await api.post(`/admin/matches/${selectedMatch.id}/rematch`);
+            if (data.message) {
+                toast.success("Match has been reset for a rematch.");
+                setSelectedMatch(null);
+                fetchMatches();
+            } else {
+                toast.error(data.error || "Failed to reset match");
+            }
+        } catch (err) {
+            toast.error("Failed to reset match");
+        }
+    };
+
     const StatusBadge = ({ status }) => {
         const colors = {
             live: "bg-red-100 text-red-700",
@@ -125,6 +141,9 @@ const Matches = () => {
 
                         <button onClick={handleOverride} className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors mb-2 border border-red-100">
                             Override Result (Set P1 Win)
+                        </button>
+                        <button onClick={handleRematch} className="w-full py-3 bg-orange-50 text-orange-600 rounded-xl font-bold hover:bg-orange-100 transition-colors mb-2 border border-orange-100">
+                            Force Rematch (Reset & Restart)
                         </button>
                         <button onClick={() => setSelectedMatch(null)} className="w-full py-3 bg-slate-100 rounded-xl text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors">
                             Close

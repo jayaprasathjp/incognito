@@ -51,7 +51,7 @@ router.get("/bank-details", authenticateToken, async (req, res) => {
 
 // Upsert Bank Details
 router.post("/bank-details", authenticateToken, async (req, res) => {
-    const { account_name, account_number, bank_name, account_type } = req.body;
+    const { account_name, account_number, bank_name } = req.body;
     try {
         const check = await pool.query("SELECT id FROM bank_details WHERE user_id = $1", [req.user.id]);
         
@@ -59,17 +59,17 @@ router.post("/bank-details", authenticateToken, async (req, res) => {
             // Update
             const update = await pool.query(
                 `UPDATE bank_details 
-                 SET account_name = $1, account_number = $2, bank_name = $3, account_type = $4, updated_at = CURRENT_TIMESTAMP 
-                 WHERE user_id = $5 RETURNING *`,
-                [account_name, account_number, bank_name, account_type, req.user.id]
+                 SET account_name = $1, account_number = $2, bank_name = $3, updated_at = CURRENT_TIMESTAMP 
+                 WHERE user_id = $4 RETURNING *`,
+                [account_name, account_number, bank_name, req.user.id]
             );
             res.json(update.rows[0]);
         } else {
             // Insert
             const insert = await pool.query(
-                `INSERT INTO bank_details (user_id, account_name, account_number, bank_name, account_type) 
-                 VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-                [req.user.id, account_name, account_number, bank_name, account_type]
+                `INSERT INTO bank_details (user_id, account_name, account_number, bank_name) 
+                 VALUES ($1, $2, $3, $4) RETURNING *`,
+                [req.user.id, account_name, account_number, bank_name]
             );
             res.json(insert.rows[0]);
         }

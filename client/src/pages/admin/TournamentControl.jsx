@@ -1034,6 +1034,21 @@ const TournamentControl = () => {
                               )
                              )}
                         </div>
+
+                        <div className="pt-4 border-t border-red-100 mt-6">
+                            <button
+                                onClick={() => handleAction('reset')}
+                                disabled={actionLoading === 'reset'}
+                                className="w-full flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 font-bold rounded-lg transition-colors"
+                            >
+                                {actionLoading === 'reset' ? <Loader2 className="animate-spin" size={18} /> : null}
+                                End & Clear Tournament Data
+                            </button>
+                            <p className="text-[10px] text-slate-500 text-center mt-2 leading-tight">
+                                WARNING: This deletes all participants, matches, and rounds to free up database space.<br/>
+                                The tournament record is kept for history.
+                            </p>
+                        </div>
                     </div>
                 </div>
 

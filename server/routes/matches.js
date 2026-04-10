@@ -1,55 +1,140 @@
 import express from "express";
+import multer from "multer";
+import path from "path";
+import { createClient } from "@supabase/supabase-js";
 import { pool } from "../db.js";
 import { authenticateToken } from "../middleware/auth.js";
+import { checkIfTournamentFinished } from "../utils/tournamentHelpers.js";
+
+// Supabase client for storage
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+);
+
+// Configure multer to hold files in memory (buffer) for Supabase upload
+const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+    fileFilter: (req, file, cb) => {
+        const allowed = /jpeg|jpg|png|gif|webp/;
+        const extOk = allowed.test(path.extname(file.originalname).toLowerCase());
+        const mimeOk = allowed.test(file.mimetype);
+        if (extOk && mimeOk) return cb(null, true);
+        cb(new Error("Only image files (jpg, png, gif, webp) are allowed."));
+    }
+});
 
 const router = express.Router();
 
-// Submit Match Result
+// Upload proof screenshot to Supabase Storage
+router.post("/upload-proof", authenticateToken, upload.single("proof"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    
+    try {
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        const fileName = `proof-${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
+
+        const { data, error } = await supabase.storage
+            .from("match-proofs")
+            .upload(fileName, req.file.buffer, {
+                contentType: req.file.mimetype,
+                upsert: false
+            });
+
+        if (error) throw error;
+
+        // Get the permanent public URL
+        const { data: urlData } = supabase.storage
+            .from("match-proofs")
+            .getPublicUrl(fileName);
+
+        res.json({ url: urlData.publicUrl });
+    } catch (err) {
+        console.error("Supabase upload error:", err);
+        res.status(500).json({ error: "Failed to upload image" });
+    }
+});
+
+// Submit Match Result (Independent Claim & Auto-Resolve)
 router.post("/:id/submit", authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { score_player1, score_player2, proof_image } = req.body;
+    // We expect the client to send 'my_score', 'opp_score', and optionally 'proof_image'
+    const { my_score, opp_score, proof_image } = req.body;
     
     try {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
 
-            // 1. Verify match belongs to user and is in valid state
-            const matchRes = await client.query("SELECT * FROM matches WHERE id = $1", [id]);
+            const matchRes = await client.query("SELECT * FROM matches WHERE id = $1 FOR UPDATE", [id]);
             if (matchRes.rows.length === 0) return res.status(404).json({ error: "Match not found" });
             
             const match = matchRes.rows[0];
-            if (match.player1_id !== req.user.id && match.player2_id !== req.user.id) {
+            const isP1 = match.player1_id === req.user.id;
+            const isP2 = match.player2_id === req.user.id;
+
+            if (!isP1 && !isP2) {
                 return res.status(403).json({ error: "Not a participant in this match" });
             }
             if (match.status !== 'scheduled') {
-                return res.status(400).json({ error: "Match already completed or pending review" });
+                return res.status(400).json({ error: `Match cannot be submitted. Current status: ${match.status}` });
             }
 
-            // Check tournament status
-            const tourneyRes = await client.query("SELECT status FROM tournaments WHERE id = $1", [match.tournament_id]);
-            if (tourneyRes.rows[0].status !== 'active') {
-                return res.status(400).json({ error: "Tournament is not active" });
+            // Save the claim for the specific player
+            if (isP1) {
+                await client.query(
+                    `UPDATE matches SET p1_score = $1, p1_opp_score = $2, p1_proof = $3 WHERE id = $4`,
+                    [my_score, opp_score, proof_image, id]
+                );
+                match.p1_score = my_score;
+                match.p1_opp_score = opp_score;
+            } else {
+                await client.query(
+                    `UPDATE matches SET p2_score = $1, p2_opp_score = $2, p2_proof = $3 WHERE id = $4`,
+                    [my_score, opp_score, proof_image, id]
+                );
+                match.p2_score = my_score;
+                match.p2_opp_score = opp_score;
             }
 
-            // 2. Update match with submission
-            // We set status to 'pending_review' so admin sees it
-            await client.query(
-                `UPDATE matches 
-                 SET score_player1 = $1, score_player2 = $2, proof_image = $3, submitted_by = $4, status = 'pending_review' 
-                 WHERE id = $5`,
-                [score_player1, score_player2, proof_image, req.user.id, id]
-            );
+            // Check if BOTH have submitted
+            const hasP1Submitted = match.p1_score !== null && match.p1_score !== undefined;
+            const hasP2Submitted = match.p2_score !== null && match.p2_score !== undefined;
 
-            // 3. Create a Dispute record automatically? Or just let Admin see pending matches?
-            // The prompt says "wait for admin will verify". 
-            // Existing admin dashboard has a disputes section. 
-            // Let's also create a record in 'disputes' so it shows up in the "Issues" tab if needed, 
-            // OR we can just have a "Pending Matches" section.
-            // For now, let's keep it simple: update match status. Admin will need a way to filter 'pending_review' matches.
-            
+            let responseMsg = "Result submitted. Waiting for opponent.";
+
+            if (hasP1Submitted && hasP2Submitted) {
+                // Compare claims
+                const p1ClaimsP1Score = parseInt(match.p1_score);
+                const p1ClaimsP2Score = parseInt(match.p1_opp_score);
+                const p2ClaimsP2Score = parseInt(match.p2_score);
+                const p2ClaimsP1Score = parseInt(match.p2_opp_score);
+
+                if (p1ClaimsP1Score === p2ClaimsP1Score && p1ClaimsP2Score === p2ClaimsP2Score) {
+                    // Match! Auto-approve.
+                    const winnerId = p1ClaimsP1Score > p1ClaimsP2Score ? match.player1_id : match.player2_id;
+                    
+                    await client.query(
+                        `UPDATE matches 
+                         SET status = 'completed', score_player1 = $1, score_player2 = $2, winner_id = $3
+                         WHERE id = $4`,
+                        [p1ClaimsP1Score, p1ClaimsP2Score, winnerId, id]
+                    );
+                    await checkIfTournamentFinished(id, client);
+                    responseMsg = "Both scores match! Match completed.";
+                } else {
+                    // Conflict! Send to admin review
+                    await client.query(
+                        `UPDATE matches SET status = 'pending_review' WHERE id = $1`,
+                        [id]
+                    );
+                    responseMsg = "Scores do not match. Match sent for admin review.";
+                }
+            }
+
             await client.query('COMMIT');
-            res.json({ message: "Result submitted for verification" });
+            res.json({ message: responseMsg });
         } catch (e) {
             await client.query('ROLLBACK');
             throw e;
@@ -62,8 +147,49 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
     }
 });
 
-// Get Player's Fixtures
-router.get("/my-fixtures", authenticateToken, async (req, res) => {
+// Post Game Room Code
+router.post("/:id/room-code", authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { game_room_code } = req.body;
+    
+    try {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const matchRes = await client.query("SELECT * FROM matches WHERE id = $1 FOR UPDATE", [id]);
+            if (matchRes.rows.length === 0) throw new Error("Match not found");
+            
+            const match = matchRes.rows[0];
+            if (match.player1_id !== req.user.id) {
+                return res.status(403).json({ error: "Only the Home player (Player 1) can submit the room code." });
+            }
+            if (match.status !== 'scheduled') {
+                return res.status(400).json({ error: "Match is not scheduled." });
+            }
+
+            await client.query(
+                `UPDATE matches SET game_room_code = $1 WHERE id = $2`,
+                [game_room_code, id]
+            );
+
+            await client.query('COMMIT');
+            res.json({ message: "Room code submitted successfully", game_room_code });
+        } catch (e) {
+            await client.query('ROLLBACK');
+            res.status(400).json({ error: e.message });
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.get("/testxyz", (req, res) => res.json({ message: "Server updated" }));
+
+// Get Player's Matches
+router.get("/my-matches", authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT m.*, 
@@ -76,13 +202,13 @@ router.get("/my-fixtures", authenticateToken, async (req, res) => {
              LEFT JOIN users p2 ON m.player2_id = p2.id
              JOIN tournaments t ON m.tournament_id = t.id
              WHERE (m.player1_id = $1 OR m.player2_id = $1)
-             ORDER BY m.created_at DESC`,
+             ORDER BY m.id DESC`,
             [req.user.id]
         );
         res.json(result.rows);
     } catch (err) {
-        console.error("Error fetching my-fixtures:", err);
-        res.status(500).json({ error: "Server error" });
+        console.error("Error fetching my-matches:", err);
+        res.status(500).json({ error: "MY_MATCHES_ERROR", details: err.message, stack: err.stack });
     }
 });
 
@@ -112,10 +238,16 @@ router.get("/:id", authenticateToken, async (req, res) => {
             return res.status(403).json({ error: "Not a participant in this match" });
         }
         
+        // Let the client know about submissions
+        const isP1 = match.player1_id === req.user.id;
+        match.hasSubmited = isP1 ? (match.p1_score !== null) : (match.p2_score !== null);
+        match.opponentHasSubmitted = isP1 ? (match.p2_score !== null) : (match.p1_score !== null);
+        match.isHome = isP1;
+        
         res.json(match);
     } catch (err) {
         console.error("Error fetching match:", err);
-        res.status(500).json({ error: "Server error" });
+        res.status(500).json({ error: "MATCH_ID_ERROR" });
     }
 });
 
@@ -202,8 +334,113 @@ router.post("/:id/check-walkover", authenticateToken, async (req, res) => {
                 `UPDATE matches SET status = 'completed', winner_id = $1, match_code = 'WALKOVER' WHERE id = $2`,
                 [winnerId, id]
             );
+            await checkIfTournamentFinished(id, client);
             await client.query('COMMIT');
             res.json({ message: "Walkover applied successfully.", winner_id: winnerId });
+
+        } catch (e) {
+            await client.query('ROLLBACK');
+            res.status(400).json({ error: e.message });
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// Check Match Timeout (called when 60-min timer expires)
+router.post("/:id/check-timeout", authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const MATCH_DURATION_MS = 60 * 60 * 1000; // 60 minutes
+
+    try {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const matchRes = await client.query("SELECT * FROM matches WHERE id = $1 FOR UPDATE", [id]);
+            if (matchRes.rows.length === 0) throw new Error("Match not found");
+
+            const match = matchRes.rows[0];
+            if (match.status !== 'scheduled') {
+                await client.query('COMMIT');
+                return res.json({ message: "Match already resolved", status: match.status });
+            }
+
+            // Verify that 60 minutes have actually passed since check-in
+            if (!match.checked_in_at) throw new Error("Match check-in has not occurred");
+            const elapsed = Date.now() - new Date(match.checked_in_at).getTime();
+            if (elapsed < MATCH_DURATION_MS - 5000) { // 5s buffer
+                throw new Error("Match timer has not expired yet");
+            }
+
+            // RULE 1: Home player never shared room code → Away auto-advances
+            if (!match.game_room_code) {
+                await client.query(
+                    `UPDATE matches SET status = 'completed', winner_id = $1, match_code = 'HOME_NO_CODE' WHERE id = $2`,
+                    [match.player2_id, id]
+                );
+                await checkIfTournamentFinished(id, client);
+                await client.query('COMMIT');
+                return res.json({ 
+                    message: "Home player failed to share room code. Away player advances.", 
+                    winner_id: match.player2_id,
+                    reason: "home_no_code"
+                });
+            }
+
+            // RULE 2: Check submissions
+            const p1Submitted = match.p1_score !== null;
+            const p2Submitted = match.p2_score !== null;
+
+            if (!p1Submitted && !p2Submitted) {
+                // Neither submitted → Double disqualification
+                await client.query(
+                    `UPDATE matches SET status = 'cancelled', match_code = 'DOUBLE_DQ' WHERE id = $1`,
+                    [id]
+                );
+                await checkIfTournamentFinished(id, client);
+                await client.query('COMMIT');
+                return res.json({ 
+                    message: "Neither player submitted results. Both are disqualified.", 
+                    reason: "double_dq"
+                });
+            }
+
+            if (p1Submitted && !p2Submitted) {
+                // Only P1 submitted → P1 wins by default
+                await client.query(
+                    `UPDATE matches SET status = 'completed', winner_id = $1, score_player1 = $2, score_player2 = $3, match_code = 'TIMEOUT_WIN' WHERE id = $4`,
+                    [match.player1_id, match.p1_score, match.p1_opp_score, id]
+                );
+                await checkIfTournamentFinished(id, client);
+                await client.query('COMMIT');
+                return res.json({ 
+                    message: "Opponent did not submit. You win by default.", 
+                    winner_id: match.player1_id,
+                    reason: "timeout_win"
+                });
+            }
+
+            if (!p1Submitted && p2Submitted) {
+                // Only P2 submitted → P2 wins by default
+                await client.query(
+                    `UPDATE matches SET status = 'completed', winner_id = $1, score_player1 = $2, score_player2 = $3, match_code = 'TIMEOUT_WIN' WHERE id = $4`,
+                    [match.player2_id, match.p2_opp_score, match.p2_score, id]
+                );
+                await checkIfTournamentFinished(id, client);
+                await client.query('COMMIT');
+                return res.json({ 
+                    message: "Opponent did not submit. You win by default.", 
+                    winner_id: match.player2_id,
+                    reason: "timeout_win"
+                });
+            }
+
+            // Both submitted — this shouldn't happen (auto-resolve already ran), but handle it
+            await client.query('COMMIT');
+            res.json({ message: "Both players already submitted. Match should be resolved." });
 
         } catch (e) {
             await client.query('ROLLBACK');

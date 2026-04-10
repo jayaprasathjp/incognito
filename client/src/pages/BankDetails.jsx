@@ -11,8 +11,7 @@ const BankDetails = () => {
     const [formData, setFormData] = useState({
         account_name: '',
         account_number: '',
-        bank_name: '',
-        account_type: ''
+        bank_name: ''
     });
     const [savedData, setSavedData] = useState(null); // Store fetched data to revert
     const [status, setStatus] = useState('');
@@ -109,15 +108,9 @@ const BankDetails = () => {
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Account Number</h3>
                             <p className="text-lg font-medium text-slate-900 tracking-wide">{savedData.account_number}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bank Name</h3>
-                                <p className="text-base font-medium text-slate-900 capitalize">{savedData.bank_name}</p>
-                            </div>
-                            <div className="space-y-1">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Account Type</h3>
-                                <p className="text-base font-medium text-slate-900 capitalize">{savedData.account_type}</p>
-                            </div>
+                        <div className="space-y-1">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bank Name</h3>
+                            <p className="text-base font-medium text-slate-900 capitalize">{savedData.bank_name}</p>
                         </div>
 
                         <button 
@@ -158,56 +151,21 @@ const BankDetails = () => {
                             />
                         </div>
 
-                        {/* Bank Name Dropdown */}
-                        <div className="flex flex-col gap-2 relative">
+                        {/* Bank Name */}
+                        <div className="flex flex-col gap-2">
                             <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Bank Name</label>
-                            <div className="relative">
-                                <select 
-                                    name="bank_name"
-                                    value={formData.bank_name || ''}
-                                    onChange={handleChange}
-                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 appearance-none font-medium"
-                                    required
-                                >
-                                    <option value="" disabled>Select bank...</option>
-                                    <option value="access">Access Bank</option>
-                                    <option value="gtb">GTB</option>
-                                    <option value="zenith">Zenith Bank</option>
-                                    <option value="opay">OPay</option>
-                                    <option value="kuda">Kuda Bank</option>
-                                    <option value="firstbank">First Bank</option>
-                                    <option value="uba">UBA</option>
-                                </select>
-                                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
-                            </div>
+                            <input 
+                                type="text" 
+                                name="bank_name"
+                                value={formData.bank_name || ''}
+                                onChange={handleChange}
+                                placeholder="Bank name" 
+                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 placeholder:text-slate-400 font-medium"
+                                required
+                            />
                         </div>
 
-                        {/* Account Type Dropdown */}
-                        <div className="flex flex-col gap-2 relative">
-                            <label className="text-xs text-slate-400 font-bold uppercase tracking-wider ml-1">Account Type</label>
-                            <div className="relative">
-                                <select 
-                                    name="account_type"
-                                    value={formData.account_type || ''}
-                                    onChange={handleChange}
-                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-900 focus:bg-white transition-all text-slate-900 appearance-none font-medium"
-                                    required
-                                >
-                                    <option value="" disabled>Select type...</option>
-                                    <option value="savings">Savings</option>
-                                    <option value="current">Current</option>
-                                </select>
-                                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
+
 
                         {/* Actions */}
                         <div className="flex gap-3 mt-8">
