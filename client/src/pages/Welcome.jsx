@@ -5,18 +5,46 @@ import { api } from '../utils/api';
 
 const Welcome = () => {
     const [activeModal, setActiveModal] = useState(null);
-    const [registrationEnded, setRegistrationEnded] = useState(false);
+    const [isSpectatorEnabled, setIsSpectatorEnabled] = useState(false);
 
     useEffect(() => {
         const checkTournament = async () => {
             try {
-                const data = await api.get('/tournaments/current');
-                const regEnd = data?.tournament?.registration_end;
-                if (regEnd && new Date() > new Date(regEnd)) {
-                    setRegistrationEnded(true);
+                // Use direct fetch to avoid "Bearer null" issues if not logged in
+                const token = localStorage.getItem('token');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://incognito-ebvk.onrender.com' : 'http://localhost:5000')}/api/tournaments/current`, {
+                    headers
+                });
+                
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Welcome: API Response not OK', response.status, text);
+                    return;
+                }
+
+                const data = await response.json();
+
+                
+                if (data && data.tournament) {
+                    const status = data.tournament.status?.toLowerCase();
+                    const regEnd = data.tournament.registration_end;
+                    
+
+                    
+                    // Button should be enabled if admin started it OR if registration time passed
+                    const startedByStatus = ['active', 'scheduled', 'paused', 'completed'].includes(status);
+                    const startedByDate = regEnd && new Date() > new Date(regEnd);
+                    
+                    if (startedByStatus || startedByDate) {
+
+                        setIsSpectatorEnabled(true);
+                    }
                 }
             } catch (e) {
-                // silently fail
+                console.error('Welcome: Failed to check tournament status', e);
             }
         };
         checkTournament();
@@ -59,7 +87,7 @@ const Welcome = () => {
 
             {/* Middle Section: Actions */}
             <div className="w-full max-w-md space-y-4 mb-10">
-                {registrationEnded ? (
+                {isSpectatorEnabled ? (
                 <Link to="/leaderboard" className="block w-full">
                      <button className="w-full bg-white text-slate-900 border-2 border-slate-200 py-4 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all">
                         <div className="text-lg">SPECTATOR</div>

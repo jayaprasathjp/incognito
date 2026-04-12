@@ -1,11 +1,11 @@
 import express from "express";
 import { pool } from "../db.js";
-import { authenticateToken, authorizeAdmin } from "../middleware/auth.js";
+import { authenticateToken, optionalAuthenticateToken, authorizeAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
 // Get Current/Latest Tournament & User Status
-router.get("/current", authenticateToken, async (req, res) => {
+router.get("/current", optionalAuthenticateToken, async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM tournaments ORDER BY created_at DESC LIMIT 1");
         if (result.rows.length === 0) return res.json({ tournament: null });
@@ -48,59 +48,62 @@ router.get("/current", authenticateToken, async (req, res) => {
             }
         }
 
-        // Check participation
-        const partResult = await pool.query(
-            "SELECT * FROM participants WHERE tournament_id = $1 AND user_id = $2",
-            [tournament.id, req.user.id]
-        );
-        
+        // Check participation (Only if logged in)
+        let partResult = { rows: [] };
         let currentMatch = null;
         let projectedBye = false;
-        
-        if (partResult.rows.length > 0) {
-             // We look for the user's match in the current round so they can see BYEs or completed matches.
-             const matchRes = await pool.query(
-                `SELECT m.*, 
-                        op.username as opponent_name, 
-                        op.id as opponent_id
-                 FROM matches m
-                 LEFT JOIN users op ON (CASE WHEN m.player1_id = $2 THEN m.player2_id ELSE m.player1_id END) = op.id
-                 WHERE m.tournament_id = $1 
-                 AND (m.player1_id = $2 OR m.player2_id = $2)
-                 AND m.round = $3
-                 ORDER BY m.id DESC LIMIT 1`,
-                [tournament.id, req.user.id, currentRound]
-             );
-             if (matchRes.rows.length > 0) {
-                 currentMatch = matchRes.rows[0];
-             }
-             
-             // If we're in scheduled mode or active round 1 (and no match generated yet), project BYE status
-             if (tournament.status === 'scheduled' || (tournament.status === 'active' && currentRound === 1)) {
-                 const allParts = await pool.query(
-                     `SELECT user_id FROM participants 
-                      WHERE tournament_id = $1 AND status = 'approved' 
-                      ORDER BY joined_at ASC`,
-                     [tournament.id]
+
+        if (req.user) {
+            partResult = await pool.query(
+                "SELECT * FROM participants WHERE tournament_id = $1 AND user_id = $2",
+                [tournament.id, req.user.id]
+            );
+            
+            if (partResult.rows.length > 0) {
+                 // We look for the user's match in the current round so they can see BYEs or completed matches.
+                 const matchRes = await pool.query(
+                    `SELECT m.*, 
+                            op.username as opponent_name, 
+                            op.id as opponent_id
+                     FROM matches m
+                     LEFT JOIN users op ON (CASE WHEN m.player1_id = $2 THEN m.player2_id ELSE m.player1_id END) = op.id
+                     WHERE m.tournament_id = $1 
+                     AND (m.player1_id = $2 OR m.player2_id = $2)
+                     AND m.round = $3
+                     ORDER BY m.id DESC LIMIT 1`,
+                    [tournament.id, req.user.id, currentRound]
                  );
+                 if (matchRes.rows.length > 0) {
+                     currentMatch = matchRes.rows[0];
+                 }
                  
-                 const totalPlayers = allParts.rows.length;
-                 if (totalPlayers > 1) {
-                     let nextPow2 = 1;
-                     while (nextPow2 < totalPlayers) nextPow2 *= 2;
-                     const byeCount = nextPow2 - totalPlayers;
+                 // If we're in scheduled mode or active round 1 (and no match generated yet), project BYE status
+                 if (tournament.status === 'scheduled' || (tournament.status === 'active' && currentRound === 1)) {
+                     const allParts = await pool.query(
+                         `SELECT user_id FROM participants 
+                          WHERE tournament_id = $1 AND status = 'approved' 
+                          ORDER BY joined_at ASC`,
+                         [tournament.id]
+                     );
                      
-                     const userRank = allParts.rows.findIndex(p => p.user_id === req.user.id);
-                     if (userRank !== -1 && userRank < byeCount) {
-                         projectedBye = true;
+                     const totalPlayers = allParts.rows.length;
+                     if (totalPlayers > 1) {
+                         let nextPow2 = 1;
+                         while (nextPow2 < totalPlayers) nextPow2 *= 2;
+                         const byeCount = nextPow2 - totalPlayers;
+                         
+                         const userRank = allParts.rows.findIndex(p => p.user_id === req.user.id);
+                         if (userRank !== -1 && userRank < byeCount) {
+                             projectedBye = true;
+                         }
                      }
                  }
-             }
+            }
         }
 
         res.json({
             tournament: { ...tournament, rounds_config, currentRound },
-            participation: partResult.rows.length > 0 ? { ...partResult.rows[0], projectedBye } : null,
+            participation: (req.user && partResult.rows.length > 0) ? { ...partResult.rows[0], projectedBye } : null,
             currentMatch
         });
     } catch (error) {
