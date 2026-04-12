@@ -657,14 +657,63 @@ router.post("/disputes/:id/resolve", async (req, res) => {
 // === PAYMENTS & ANNOUNCEMENTS ===
 router.get("/payments", async (req, res) => {
     try {
-        // Mocking payments from bank_details users if no payments table
-        const result = await pool.query(`
+        const { page = 1, limit = 15, tournament_id, status, search } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+
+        let whereClauses = [];
+        let params = [];
+        let pIdx = 1;
+
+        if (tournament_id) {
+            whereClauses.push(`p.tournament_id = $${pIdx++}`);
+            params.push(tournament_id);
+        }
+        if (status) {
+            whereClauses.push(`p.status = $${pIdx++}`);
+            params.push(status);
+        }
+        if (search) {
+            whereClauses.push(`(u.username ILIKE $${pIdx} OR p.reference ILIKE $${pIdx} OR p.flw_transaction_id ILIKE $${pIdx})`);
+            params.push(`%${search}%`);
+            pIdx++;
+        }
+
+        const whereString = whereClauses.length > 0 ? "WHERE " + whereClauses.join(" AND ") : "";
+
+        // 1. Get total count and filtered analytics
+        const summaryRes = await pool.query(`
+            SELECT 
+                COUNT(p.*)::int as total_count,
+                COUNT(p.*) FILTER (WHERE p.status = 'completed')::int as completed_count,
+                COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'completed'), 0)::float as total_collected
+            FROM payments p
+            JOIN users u ON p.user_id = u.id
+            ${whereString}
+        `, params);
+        const summary = summaryRes.rows[0];
+
+        // 2. Fetch paginated payments
+        const listParams = [...params, parseInt(limit), offset];
+        const listResult = await pool.query(`
             SELECT p.*, u.username, u.email 
             FROM payments p
             JOIN users u ON p.user_id = u.id
+            ${whereString}
             ORDER BY p.created_at DESC
-        `);
-        res.json(result.rows); 
+            LIMIT $${pIdx++} OFFSET $${pIdx++}
+        `, listParams);
+
+        res.json({
+            payments: listResult.rows,
+            total: summary.total_count,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            summary: {
+                totalCollected: summary.total_collected,
+                completedCount: summary.completed_count,
+                totalCount: summary.total_count
+            }
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });
