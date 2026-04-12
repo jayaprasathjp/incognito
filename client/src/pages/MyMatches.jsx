@@ -105,7 +105,7 @@ const MyMatches = () => {
                         }
 
                         return (
-                            <Link key={match.id} to={`/match/${match.id}`} className="block relative bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md hover:border-indigo-300 cursor-pointer transition-all group overflow-hidden">
+                            <div key={match.id} className="relative bg-white border border-slate-200 rounded-3xl p-6 shadow-sm overflow-hidden">
                                 {/* Optional Win Glow indicator */}
                                 {match.status === 'completed' && isWin && (
                                     <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-green-500"></div>
@@ -159,7 +159,7 @@ const MyMatches = () => {
                                         )}
                                     </div>
                                 </div>
-                            </Link>
+                            </div>
                         );
                     })}
                 </div>

@@ -9,7 +9,7 @@ import Sidebar from '../components/Sidebar';
 const ReferralProgram = () => {
     const { token } = useAuth();
     const [referralCode, setReferralCode] = useState("");
-    const [stats, setStats] = useState({ totalReferrals: 0, rewardsEarned: 0 });
+    const [stats, setStats] = useState({ totalReferrals: 0 });
     const [copied, setCopied] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -21,8 +21,7 @@ const ReferralProgram = () => {
                 const data = await api.get('/user/referral');
                 setReferralCode(data.referralCode);
                 setStats({
-                    totalReferrals: data.totalReferrals,
-                    rewardsEarned: data.rewardsEarned
+                    totalReferrals: data.totalReferrals
                 });
             } catch (error) {
                 console.error("Failed to fetch referral data", error);
@@ -101,7 +100,7 @@ const ReferralProgram = () => {
                     </div>
                     
                     <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
-                        Share this code with friends. You earn rewards when they join and participate!
+                        Share this code with friends and grow our community!
                     </p>
                 </div>
 
@@ -115,15 +114,9 @@ const ReferralProgram = () => {
 
                 {/* Stats */}
                 <h3 className="text-slate-900 font-bold mb-4 px-1">Your Stats</h3>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white border border-slate-100 rounded-2xl p-6 flex flex-col items-center justify-center shadow-sm">
-                        <span className="text-4xl font-light text-slate-900 mb-1">{stats.totalReferrals}</span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Referrals</span>
-                    </div>
-                    <div className="bg-white border border-slate-100 rounded-2xl p-6 flex flex-col items-center justify-center shadow-sm">
-                        <span className="text-4xl font-light text-slate-900 mb-1">{stats.rewardsEarned}</span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Rewards</span>
-                    </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-6 flex flex-col items-center justify-center shadow-sm">
+                    <span className="text-4xl font-light text-slate-900 mb-1">{stats.totalReferrals}</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Referrals</span>
                 </div>
             </div>
             </div>
