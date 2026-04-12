@@ -8,18 +8,63 @@ const Rules = () => {
     const rules = [
         {
             id: 1,
-            title: 'Individual Alias by player',
-            description: 'All players must play and be identified individually by their set usernames.'
+            title: 'Tournament Structure',
+            description: 'The tournament is a 1024 player tournament, single elimination style tournament, each round being unique and played daily.'
         },
         {
             id: 2,
-            title: 'No group or shared use of any player’s room',
-            description: 'Player matches must be played individually without any form of collaboration.'
+            title: 'Immediate Fixtures & Match Times',
+            description: 'Immediately tournament kicks off, times will be dropped alongside fixture so that players know their opponent and respective times.'
         },
         {
             id: 3,
-            title: 'Player must participate in 3 out of 4 activities',
-            description: 'Each player must complete at least 3 of the 4 scheduled activities to remain in the tournament.'
+            title: '15 Mins Early & Room Setup',
+            description: 'Ensure you are ready 15 mins before the scheduled match time to avoid complications. Chat box will be opened so that "home" players create the match room and send the code and "away" players receives match codes sent.'
+        },
+        {
+            id: 4,
+            title: 'No Reschedules & Availability',
+            description: 'There are no reschedules of any kind. If you are not available for a match, you are automatically out and your opponent advances. If both players are also not available, both will also be out. Ensure to click the “Ready” button to signify availability.'
+        },
+        {
+            id: 5,
+            title: 'Play Within Time Limit',
+            description: 'All fixtures should be played within the limited hours (1 hour). It will be impossible to play or submit match results after that.'
+        },
+        {
+            id: 6,
+            title: 'Match Settings',
+            description: 'Match time - 10Mins. Match Condition: Excellent. Number of Substitutions - 6. Extra time & PK: ON. Only 1 match should be played between players. Ensure to verify match settings before clicking READY.'
+        },
+        {
+            id: 7,
+            title: 'Connection Quality & Restarts',
+            description: 'If a game experiences network issues within the first 3 minutes or before the first goal (whichever comes first), players must quit and restart. Continuing past this point constitutes acceptance of the connection quality. You\'re advised to resolve network issues before playing.'
+        },
+        {
+            id: 8,
+            title: 'Submit Results Punctually',
+            description: 'Match result after deadline will not be recorded, ensure to do that during the stated one hour.'
+        },
+        {
+            id: 9,
+            title: 'Upload Match Proof',
+            description: 'Ensure to upload match result proof after each round. Failure to do so will result in you being disqualified and your opponent advances if he submits and you don’t.'
+        },
+        {
+            id: 10,
+            title: 'Mutual Disqualification',
+            description: 'If the two players do not send the match result proof, they will both be automatically disqualified.'
+        },
+        {
+            id: 11,
+            title: 'Disconnects & Rematches',
+            description: 'If a match gets disconnected before full time after a goal(s) has been scored, click on dispute, make your claim and play a 5 minutes rematch. Your previous scores will be automatically added.'
+        },
+        {
+            id: 12,
+            title: 'Sponsored Quests & Referrals',
+            description: 'Sponsored gifts will be given in-between tournament to the highest referral as well as to those taking on quests.'
         }
     ];
 
@@ -66,6 +111,17 @@ const Rules = () => {
                     </div>
                 ))}
             </div>
+
+            {/* Additional Notes */}
+            <div className="max-w-md mx-auto mt-12 bg-slate-100 p-6 rounded-2xl border border-slate-200 mb-8">
+                 <p className="text-slate-500 font-medium text-xs mb-4 leading-relaxed uppercase tracking-widest">
+                     * INCASE OF ANY COMPLICATIONS THAT HASN'T BEEN ADDRESSED HERE, A POLL WILL BE CREATED FOR ALL PLAYERS TO VOTE AND THE HIGHEST VOTE DECISION WILL BE FOLLOWED.
+                 </p>
+                 <p className="text-slate-800 font-bold text-xs leading-relaxed uppercase tracking-widest">
+                     * THE PRIZE POOL IS SUBJECT TO CHANGE, THE OFFICIAL PRIZE POOL STATED IS EXPLICITLY FOR 1000+ PARTICIPANTS.
+                 </p>
+            </div>
+
             </div>
         </div>
     );

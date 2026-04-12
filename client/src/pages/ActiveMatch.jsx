@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
+import MatchResultScreen from '../components/MatchResultScreen';
 
 const ActiveMatch = () => {
     const { id } = useParams();
@@ -15,11 +16,16 @@ const ActiveMatch = () => {
 
     const fetchMatchState = useCallback(async () => {
         try {
-            const { data } = await api.get(`/matches/${id}`);
-            setMatch(data);
-            determineState(data);
+            const data = await api.get(`/matches/${id}`);
+            // The api utility returns the body directly, not wrapped in { data }
+            if (data && !data.error) {
+                setMatch(data);
+                determineState(data);
+            } else {
+                throw new Error(data?.error || 'Match not found');
+            }
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to load match detail');
+            setError(err.message || 'Failed to load match detail');
         } finally {
             setLoading(false);
         }
@@ -40,6 +46,12 @@ const ActiveMatch = () => {
         // Logic based on match_time (HH:mm)
         // Assume tournament date is today for simplistic calculation in this MVP.
         const now = new Date();
+        if (!m.match_time) {
+            // Handle cases where match time might be missing (e.g. legacy or incomplete data)
+            setMatchState('waiting_checkin');
+            return;
+        }
+
         const [hours, minutes] = m.match_time.split(':').map(Number);
         
         const matchTimeDate = new Date();
@@ -69,11 +81,15 @@ const ActiveMatch = () => {
     const handleReady = async () => {
         try {
             setProcessing(true);
-            const { data } = await api.post(`/matches/${id}/ready`);
-            setMatch(data.match);
-            determineState(data.match);
+            const data = await api.post(`/matches/${id}/ready`);
+            if (data && data.match) {
+                setMatch(data.match);
+                determineState(data.match);
+            } else {
+                throw new Error(data?.error || 'Error checking in');
+            }
         } catch (err) {
-            alert(err.response?.data?.error || 'Error checking in');
+            alert(err.message || 'Error checking in');
         } finally {
             setProcessing(false);
         }
@@ -126,19 +142,19 @@ const ActiveMatch = () => {
                             <div className="flex justify-center items-center gap-8 mt-8">
                                 <div className="text-center">
                                     <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center text-2xl font-bold mb-3 border-2 border-slate-700">
-                                        {isPlayer1 ? "YOU" : match.player1_name?.substring(0, 2).toUpperCase()}
+                                        {isPlayer1 ? "YOU" : (match.player1_name?.substring(0, 2).toUpperCase() || "??")}
                                     </div>
                                     <span className="font-medium text-slate-300">
-                                        {match.player1_name}
+                                        {match.player1_name || "TBD"}
                                     </span>
                                 </div>
                                 <div className="text-4xl font-black text-slate-700">VS</div>
                                 <div className="text-center">
                                     <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center text-2xl font-bold mb-3 border-2 border-slate-700">
-                                        {!isPlayer1 ? "YOU" : match.player2_name?.substring(0, 2).toUpperCase()}
+                                        {!isPlayer1 ? "YOU" : (match.player2_name?.substring(0, 2).toUpperCase() || "??")}
                                     </div>
                                     <span className="font-medium text-slate-300">
-                                        {match.player2_name}
+                                        {match.player2_name || "TBD"}
                                     </span>
                                 </div>
                             </div>
@@ -224,12 +240,11 @@ const ActiveMatch = () => {
                                 </div>
                             )}
 
-                            {(matchState === 'pending_review' || matchState === 'completed' || matchState === 'cancelled') && (
+                            {(matchState === 'pending_review' || matchState === 'cancelled') && (
                                 <div className="text-center">
                                     <h3 className="text-2xl font-bold text-slate-800 mb-2">Match Status: {matchState.toUpperCase()}</h3>
                                     <p className="text-slate-500">
                                         {matchState === 'pending_review' && "Scores have been submitted and are awaiting admin review."}
-                                        {matchState === 'completed' && "This match has been finalized."}
                                         {matchState === 'cancelled' && "This match was cancelled."}
                                     </p>
                                     <div className="mt-8">
@@ -238,6 +253,16 @@ const ActiveMatch = () => {
                                          </button>
                                     </div>
                                 </div>
+                            )}
+
+                            {matchState === 'completed' && (
+                                <MatchResultScreen 
+                                    type={match.winner_id === currentUser?.id ? 'victory' : 'defeat'} 
+                                    myScore={isPlayer1 ? match.score_player1 : match.score_player2} 
+                                    oppScore={isPlayer1 ? match.score_player2 : match.score_player1} 
+                                    opponentName={opponentName || 'Opponent'}
+                                    onClose={() => navigate('/matches')} 
+                                />
                             )}
 
                         </div>

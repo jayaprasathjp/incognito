@@ -42,8 +42,8 @@ router.get("/stats", async (req, res) => {
 
         // System stats (optional, but let's keep alerts/prize pool)
         const pendingDisputes = await pool.query("SELECT COUNT(*) FROM disputes WHERE status = 'pending'");
-        const prizePoolQuery = await pool.query("SELECT SUM(amount) FROM payments WHERE status = 'completed'");
-        const prizePool = parseInt(prizePoolQuery.rows[0].sum) || 0;
+        // Prize pool is now taken from the existing tournament record
+        const prizePool = tournament ? (parseInt(tournament.prize_pool) || 0) : 0;
         
         // Recent Alerts
         const recentDisputes = await pool.query(`
@@ -340,10 +340,10 @@ router.post("/tournaments/control", async (req, res) => {
             // Validate
             if (!title) return res.status(400).json({ error: "Title is required" });
             
-            // Calculate prize pool
+            // Calculate prize pool (Now fixed at 90,000 NGN)
             const fee = parseFloat(entry_fee) || 0;
             const cap = parseInt(capacity) || 0;
-            const prize_pool = fee * cap;
+            const prize_pool = 90000;
 
             const newTourney = await pool.query(
                 `INSERT INTO tournaments 
@@ -489,17 +489,67 @@ router.post("/tournaments/cycle", async (req, res) => {
     }
 });
 
+router.get("/rounds/current", async (req, res) => {
+    try {
+        const tResult = await pool.query("SELECT id FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        if (tResult.rows.length === 0) return res.json([]);
+        
+        const tournamentId = tResult.rows[0].id;
+        const roundsRes = await pool.query(
+            "SELECT * FROM rounds WHERE tournament_id = $1 ORDER BY round_number ASC", 
+            [tournamentId]
+        );
+        res.json(roundsRes.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
 // === MATCHES & DISPUTES ===
 router.get("/matches", async (req, res) => {
     try {
-        const result = await pool.query(`
+        const { round, page = 1, limit = 15 } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+        
+        // Get the current tournament ID first
+        const tResult = await pool.query("SELECT id FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        const tournamentId = tResult.rows[0]?.id;
+
+        if (!tournamentId) {
+            return res.json({ matches: [], total: 0, page: 1, limit: 15 });
+        }
+
+        let query = `
             SELECT m.*, p1.username as p1_name, p2.username as p2_name 
             FROM matches m
             LEFT JOIN users p1 ON m.player1_id = p1.id
             LEFT JOIN users p2 ON m.player2_id = p2.id
-            ORDER BY m.id DESC
-        `);
-        res.json(result.rows);
+            WHERE m.tournament_id = $1
+        `;
+        let countQuery = `SELECT COUNT(*) FROM matches m WHERE m.tournament_id = $1`;
+        let params = [tournamentId];
+
+        if (round) {
+            query += ` AND m.round = $2`;
+            countQuery += ` AND m.round = $2`;
+            params.push(round);
+        }
+
+        const countResult = await pool.query(countQuery, params);
+        const total = parseInt(countResult.rows[0].count);
+
+        query += ` ORDER BY m.id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        params.push(parseInt(limit), offset);
+
+        const result = await pool.query(query, params);
+        
+        res.json({
+            matches: result.rows,
+            total,
+            page: parseInt(page),
+            limit: parseInt(limit)
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });

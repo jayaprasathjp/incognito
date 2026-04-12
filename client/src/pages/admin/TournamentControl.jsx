@@ -340,7 +340,7 @@ const TournamentControl = () => {
         }
     };
 
-    const estimatedPrizePool = (formData.capacity || 0) * (formData.entry_fee || 0);
+    const fixedPrizePool = 90000;
     const estimatedRounds = Math.log2(formData.capacity);
 
     const handleCreate = async (e) => {
@@ -501,7 +501,7 @@ const TournamentControl = () => {
                                         value={formData.capacity}
                                         onChange={e => setFormData({...formData, capacity: parseInt(e.target.value)})}
                                     >
-                                        {[2048, 1024, 512, 256, 128, 64].map(cap => (
+                                        {[2048, 1024, 512, 256].map(cap => (
                                             <option key={cap} value={cap}>{cap} Players</option>
                                         ))}
                                     </select>
@@ -511,8 +511,8 @@ const TournamentControl = () => {
 
                         <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 grid grid-cols-2 gap-4">
                             <div>
-                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Estimated Prize Pool</span>
-                                <div className="text-2xl font-bold text-green-600">₦{estimatedPrizePool.toLocaleString()}</div>
+                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tournament Prize Pool</span>
+                                <div className="text-2xl font-bold text-green-600">₦{fixedPrizePool.toLocaleString()}</div>
                             </div>
                             <div>
                                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Estimated Rounds</span>

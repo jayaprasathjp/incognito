@@ -2,13 +2,16 @@
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://incognito-ebvk.onrender.com' : 'http://localhost:5000')) + "/api";
 
 export const api = {
-    get: async (endpoint) => {
+    get: async (endpoint, init = {}) => {
         const token = localStorage.getItem('token');
+        const { headers: extraHeaders, ...rest } = init;
         const res = await fetch(`${API_URL}${endpoint}`, {
+            ...rest,
             headers: {
                 'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
+                'Content-Type': 'application/json',
+                ...(extraHeaders || {}),
+            },
         });
         return res.json();
     },

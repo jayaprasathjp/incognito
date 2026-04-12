@@ -381,10 +381,10 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                     )}
                 </div>
             ) : (
-                <div className="flex justify-between items-center mb-6 px-4">
+                <div className="flex justify-between items-center my-6 px-4">
                     <div className="text-center relative">
-                        {match?.isHome && <div className="absolute -top-3 -right-2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm">HOME</div>}
-                        {!match?.isHome && <div className="absolute -top-3 -right-2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm">AWAY</div>}
+                        {match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">HOME</div>}
+                        {!match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">AWAY</div>}
                         <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
                             {user?.username?.[0]?.toUpperCase()}
                         </div>
@@ -392,8 +392,8 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                     </div>
                     <div className="text-slate-300 font-black text-xl">VS</div>
                     <div className="text-center relative">
-                        {!match?.isHome && <div className="absolute -top-3 -left-2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm">HOME</div>}
-                        {match?.isHome && <div className="absolute -top-3 -left-2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm">AWAY</div>}
+                        {!match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">HOME</div>}
+                        {match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">AWAY</div>}
                         <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
                             {match?.match_code === 'BYE' ? '⭐' : (opponentName?.[0]?.toUpperCase() || '?')}
                         </div>
