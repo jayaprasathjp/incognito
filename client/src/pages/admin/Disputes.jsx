@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { Gavel, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { Gavel, CheckCircle, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import Loader from "../../components/Loader";
 import { api } from "../../utils/api";
@@ -10,6 +10,11 @@ const Disputes = () => {
     const [disputes, setDisputes] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedDispute, setSelectedDispute] = useState(null);
+    const [adminWinnerId, setAdminWinnerId] = useState("");
+    const [adminS1, setAdminS1] = useState("");
+    const [adminS2, setAdminS2] = useState("");
+    const [dqPlayerId, setDqPlayerId] = useState("");
+    const [rematchTime, setRematchTime] = useState("");
 
     const fetchDisputes = async () => {
         setLoading(true);
@@ -29,13 +34,48 @@ const Disputes = () => {
 
     const handleResolveDispute = async (action) => {
         try {
-            const data = await api.post(`/admin/disputes/${selectedDispute.id}/resolve`, { action });
+            const body = { action };
+            if (action === "winner_updated") {
+                const w = parseInt(adminWinnerId, 10);
+                const s1 = parseInt(adminS1, 10);
+                const s2 = parseInt(adminS2, 10);
+                if (!w || Number.isNaN(s1) || Number.isNaN(s2)) {
+                    toast.error("Set winner and both scores for conflicting-score disputes.");
+                    return;
+                }
+                body.winner_id = w;
+                body.score_p1 = s1;
+                body.score_p2 = s2;
+            }
+            if (action === "player_disqualified") {
+                const dq = parseInt(dqPlayerId, 10);
+                if (!dq) {
+                    toast.error("Select which player is disqualified.");
+                    return;
+                }
+                body.disqualified_player_id = dq;
+            }
+            if (action === "match_replay_scheduled") {
+                if (!/^\d{2}:\d{2}$/.test(rematchTime)) {
+                    toast.error("Set replay time in HH:mm format.");
+                    return;
+                }
+                body.rematch_time = rematchTime;
+            }
+            const data = await api.post(`/admin/disputes/${selectedDispute.id}/resolve`, body);
+            if (data.error) {
+                toast.error(data.error);
+                return;
+            }
             if (data.message) {
                 toast.success(`Dispute ${action}d`);
                 setSelectedDispute(null);
+                setAdminWinnerId("");
+                setAdminS1("");
+                setAdminS2("");
+                setDqPlayerId("");
+                setRematchTime("");
                 fetchDisputes();
-            } else {
-                 toast.error(data.error || "Failed to resolve dispute");
             }
         } catch (err) {
             toast.error("Failed to resolve dispute");
@@ -112,17 +152,72 @@ const Disputes = () => {
                                     View Evidence
                                 </a>
                             )}
+                            <p className="text-xs text-amber-700 font-medium mt-2">
+                                Winner updated requires final scores + winner.
+                            </p>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2">
-                            <button onClick={() => handleResolveDispute('approve')} className="py-3 bg-green-50 text-green-700 rounded-xl font-bold hover:bg-green-100 border border-green-100 flex flex-col items-center transition-colors">
-                                <CheckCircle className="mb-1" size={20} /> Approve
+                        <div className="grid grid-cols-1 gap-2 mb-4">
+                            <label className="text-xs font-bold text-slate-500">Winner (for Winner Updated)</label>
+                            <select
+                                value={adminWinnerId}
+                                onChange={(e) => setAdminWinnerId(e.target.value)}
+                                className="w-full p-2 border border-slate-200 rounded-lg"
+                            >
+                                <option value="">Select winner</option>
+                                <option value={selectedDispute.player1_id}>Home (player 1)</option>
+                                <option value={selectedDispute.player2_id}>Away (player 2)</option>
+                            </select>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500">Score home</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        className="w-full p-2 border border-slate-200 rounded-lg"
+                                        value={adminS1}
+                                        onChange={(e) => setAdminS1(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500">Score away</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        className="w-full p-2 border border-slate-200 rounded-lg"
+                                        value={adminS2}
+                                        onChange={(e) => setAdminS2(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <label className="text-xs font-bold text-slate-500 mt-2">Disqualified player (for cheating)</label>
+                            <select
+                                value={dqPlayerId}
+                                onChange={(e) => setDqPlayerId(e.target.value)}
+                                className="w-full p-2 border border-slate-200 rounded-lg"
+                            >
+                                <option value="">Select player</option>
+                                <option value={selectedDispute.player1_id}>Home (player 1)</option>
+                                <option value={selectedDispute.player2_id}>Away (player 2)</option>
+                            </select>
+                            <label className="text-xs font-bold text-slate-500 mt-2">Replay time (same date)</label>
+                            <input
+                                type="time"
+                                value={rematchTime}
+                                onChange={(e) => setRematchTime(e.target.value)}
+                                className="w-full p-2 border border-slate-200 rounded-lg"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <button onClick={() => handleResolveDispute('winner_updated')} className="py-3 bg-green-50 text-green-700 rounded-xl font-bold hover:bg-green-100 border border-green-100 flex flex-col items-center transition-colors">
+                                <CheckCircle className="mb-1" size={20} /> Winner Updated
                             </button>
-                            <button onClick={() => handleResolveDispute('reject')} className="py-3 bg-red-50 text-red-700 rounded-xl font-bold hover:bg-red-100 border border-red-100 flex flex-col items-center transition-colors">
-                                <XCircle className="mb-1" size={20} /> Reject
+                            <button onClick={() => handleResolveDispute('match_replay_scheduled')} className="py-3 bg-blue-50 text-blue-700 rounded-xl font-bold hover:bg-blue-100 border border-blue-100 flex flex-col items-center transition-colors">
+                                <RefreshCw className="mb-1" size={20} /> Match Replay
                             </button>
-                            <button onClick={() => handleResolveDispute('rematch')} className="py-3 bg-blue-50 text-blue-700 rounded-xl font-bold hover:bg-blue-100 border border-blue-100 flex flex-col items-center transition-colors">
-                                <RefreshCw className="mb-1" size={20} /> Rematch
+                            <button onClick={() => handleResolveDispute('player_disqualified')} className="py-3 bg-amber-50 text-amber-700 rounded-xl font-bold hover:bg-amber-100 border border-amber-100 flex flex-col items-center transition-colors">
+                                <Gavel className="mb-1" size={20} /> Player Disqualified
                             </button>
                         </div>
                         <button onClick={() => setSelectedDispute(null)} className="w-full mt-4 py-3 bg-slate-100 rounded-xl text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors">

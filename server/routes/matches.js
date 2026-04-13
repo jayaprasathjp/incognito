@@ -5,6 +5,12 @@ import { createClient } from "@supabase/supabase-js";
 import { pool } from "../db.js";
 import { authenticateToken } from "../middleware/auth.js";
 import { checkIfTournamentFinished } from "../utils/tournamentHelpers.js";
+import {
+    expirePlayerDisputes,
+    hasOpenPlayerDispute,
+    hasScoreConflictDisputePending,
+    ensureScoreConflictDispute,
+} from "../utils/disputeHelpers.js";
 
 // Supabase client for storage
 const supabase = createClient(
@@ -81,6 +87,21 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
                 return res.status(400).json({ error: `Match cannot be submitted. Current status: ${match.status}` });
             }
 
+            if (!match.game_room_code) {
+                return res.status(400).json({ error: "Room code must be shared before submitting results or disputes." });
+            }
+
+            await expirePlayerDisputes(client, id);
+            if (await hasOpenPlayerDispute(client, id)) {
+                return res.status(400).json({ error: "A dispute is open on this match. Result submission is disabled until it is resolved." });
+            }
+            if (await hasScoreConflictDisputePending(client, id)) {
+                return res.status(400).json({ error: "This match is under admin review. Result submission is disabled." });
+            }
+
+            const carry1 = parseInt(match.carried_score_p1, 10) || 0;
+            const carry2 = parseInt(match.carried_score_p2, 10) || 0;
+
             // Save the claim for the specific player
             if (isP1) {
                 await client.query(
@@ -105,31 +126,35 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
             let responseMsg = "Result submitted. Waiting for opponent.";
 
             if (hasP1Submitted && hasP2Submitted) {
-                // Compare claims
-                const p1ClaimsP1Score = parseInt(match.p1_score);
-                const p1ClaimsP2Score = parseInt(match.p1_opp_score);
-                const p2ClaimsP2Score = parseInt(match.p2_score);
-                const p2ClaimsP1Score = parseInt(match.p2_opp_score);
+                // Compare claims (leg scores); carry-over from disconnect is added to stored totals
+                const p1ClaimsP1Score = parseInt(match.p1_score, 10);
+                const p1ClaimsP2Score = parseInt(match.p1_opp_score, 10);
+                const p2ClaimsP2Score = parseInt(match.p2_score, 10);
+                const p2ClaimsP1Score = parseInt(match.p2_opp_score, 10);
 
                 if (p1ClaimsP1Score === p2ClaimsP1Score && p1ClaimsP2Score === p2ClaimsP2Score) {
-                    // Match! Auto-approve.
-                    const winnerId = p1ClaimsP1Score > p1ClaimsP2Score ? match.player1_id : match.player2_id;
-                    
-                    await client.query(
-                        `UPDATE matches 
-                         SET status = 'completed', score_player1 = $1, score_player2 = $2, winner_id = $3
-                         WHERE id = $4`,
-                        [p1ClaimsP1Score, p1ClaimsP2Score, winnerId, id]
-                    );
-                    await checkIfTournamentFinished(id, client);
-                    responseMsg = "Both scores match! Match completed.";
+                    const totalP1 = carry1 + p1ClaimsP1Score;
+                    const totalP2 = carry2 + p1ClaimsP2Score;
+                    if (totalP1 === totalP2) {
+                        await client.query(`UPDATE matches SET status = 'pending_review' WHERE id = $1`, [id]);
+                        await ensureScoreConflictDispute(client, id, req.user.id);
+                        responseMsg = "Equal total scores (including carry-over). Admin must decide.";
+                    } else {
+                        const winnerId = totalP1 > totalP2 ? match.player1_id : match.player2_id;
+                        await client.query(
+                            `UPDATE matches 
+                             SET status = 'completed', score_player1 = $1, score_player2 = $2, winner_id = $3
+                             WHERE id = $4`,
+                            [totalP1, totalP2, winnerId, id]
+                        );
+                        await checkIfTournamentFinished(id, client);
+                        responseMsg = "Both scores match! Match completed.";
+                    }
                 } else {
-                    // Conflict! Send to admin review
-                    await client.query(
-                        `UPDATE matches SET status = 'pending_review' WHERE id = $1`,
-                        [id]
-                    );
-                    responseMsg = "Scores do not match. Match sent for admin review.";
+                    await client.query(`UPDATE matches SET status = 'pending_review' WHERE id = $1`, [id]);
+                    await ensureScoreConflictDispute(client, id, req.user.id);
+                    responseMsg =
+                        "Scores do not match. Both proofs go to admin review. Result submission is closed until resolved.";
                 }
             }
 
@@ -212,10 +237,283 @@ router.get("/my-matches", authenticateToken, async (req, res) => {
     }
 });
 
+router.get("/:id/disputes", authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const mRes = await pool.query(
+            "SELECT player1_id, player2_id FROM matches WHERE id = $1",
+            [id]
+        );
+        if (mRes.rows.length === 0) return res.status(404).json({ error: "Match not found" });
+        const m = mRes.rows[0];
+        if (m.player1_id !== req.user.id && m.player2_id !== req.user.id) {
+            return res.status(403).json({ error: "Not a participant in this match" });
+        }
+
+        const dRes = await pool.query(
+            `SELECT d.*, u.username AS submitted_by_name
+             FROM disputes d
+             JOIN users u ON d.submitted_by = u.id
+             WHERE d.match_id = $1
+             ORDER BY d.created_at DESC`,
+            [id]
+        );
+        res.json(dRes.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/:id/disputes", authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const {
+        reason,
+        reason_category,
+        description,
+        evidence_url,
+        screenshots,
+        score_for,
+        score_against,
+        carry_score_p1,
+        carry_score_p2,
+    } = req.body;
+
+    if (!reason || String(reason).trim().length < 3) {
+        return res.status(400).json({ error: "Please provide a reason (at least 3 characters)." });
+    }
+    if (!["connection_issues", "rule_violation", "others"].includes(reason_category)) {
+        return res.status(400).json({ error: "Invalid reason category." });
+    }
+
+    try {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            await expirePlayerDisputes(client, id);
+
+            const matchRes = await client.query("SELECT * FROM matches WHERE id = $1 FOR UPDATE", [id]);
+            if (matchRes.rows.length === 0) {
+                await client.query("ROLLBACK");
+                return res.status(404).json({ error: "Match not found" });
+            }
+            const match = matchRes.rows[0];
+
+            if (match.player1_id !== req.user.id && match.player2_id !== req.user.id) {
+                await client.query("ROLLBACK");
+                return res.status(403).json({ error: "Not a participant in this match" });
+            }
+            if (match.status !== "scheduled") {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Match is not open for disputes." });
+            }
+            if (!match.game_room_code) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Share the room code before opening a dispute." });
+            }
+
+            const openP = await client.query(
+                `SELECT id FROM disputes WHERE match_id = $1
+                 AND COALESCE(dispute_kind, 'player_claim') = 'player_claim'
+                 AND status = 'pending'`,
+                [id]
+            );
+            if (openP.rows.length > 0) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "A player dispute is already open on this match." });
+            }
+
+            const c1 = Math.max(0, parseInt(carry_score_p1, 10) || 0);
+            const c2 = Math.max(0, parseInt(carry_score_p2, 10) || 0);
+
+            const submitShots = Array.isArray(screenshots)
+                ? screenshots.filter((u) => typeof u === "string" && u.trim())
+                : [];
+            const sf = Number.isFinite(parseInt(score_for, 10)) ? parseInt(score_for, 10) : null;
+            const sa = Number.isFinite(parseInt(score_against, 10)) ? parseInt(score_against, 10) : null;
+
+            const ins = await client.query(
+                `INSERT INTO disputes (
+                    match_id, submitted_by, reason, evidence_url, status,
+                    dispute_kind, respond_by, carry_score_p1, carry_score_p2,
+                    reason_category, description, submitter_score_for, submitter_score_against, submitter_screenshots
+                ) VALUES ($1, $2, $3, $4, 'pending', 'player_claim', NOW() + INTERVAL '1 hour', $5, $6, $7, $8, $9, $10, $11::jsonb)
+                RETURNING *`,
+                [
+                    id,
+                    req.user.id,
+                    String(reason).trim(),
+                    evidence_url || null,
+                    c1,
+                    c2,
+                    reason_category,
+                    description || null,
+                    sf,
+                    sa,
+                    JSON.stringify(submitShots),
+                ]
+            );
+
+            await client.query("COMMIT");
+            res.json({ dispute: ins.rows[0], message: "Dispute submitted. Your opponent has 1 hour to respond." });
+        } catch (e) {
+            await client.query("ROLLBACK");
+            throw e;
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message || "Server error" });
+    }
+});
+
+router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, res) => {
+    const { id, disputeId } = req.params;
+    const { action, description, score_for, score_against, screenshots } = req.body;
+
+    if (!["accept", "reject"].includes(action)) {
+        return res.status(400).json({ error: "action must be 'accept' or 'reject'" });
+    }
+
+    try {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            await expirePlayerDisputes(client, id);
+
+            const dRes = await client.query(
+                `SELECT * FROM disputes WHERE id = $1 AND match_id = $2 FOR UPDATE`,
+                [disputeId, id]
+            );
+            if (dRes.rows.length === 0) {
+                await client.query("ROLLBACK");
+                return res.status(404).json({ error: "Dispute not found" });
+            }
+            const d = dRes.rows[0];
+
+            const kind = d.dispute_kind || "player_claim";
+            if (kind !== "player_claim" || d.status !== "pending") {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "This dispute cannot be responded to." });
+            }
+
+            const mRes = await client.query("SELECT * FROM matches WHERE id = $1 FOR UPDATE", [id]);
+            const match = mRes.rows[0];
+            if (match.player1_id !== req.user.id && match.player2_id !== req.user.id) {
+                await client.query("ROLLBACK");
+                return res.status(403).json({ error: "Not a participant" });
+            }
+            if (d.submitted_by === req.user.id) {
+                await client.query("ROLLBACK");
+                return res.status(403).json({ error: "You cannot respond to your own dispute." });
+            }
+
+            if (d.respond_by && new Date(d.respond_by) < new Date()) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "The response window has expired." });
+            }
+
+            const oppShots = Array.isArray(screenshots)
+                ? screenshots.filter((u) => typeof u === "string" && u.trim())
+                : [];
+            const sf = Number.isFinite(parseInt(score_for, 10)) ? parseInt(score_for, 10) : null;
+            const sa = Number.isFinite(parseInt(score_against, 10)) ? parseInt(score_against, 10) : null;
+            if (sf === null || sa === null) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Please provide score_for and score_against." });
+            }
+            if (oppShots.length === 0) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Please upload at least one screenshot." });
+            }
+            if (action === "reject" && (!description || String(description).trim().length < 3)) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Description is required when rejecting a dispute." });
+            }
+
+            if (action === "accept") {
+                await client.query(
+                    `UPDATE disputes
+                     SET status = 'resolved',
+                         opponent_action = 'accepted',
+                         resolved_outcome = 'rematch',
+                         opponent_score_for = $2,
+                         opponent_score_against = $3,
+                         opponent_screenshots = $4::jsonb
+                     WHERE id = $1`,
+                    [disputeId, sf, sa, JSON.stringify(oppShots)]
+                );
+                await client.query(
+                    `UPDATE matches SET
+                        status = 'scheduled',
+                        p1_score = NULL, p2_score = NULL, p1_opp_score = NULL, p2_opp_score = NULL,
+                        p1_proof = NULL, p2_proof = NULL,
+                        game_room_code = NULL,
+                        player1_ready = false, player2_ready = false,
+                        checked_in_at = NULL,
+                        winner_id = NULL,
+                        score_player1 = NULL, score_player2 = NULL,
+                        carried_score_p1 = $1,
+                        carried_score_p2 = $2
+                     WHERE id = $3`,
+                    [d.carry_score_p1 || 0, d.carry_score_p2 || 0, id]
+                );
+                await client.query("COMMIT");
+                return res.json({
+                    message:
+                        "You agreed to a rematch. Carry-over scores from the dispute are saved. Re-check in and share a new room code.",
+                });
+            }
+
+            await client.query(
+                `UPDATE disputes
+                 SET status = 'resolved',
+                     opponent_action = 'rejected',
+                     resolved_outcome = 'double_dq',
+                     opponent_description = $2,
+                     opponent_score_for = $3,
+                     opponent_score_against = $4,
+                     opponent_screenshots = $5::jsonb
+                 WHERE id = $1`,
+                [disputeId, String(description || "").trim(), sf, sa, JSON.stringify(oppShots)]
+            );
+            await client.query(
+                `UPDATE matches SET status = 'cancelled', winner_id = NULL, match_code = 'DISPUTE_DOUBLE_DQ' WHERE id = $1`,
+                [id]
+            );
+            await checkIfTournamentFinished(id, client);
+            await client.query("COMMIT");
+            return res.json({ message: "Both players are disqualified from this match." });
+        } catch (e) {
+            await client.query("ROLLBACK");
+            throw e;
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message || "Server error" });
+    }
+});
+
 // Get Check-in / Match Details
 router.get("/:id", authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
+
+        const ex = await pool.connect();
+        try {
+            await ex.query("BEGIN");
+            await expirePlayerDisputes(ex, id);
+            await ex.query("COMMIT");
+        } catch (e) {
+            await ex.query("ROLLBACK");
+            console.error(e);
+        } finally {
+            ex.release();
+        }
+
         const result = await pool.query(
             `SELECT m.*, 
              p1.username as player1_name, 
@@ -238,11 +536,43 @@ router.get("/:id", authenticateToken, async (req, res) => {
             return res.status(403).json({ error: "Not a participant in this match" });
         }
         
-        // Let the client know about submissions
         const isP1 = match.player1_id === req.user.id;
         match.hasSubmited = isP1 ? (match.p1_score !== null) : (match.p2_score !== null);
         match.opponentHasSubmitted = isP1 ? (match.p2_score !== null) : (match.p1_score !== null);
         match.isHome = isP1;
+
+        const disputesRes = await pool.query(
+            `SELECT d.*, u.username AS submitted_by_name
+             FROM disputes d
+             JOIN users u ON d.submitted_by = u.id
+             WHERE d.match_id = $1
+             ORDER BY d.created_at DESC`,
+            [id]
+        );
+        match.disputes = disputesRes.rows;
+
+        const pendingPlayer = disputesRes.rows.find(
+            (d) =>
+                (d.dispute_kind === "player_claim" || !d.dispute_kind) &&
+                d.status === "pending" &&
+                d.respond_by
+        );
+        const pendingAdmin = disputesRes.rows.some(
+            (d) => d.dispute_kind === "score_conflict" && d.status === "pending"
+        );
+
+        match.disputeBlocksSubmission =
+            (!!pendingPlayer && pendingPlayer.status === "pending") || pendingAdmin;
+
+        match.opponentDisputePending =
+            pendingPlayer &&
+            pendingPlayer.submitted_by !== req.user.id &&
+            (match.player1_id === req.user.id || match.player2_id === req.user.id)
+                ? pendingPlayer
+                : null;
+
+        match.disputeRespondExpiresAt =
+            pendingPlayer && pendingPlayer.respond_by ? pendingPlayer.respond_by : null;
         
         res.json(match);
     } catch (err) {
@@ -359,6 +689,7 @@ router.post("/:id/check-timeout", authenticateToken, async (req, res) => {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
+            await expirePlayerDisputes(client, id);
             const matchRes = await client.query("SELECT * FROM matches WHERE id = $1 FOR UPDATE", [id]);
             if (matchRes.rows.length === 0) throw new Error("Match not found");
 
@@ -395,16 +726,29 @@ router.post("/:id/check-timeout", authenticateToken, async (req, res) => {
             const p2Submitted = match.p2_score !== null;
 
             if (!p1Submitted && !p2Submitted) {
-                // Neither submitted → Double disqualification
+                const dpend = await client.query(
+                    `SELECT id FROM disputes WHERE match_id = $1
+                     AND COALESCE(dispute_kind, 'player_claim') = 'player_claim'
+                     AND status = 'pending'`,
+                    [id]
+                );
+                if (dpend.rows.length > 0) {
+                    await client.query("COMMIT");
+                    return res.json({
+                        message:
+                            "A dispute is pending. Results are frozen until the opponent responds or the dispute deadline passes.",
+                        reason: "dispute_pending_hold",
+                    });
+                }
                 await client.query(
                     `UPDATE matches SET status = 'cancelled', match_code = 'DOUBLE_DQ' WHERE id = $1`,
                     [id]
                 );
                 await checkIfTournamentFinished(id, client);
-                await client.query('COMMIT');
-                return res.json({ 
-                    message: "Neither player submitted results. Both are disqualified.", 
-                    reason: "double_dq"
+                await client.query("COMMIT");
+                return res.json({
+                    message: "Neither player submitted results. Both are disqualified.",
+                    reason: "double_dq",
                 });
             }
 

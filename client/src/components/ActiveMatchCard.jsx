@@ -180,6 +180,319 @@ const MatchSubmission = ({ match, user, onSuccess }) => {
     );
 };
 
+const DisputePanel = ({ match, matchId, onSuccess }) => {
+    const { user } = useAuth();
+    const [open, setOpen] = useState(false);
+    const [reasonCategory, setReasonCategory] = useState("connection_issues");
+    const [reason, setReason] = useState('');
+    const [description, setDescription] = useState("");
+    const [carry1, setCarry1] = useState('');
+    const [carry2, setCarry2] = useState('');
+    const [proofFile, setProofFile] = useState(null);
+    const [submitScreenshots, setSubmitScreenshots] = useState([]);
+    const [responseDescription, setResponseDescription] = useState("");
+    const [responseScoreFor, setResponseScoreFor] = useState("");
+    const [responseScoreAgainst, setResponseScoreAgainst] = useState("");
+    const [responseFiles, setResponseFiles] = useState([]);
+    const [busy, setBusy] = useState(false);
+    const [oppRemaining, setOppRemaining] = useState(null);
+
+    const pending = match?.opponentDisputePending;
+    const expiresAt = match?.disputeRespondExpiresAt ? new Date(match.disputeRespondExpiresAt).getTime() : null;
+
+    useEffect(() => {
+        if (!pending || !expiresAt) {
+            setOppRemaining(null);
+            return;
+        }
+        const tick = () => {
+            const left = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+            setOppRemaining(left);
+        };
+        tick();
+        const t = setInterval(tick, 1000);
+        return () => clearInterval(t);
+    }, [pending, expiresAt]);
+
+    const submitDispute = async () => {
+        if (reason.trim().length < 3) return alert("Enter a reason (at least 3 characters).");
+        setBusy(true);
+        try {
+            let evidence_url = null;
+            if (proofFile) {
+                const fd = new FormData();
+                fd.append("proof", proofFile);
+                const up = await api.upload("/matches/upload-proof", fd);
+                if (up.error) throw new Error(up.error);
+                evidence_url = up.url;
+            }
+            const shotUrls = [];
+            for (const file of submitScreenshots) {
+                const fd = new FormData();
+                fd.append("proof", file);
+                const up = await api.upload("/matches/upload-proof", fd);
+                if (up.error) throw new Error(up.error);
+                shotUrls.push(up.url);
+            }
+            const a = carry1 !== '' ? parseInt(carry1, 10) : 0;
+            const b = carry2 !== '' ? parseInt(carry2, 10) : 0;
+            const isP1 = match?.player1_id === user?.id;
+            const body = {
+                reason_category: reasonCategory,
+                reason: reason.trim(),
+                description: description.trim() || null,
+                evidence_url,
+                screenshots: shotUrls,
+                score_for: a,
+                score_against: b,
+                carry_score_p1: isP1 ? a : b,
+                carry_score_p2: isP1 ? b : a,
+            };
+            const data = await api.post(`/matches/${matchId}/disputes`, body);
+            if (data.error) throw new Error(data.error);
+            alert(data.message || "Dispute submitted.");
+            setReason('');
+            setDescription("");
+            setCarry1('');
+            setCarry2('');
+            setProofFile(null);
+            setSubmitScreenshots([]);
+            setOpen(false);
+            onSuccess();
+        } catch (e) {
+            alert(e.message || "Failed to submit dispute");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const respond = async (action) => {
+        if (!pending) return;
+        if (!confirm(action === 'accept'
+            ? "Accept rematch? Scores at disconnect will carry over; you will check in again."
+            : "Reject? Both players will be disqualified from this match.")) return;
+        setBusy(true);
+        try {
+            if (responseScoreFor === "" || responseScoreAgainst === "") {
+                throw new Error("Enter your score.");
+            }
+            if (responseFiles.length === 0) {
+                throw new Error("Upload at least one screenshot.");
+            }
+            if (action === "reject" && responseDescription.trim().length < 3) {
+                throw new Error("Description is required for reject.");
+            }
+            const shotUrls = [];
+            for (const file of responseFiles) {
+                const fd = new FormData();
+                fd.append("proof", file);
+                const up = await api.upload("/matches/upload-proof", fd);
+                if (up.error) throw new Error(up.error);
+                shotUrls.push(up.url);
+            }
+            const data = await api.post(`/matches/${matchId}/disputes/${pending.id}/respond`, {
+                action,
+                description: responseDescription.trim(),
+                score_for: parseInt(responseScoreFor, 10),
+                score_against: parseInt(responseScoreAgainst, 10),
+                screenshots: shotUrls,
+            });
+            if (data.error) throw new Error(data.error);
+            alert(data.message);
+            setResponseDescription("");
+            setResponseScoreFor("");
+            setResponseScoreAgainst("");
+            setResponseFiles([]);
+            onSuccess();
+        } catch (e) {
+            alert(e.message || "Failed");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const list = Array.isArray(match?.disputes) ? match.disputes : [];
+
+    return (
+        <div className="mb-4 text-left">
+            {pending && (
+                <div className="mb-3 p-4 rounded-xl border border-amber-300 bg-amber-50">
+                    <p className="text-xs font-black text-amber-800 uppercase tracking-wider mb-1">Opponent dispute</p>
+                    <p className="text-sm text-amber-900 font-medium mb-1">{pending.reason}</p>
+                    <p className="text-xs text-amber-700 mb-1">Category: {pending.reason_category || "others"}</p>
+                    <p className="text-[10px] text-amber-700 mb-3">
+                        Submitted by {pending.submitted_by_name || "opponent"} — respond within 1 hour.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                        <input
+                            type="number"
+                            min="0"
+                            placeholder="Your score"
+                            className="w-full p-2 rounded-lg border border-amber-200 text-sm"
+                            value={responseScoreFor}
+                            onChange={(e) => setResponseScoreFor(e.target.value)}
+                        />
+                        <input
+                            type="number"
+                            min="0"
+                            placeholder="Opp score"
+                            className="w-full p-2 rounded-lg border border-amber-200 text-sm"
+                            value={responseScoreAgainst}
+                            onChange={(e) => setResponseScoreAgainst(e.target.value)}
+                        />
+                    </div>
+                    <textarea
+                        className="w-full p-2 rounded-lg border border-amber-200 text-sm mb-2"
+                        rows={2}
+                        placeholder="Description (required for reject)"
+                        value={responseDescription}
+                        onChange={(e) => setResponseDescription(e.target.value)}
+                    />
+                    <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        multiple
+                        onChange={(e) => setResponseFiles(Array.from(e.target.files || []))}
+                        className="text-xs w-full mb-3"
+                    />
+                    {oppRemaining !== null && (
+                        <p className="text-lg font-mono font-black text-amber-900 mb-3">
+                            {String(Math.floor(oppRemaining / 60)).padStart(2, "0")}:{String(oppRemaining % 60).padStart(2, "0")}
+                        </p>
+                    )}
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => respond("accept")}
+                            className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"
+                        >
+                            Accept (rematch)
+                        </button>
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => respond("reject")}
+                            className="flex-1 py-2.5 bg-slate-800 text-white rounded-xl font-bold text-sm"
+                        >
+                            Reject (both DQ)
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                className="w-full py-2.5 px-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 flex items-center justify-between"
+            >
+                Disputes
+                <span className="text-slate-400">{open ? "▴" : "▾"}</span>
+            </button>
+
+            {open && (
+                <div className="mt-2 p-3 rounded-xl border border-slate-200 bg-slate-50/80 space-y-3 text-sm">
+                    {list.length === 0 ? (
+                        <p className="text-xs text-slate-500">No disputes yet.</p>
+                    ) : (
+                        <ul className="space-y-2 max-h-40 overflow-y-auto">
+                            {list.map((d) => (
+                                <li key={d.id} className="text-xs border border-slate-100 rounded-lg p-2 bg-white">
+                                    <span className="font-bold text-slate-700">{d.submitted_by_name}</span>
+                                    <span className="text-slate-400"> · {d.status}</span>
+                                    {d.dispute_kind === "score_conflict" && (
+                                        <span className="ml-1 text-amber-600 font-bold">admin review</span>
+                                    )}
+                                    <p className="text-slate-600 mt-1">{d.reason}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    {!match?.disputeBlocksSubmission && match?.game_room_code && (
+                        <div className="pt-2 border-t border-slate-200 space-y-2">
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">Open a dispute</p>
+                            <select
+                                className="w-full p-2 rounded-lg border border-slate-200 text-sm"
+                                value={reasonCategory}
+                                onChange={(e) => setReasonCategory(e.target.value)}
+                            >
+                                <option value="connection_issues">Connection issues</option>
+                                <option value="rule_violation">Rule violation</option>
+                                <option value="others">Others</option>
+                            </select>
+                            <textarea
+                                className="w-full p-2 rounded-lg border border-slate-200 text-sm"
+                                rows={3}
+                                placeholder="Describe the issue (disconnect, rules, etc.)"
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                            />
+                            <textarea
+                                className="w-full p-2 rounded-lg border border-slate-200 text-sm"
+                                rows={2}
+                                placeholder="Additional description"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                            />
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[10px] text-slate-500 font-bold">Your goals at DC</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        className="w-full p-2 rounded-lg border border-slate-200 text-sm"
+                                        value={carry1}
+                                        onChange={(e) => setCarry1(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-500 font-bold">Opp. goals at DC</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        className="w-full p-2 rounded-lg border border-slate-200 text-sm"
+                                        value={carry2}
+                                        onChange={(e) => setCarry2(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <label className="block text-[10px] text-slate-500 font-bold">Proof image (optional)</label>
+                            <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                                className="text-xs w-full"
+                            />
+                            <label className="block text-[10px] text-slate-500 font-bold">Game screenshots</label>
+                            <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                multiple
+                                onChange={(e) => setSubmitScreenshots(Array.from(e.target.files || []))}
+                                className="text-xs w-full"
+                            />
+                            <button
+                                type="button"
+                                disabled={busy}
+                                onClick={submitDispute}
+                                className="w-full py-2.5 bg-amber-600 text-white rounded-xl font-bold text-sm"
+                            >
+                                {busy ? "..." : "Submit dispute"}
+                            </button>
+                        </div>
+                    )}
+                    {match?.disputeBlocksSubmission && (
+                        <p className="text-xs text-amber-700 font-medium">
+                            Result submission is hidden while a dispute or admin review is active.
+                        </p>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }) => {
     const { user } = useAuth();
     const [match, setMatch] = useState(null);
@@ -219,6 +532,8 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
             } else if (data.reason === 'home_no_code') {
                 alert("Time's up! Home player never shared the room code. Away player advances.");
             } else if (data.reason === 'timeout_win') {
+                alert(data.message);
+            } else if (data.reason === 'dispute_pending_hold') {
                 alert(data.message);
             }
             fetchMatchState();
@@ -553,9 +868,20 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                                 </div>
                             )}
                         </div>
+
+                        {match.game_room_code && (
+                            <DisputePanel
+                                match={match}
+                                matchId={matchId}
+                                onSuccess={() => {
+                                    fetchMatchState();
+                                    if (onComplete) onComplete();
+                                }}
+                            />
+                        )}
                         
                         {/* Match Submission */}
-                        {match.game_room_code && !match.hasSubmited && (
+                        {match.game_room_code && !match.hasSubmited && !match.disputeBlocksSubmission && (
                             <>
                                 <hr className="border-slate-100 my-4" />
                                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Report Result</h4>
@@ -580,10 +906,24 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                 )}
 
                 {matchState === 'pending_review' && (
-                    <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-200 shadow-sm">
-                        <div className="text-2xl mb-2">⚖️</div>
-                        <p className="font-bold">Match Disputed</p>
-                        <p className="text-xs mt-1 font-medium">Conflicting scores were submitted. An admin will review the proofs.</p>
+                    <div className="space-y-4">
+                        <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-200 shadow-sm">
+                            <div className="text-2xl mb-2">⚖️</div>
+                            <p className="font-bold">Match Disputed</p>
+                            <p className="text-xs mt-1 font-medium">
+                                Conflicting scores or a tie after carry-over. An admin reviews both proofs and decides the winner (3 pts).
+                            </p>
+                        </div>
+                        {match?.game_room_code && (
+                            <DisputePanel
+                                match={match}
+                                matchId={matchId}
+                                onSuccess={() => {
+                                    fetchMatchState();
+                                    if (onComplete) onComplete();
+                                }}
+                            />
+                        )}
                     </div>
                 )}
 
