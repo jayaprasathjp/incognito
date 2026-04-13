@@ -57,14 +57,11 @@ router.get("/", async (req, res) => {
                 p1.gc += (m.score_player2 || 0);
                 p2.gc += (m.score_player1 || 0);
 
-                // Points System
+                // Points: 3 for a win; disqualifications / no winner award 0 here
                 if (m.winner_id === m.player1_id) {
                     p1.pts += 3;
                 } else if (m.winner_id === m.player2_id) {
                     p2.pts += 3;
-                } else {
-                    p1.pts += 1;
-                    p2.pts += 1;
                 }
             }
         });

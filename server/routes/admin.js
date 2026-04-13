@@ -618,7 +618,8 @@ router.post("/matches/:id/rematch", async (req, res) => {
 router.get("/disputes", async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT d.*, m.match_code, u.username as submitted_by_name
+            SELECT d.*, m.match_code, m.player1_id, m.player2_id, m.status AS match_status,
+                   u.username as submitted_by_name
             FROM disputes d
             JOIN matches m ON d.match_id = m.id
             JOIN users u ON d.submitted_by = u.id
@@ -632,22 +633,112 @@ router.get("/disputes", async (req, res) => {
 });
 
 router.post("/disputes/:id/resolve", async (req, res) => {
+    const { id } = req.params;
+    const { action, winner_id, score_p1, score_p2, disqualified_player_id, rematch_time } = req.body;
+
     try {
-        const { id } = req.params;
-        const { action } = req.body; // 'approve', 'reject', 'rematch'
-        
-        if (action === 'reject') {
-            await pool.query("UPDATE disputes SET status = 'rejected' WHERE id = $1", [id]);
-        } else if (action === 'approve') {
-            await pool.query("UPDATE disputes SET status = 'resolved' WHERE id = $1", [id]);
-            // Additional logic: update match winner?
-        } else if (action === 'rematch') {
-            await pool.query("UPDATE disputes SET status = 'resolved' WHERE id = $1", [id]);
-            // Logic to reset match
-            // await pool.query("UPDATE matches SET status = 'scheduled', score_player1 = 0, ... WHERE id = ...")
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            const dRes = await client.query(
+                `SELECT d.*, m.player1_id AS match_p1, m.player2_id AS match_p2
+                 FROM disputes d
+                 JOIN matches m ON m.id = d.match_id
+                 WHERE d.id = $1
+                 FOR UPDATE`,
+                [id]
+            );
+            if (dRes.rows.length === 0) {
+                await client.query("ROLLBACK");
+                return res.status(404).json({ error: "Dispute not found" });
+            }
+            const d = dRes.rows[0];
+            const matchId = d.match_id;
+
+            if (action === "winner_updated") {
+                const w = parseInt(winner_id, 10);
+                const s1 = parseInt(score_p1, 10);
+                const s2 = parseInt(score_p2, 10);
+                if (!w || Number.isNaN(s1) || Number.isNaN(s2)) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({
+                        error: "winner_updated requires winner_id, score_p1, and score_p2.",
+                    });
+                }
+                if (w !== d.match_p1 && w !== d.match_p2) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ error: "winner_id must be one of the two players." });
+                }
+                await client.query(
+                    `UPDATE matches SET status = 'completed', winner_id = $1, score_player1 = $2, score_player2 = $3, match_code = 'ADMIN_RESOLVED'
+                     WHERE id = $4`,
+                    [w, s1, s2, matchId]
+                );
+                await client.query(
+                    `UPDATE disputes SET status = 'resolved', resolved_outcome = 'winner_updated' WHERE id = $1`,
+                    [id]
+                );
+                await checkIfTournamentFinished(matchId, client);
+            } else if (action === "match_replay_scheduled") {
+                const time = String(rematch_time || "").trim();
+                if (!/^\d{2}:\d{2}$/.test(time)) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ error: "Provide rematch_time in HH:mm format." });
+                }
+                await client.query(
+                    `UPDATE matches SET
+                        status = 'scheduled',
+                        p1_score = NULL, p2_score = NULL, p1_opp_score = NULL, p2_opp_score = NULL,
+                        p1_proof = NULL, p2_proof = NULL,
+                        game_room_code = NULL,
+                        player1_ready = false, player2_ready = false,
+                        checked_in_at = NULL,
+                        winner_id = NULL,
+                        score_player1 = NULL, score_player2 = NULL,
+                        match_time = $2
+                     WHERE id = $1`,
+                    [matchId, time]
+                );
+                await client.query(
+                    `UPDATE disputes SET status = 'resolved', resolved_outcome = 'match_replay_scheduled' WHERE id = $1`,
+                    [id]
+                );
+            } else if (action === "player_disqualified") {
+                const dq = parseInt(disqualified_player_id, 10);
+                if (!dq || (dq !== d.match_p1 && dq !== d.match_p2)) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ error: "Provide a valid disqualified_player_id from this match." });
+                }
+                const winner = dq === d.match_p1 ? d.match_p2 : d.match_p1;
+                await client.query(
+                    `UPDATE matches
+                     SET status = 'completed',
+                         winner_id = $1,
+                         score_player1 = CASE WHEN $1 = player1_id THEN 3 ELSE 0 END,
+                         score_player2 = CASE WHEN $1 = player2_id THEN 3 ELSE 0 END,
+                         match_code = 'DQ_CHEATING'
+                     WHERE id = $2`,
+                    [winner, matchId]
+                );
+                await client.query(`UPDATE users SET status = 'banned' WHERE id = $1`, [dq]);
+                await client.query(
+                    `UPDATE disputes SET status = 'resolved', resolved_outcome = 'player_disqualified' WHERE id = $1`,
+                    [id]
+                );
+                await checkIfTournamentFinished(matchId, client);
+            } else {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Invalid action" });
+            }
+
+            await client.query("COMMIT");
+            res.json({ message: "Dispute updated" });
+        } catch (e) {
+            await client.query("ROLLBACK");
+            throw e;
+        } finally {
+            client.release();
         }
-        
-        res.json({ message: "Dispute updated" });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });
