@@ -269,7 +269,7 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
     const respond = async (action) => {
         if (!pending) return;
         if (!confirm(action === 'accept'
-            ? "Accept rematch? Scores at disconnect will carry over; you will check in again."
+            ? "Accept the dispute? Admin will review both sides and decide the outcome."
             : "Reject? Both players will be disqualified from this match.")) return;
         setBusy(true);
         try {
@@ -367,7 +367,7 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                             onClick={() => respond("accept")}
                             className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"
                         >
-                            Accept (rematch)
+                            Accept dispute
                         </button>
                         <button
                             type="button"
@@ -437,7 +437,7 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                             />
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="text-[10px] text-slate-500 font-bold">Your goals at DC</label>
+                                    <label className="text-[10px] text-slate-500 font-bold">Your score <span className="font-normal text-slate-400">(for admin ref.)</span></label>
                                     <input
                                         type="number"
                                         min="0"
@@ -447,7 +447,7 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-slate-500 font-bold">Opp. goals at DC</label>
+                                    <label className="text-[10px] text-slate-500 font-bold">Opp. score <span className="font-normal text-slate-400">(for admin ref.)</span></label>
                                     <input
                                         type="number"
                                         min="0"
@@ -909,9 +909,9 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                     <div className="space-y-4">
                         <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-200 shadow-sm">
                             <div className="text-2xl mb-2">⚖️</div>
-                            <p className="font-bold">Match Disputed</p>
+                            <p className="font-bold">Match Under Admin Review</p>
                             <p className="text-xs mt-1 font-medium">
-                                Conflicting scores or a tie after carry-over. An admin reviews both proofs and decides the winner (3 pts).
+                                A dispute has been raised. An admin will review both sides and decide the outcome.
                             </p>
                         </div>
                         {match?.game_room_code && (
@@ -927,12 +927,41 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                     </div>
                 )}
 
-                {matchState === 'completed' && match?.match_code !== 'BYE' && (
-                    <div className="bg-green-50 text-green-700 p-4 rounded-xl border border-green-100">
-                        <p className="font-bold">Match Completed</p>
-                        <p className="text-sm">Scores have been finalized.</p>
-                    </div>
-                )}
+                {matchState === 'completed' && match?.match_code !== 'BYE' && (() => {
+                    const isP1 = match.player1_id === user?.id;
+                    const myScore = isP1 ? match.score_player1 : match.score_player2;
+                    const oppScore = isP1 ? match.score_player2 : match.score_player1;
+                    const iWon = match.winner_id === user?.id;
+                    const winnerName = match.winner_id === match.player1_id
+                        ? (match.player1_name || match.p1_name || 'Player 1')
+                        : (match.player2_name || match.p2_name || 'Player 2');
+                    const outcomeLabel = match.match_code === 'ADMIN_RESOLVED'     ? 'Admin resolved'
+                                       : match.match_code === 'DISPUTE_SUBMITTER_WIN' ? 'Dispute — submitter win'
+                                       : match.match_code === 'WALKOVER'            ? 'Walkover'
+                                       : 'Final';
+                    return (
+                        <div className={`p-5 rounded-xl border ${iWon ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                            <p className={`text-2xl font-black mb-1 ${iWon ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                {iWon ? '🏆 You Won!' : '😔 You Lost'}
+                            </p>
+                            <div className="flex items-center justify-center gap-3 my-3">
+                                <div className="text-center">
+                                    <p className="text-3xl font-black text-slate-900 font-mono">{myScore ?? '—'}</p>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase">You</p>
+                                </div>
+                                <span className="text-slate-300 font-black text-xl">—</span>
+                                <div className="text-center">
+                                    <p className="text-3xl font-black text-slate-900 font-mono">{oppScore ?? '—'}</p>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase">Opp</p>
+                                </div>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium">
+                                Winner: <span className="font-bold text-slate-800">{winnerName}</span>
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{outcomeLabel}</p>
+                        </div>
+                    );
+                })()}
                 
                 {matchState === 'completed' && match?.match_code === 'BYE' && (
                     <div className="bg-blue-50 text-blue-700 p-6 rounded-xl border border-blue-100 text-center shadow-inner">

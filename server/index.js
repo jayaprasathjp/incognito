@@ -9,8 +9,8 @@ import userRoutes from "./routes/users.js";
 import leaderboardRoutes from "./routes/leaderboard.js";
 import adminRoutes from "./routes/admin.js";
 import paymentRoutes from "./routes/payment.js";
-
-
+import { pool } from "./db.js";
+import { expirePlayerDisputes } from "./utils/disputeHelpers.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -48,4 +48,35 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
- 
+
+// ── Dispute Expiry Cron (every 15 minutes) ───────────────────────────────────
+async function runDisputeExpiry() {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const res = await client.query(
+      `SELECT DISTINCT match_id FROM disputes
+       WHERE status = 'pending'
+         AND COALESCE(dispute_kind, 'player_claim') = 'player_claim'
+         AND respond_by IS NOT NULL
+         AND respond_by < NOW()`
+    );
+    if (res.rows.length > 0) {
+      console.log(`[Dispute Cron] Expiring ${res.rows.length} dispute(s)...`);
+      for (const row of res.rows) {
+        await expirePlayerDisputes(client, row.match_id);
+      }
+    }
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[Dispute Cron] Error:", err.message);
+  } finally {
+    client.release();
+  }
+}
+
+// Run once on startup, then every 15 minutes
+runDisputeExpiry();
+setInterval(runDisputeExpiry, 15 * 60 * 1000);
+
