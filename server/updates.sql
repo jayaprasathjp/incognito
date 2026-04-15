@@ -13,3 +13,17 @@ ADD COLUMN IF NOT EXISTS prize_pool DECIMAL(10, 2) DEFAULT 0;
 -- Add session preference to participants
 ALTER TABLE participants
 ADD COLUMN IF NOT EXISTS session_preference VARCHAR(20);
+
+-- ── Dispute System Enhancements ──────────────────────────────────────────────
+
+-- Indexes for fast filtering on large datasets (2k+ players)
+CREATE INDEX IF NOT EXISTS idx_disputes_status   ON disputes(status);
+CREATE INDEX IF NOT EXISTS idx_disputes_match_id ON disputes(match_id);
+CREATE INDEX IF NOT EXISTS idx_disputes_submitted_by ON disputes(submitted_by);
+
+-- Admin internal notes (never shown to players)
+ALTER TABLE disputes ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+
+-- Reason shared with players when dispute is rejected
+ALTER TABLE disputes ADD COLUMN IF NOT EXISTS admin_reason TEXT;
+

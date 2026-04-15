@@ -435,9 +435,8 @@ router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, r
             if (action === "accept") {
                 await client.query(
                     `UPDATE disputes
-                     SET status = 'resolved',
-                         opponent_action = 'accepted',
-                         resolved_outcome = 'rematch',
+                     SET opponent_action = 'accepted',
+                         status = 'awaiting_admin',
                          opponent_score_for = $2,
                          opponent_score_against = $3,
                          opponent_screenshots = $4::jsonb
@@ -445,24 +444,13 @@ router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, r
                     [disputeId, sf, sa, JSON.stringify(oppShots)]
                 );
                 await client.query(
-                    `UPDATE matches SET
-                        status = 'scheduled',
-                        p1_score = NULL, p2_score = NULL, p1_opp_score = NULL, p2_opp_score = NULL,
-                        p1_proof = NULL, p2_proof = NULL,
-                        game_room_code = NULL,
-                        player1_ready = false, player2_ready = false,
-                        checked_in_at = NULL,
-                        winner_id = NULL,
-                        score_player1 = NULL, score_player2 = NULL,
-                        carried_score_p1 = $1,
-                        carried_score_p2 = $2
-                     WHERE id = $3`,
-                    [d.carry_score_p1 || 0, d.carry_score_p2 || 0, id]
+                    `UPDATE matches SET status = 'pending_review' WHERE id = $1`,
+                    [id]
                 );
                 await client.query("COMMIT");
                 return res.json({
                     message:
-                        "You agreed to a rematch. Carry-over scores from the dispute are saved. Re-check in and share a new room code.",
+                        "Dispute accepted. Admin has been notified and will review the case.",
                 });
             }
 

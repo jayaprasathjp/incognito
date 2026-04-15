@@ -618,12 +618,19 @@ router.post("/matches/:id/rematch", async (req, res) => {
 router.get("/disputes", async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT d.*, m.match_code, m.player1_id, m.player2_id, m.status AS match_status,
-                   u.username as submitted_by_name
+            SELECT d.*,
+                   m.match_code, m.player1_id, m.player2_id, m.status AS match_status,
+                   u1.username AS submitted_by_name,
+                   u2.username AS opponent_name
             FROM disputes d
             JOIN matches m ON d.match_id = m.id
-            JOIN users u ON d.submitted_by = u.id
-            ORDER BY d.created_at DESC
+            JOIN users u1 ON d.submitted_by = u1.id
+            LEFT JOIN users u2 ON (
+                CASE WHEN m.player1_id = d.submitted_by THEN m.player2_id ELSE m.player1_id END
+            ) = u2.id
+            ORDER BY
+                CASE WHEN d.status IN ('pending','awaiting_admin') THEN 0 ELSE 1 END ASC,
+                d.created_at DESC
         `);
         res.json(result.rows);
     } catch (err) {
@@ -634,7 +641,7 @@ router.get("/disputes", async (req, res) => {
 
 router.post("/disputes/:id/resolve", async (req, res) => {
     const { id } = req.params;
-    const { action, winner_id, score_p1, score_p2, disqualified_player_id, rematch_time } = req.body;
+    const { action, winner_id, score_p1, score_p2, rematch_time, admin_notes, admin_reason } = req.body;
 
     try {
         const client = await pool.connect();
@@ -675,15 +682,41 @@ router.post("/disputes/:id/resolve", async (req, res) => {
                     [w, s1, s2, matchId]
                 );
                 await client.query(
-                    `UPDATE disputes SET status = 'resolved', resolved_outcome = 'winner_updated' WHERE id = $1`,
-                    [id]
+                    `UPDATE disputes SET status = 'resolved', resolved_outcome = 'winner_updated',
+                         admin_notes = $2, admin_reason = $3
+                     WHERE id = $1`,
+                    [id, admin_notes || null, admin_reason || null]
                 );
                 await checkIfTournamentFinished(matchId, client);
+            } else if (action === "dispute_rejected") {
+                // Dispute dismissed — match returns to scheduled so players can continue
+                await client.query(
+                    `UPDATE matches SET
+                        status = 'scheduled',
+                        p1_score = NULL, p2_score = NULL, p1_opp_score = NULL, p2_opp_score = NULL,
+                        p1_proof = NULL, p2_proof = NULL,
+                        winner_id = NULL,
+                        score_player1 = NULL, score_player2 = NULL
+                     WHERE id = $1`,
+                    [matchId]
+                );
+                await client.query(
+                    `UPDATE disputes SET status = 'resolved', resolved_outcome = 'dispute_rejected',
+                         admin_notes = $2, admin_reason = $3
+                     WHERE id = $1`,
+                    [id, admin_notes || null, admin_reason || null]
+                );
             } else if (action === "match_replay_scheduled") {
                 const time = String(rematch_time || "").trim();
                 if (!/^\d{2}:\d{2}$/.test(time)) {
                     await client.query("ROLLBACK");
                     return res.status(400).json({ error: "Provide rematch_time in HH:mm format." });
+                }
+                // Validate time is not past 21:00
+                const [hh, mm] = time.split(":").map(Number);
+                if (hh > 21 || (hh === 21 && mm > 0)) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ error: "Replay time must be 9:00 PM or earlier." });
                 }
                 await client.query(
                     `UPDATE matches SET
@@ -695,50 +728,58 @@ router.post("/disputes/:id/resolve", async (req, res) => {
                         checked_in_at = NULL,
                         winner_id = NULL,
                         score_player1 = NULL, score_player2 = NULL,
+                        carried_score_p1 = 0,
+                        carried_score_p2 = 0,
                         match_time = $2
                      WHERE id = $1`,
                     [matchId, time]
                 );
                 await client.query(
-                    `UPDATE disputes SET status = 'resolved', resolved_outcome = 'match_replay_scheduled' WHERE id = $1`,
-                    [id]
+                    `UPDATE disputes SET status = 'resolved', resolved_outcome = 'match_replay_scheduled',
+                         admin_notes = $2, admin_reason = $3
+                     WHERE id = $1`,
+                    [id, admin_notes || null, admin_reason || null]
                 );
-            } else if (action === "player_disqualified") {
-                const dq = parseInt(disqualified_player_id, 10);
-                if (!dq || (dq !== d.match_p1 && dq !== d.match_p2)) {
-                    await client.query("ROLLBACK");
-                    return res.status(400).json({ error: "Provide a valid disqualified_player_id from this match." });
-                }
-                const winner = dq === d.match_p1 ? d.match_p2 : d.match_p1;
-                await client.query(
-                    `UPDATE matches
-                     SET status = 'completed',
-                         winner_id = $1,
-                         score_player1 = CASE WHEN $1 = player1_id THEN 3 ELSE 0 END,
-                         score_player2 = CASE WHEN $1 = player2_id THEN 3 ELSE 0 END,
-                         match_code = 'DQ_CHEATING'
-                     WHERE id = $2`,
-                    [winner, matchId]
-                );
-                await client.query(`UPDATE users SET status = 'banned' WHERE id = $1`, [dq]);
-                await client.query(
-                    `UPDATE disputes SET status = 'resolved', resolved_outcome = 'player_disqualified' WHERE id = $1`,
-                    [id]
-                );
-                await checkIfTournamentFinished(matchId, client);
             } else {
                 await client.query("ROLLBACK");
                 return res.status(400).json({ error: "Invalid action" });
             }
 
             await client.query("COMMIT");
-            res.json({ message: "Dispute updated" });
+            res.json({ message: "Dispute resolved" });
         } catch (e) {
             await client.query("ROLLBACK");
             throw e;
         } finally {
             client.release();
         }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// Dispute history per player (for admin review)
+router.get("/player-disputes/:userId", async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const result = await pool.query(
+            `SELECT d.id, d.match_id, d.status, d.resolved_outcome, d.reason_category,
+                    d.reason, d.created_at, d.dispute_kind,
+                    u.username AS opponent_name
+             FROM disputes d
+             JOIN matches m ON d.match_id = m.id
+             LEFT JOIN users u ON (
+                 CASE WHEN m.player1_id = d.submitted_by THEN m.player2_id ELSE m.player1_id END
+             ) = u.id
+             WHERE d.submitted_by = $1
+             ORDER BY d.created_at DESC`,
+            [userId]
+        );
+        res.json({
+            total: result.rows.length,
+            disputes: result.rows,
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });
