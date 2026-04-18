@@ -51,7 +51,7 @@ const AdminLogin = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-600">Email or Username</label>
+                        <label className="text-sm font-medium text-slate-600">Email or Alias</label>
                         <div className="relative">
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                             <input

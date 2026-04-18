@@ -11,8 +11,27 @@ import adminRoutes from "./routes/admin.js";
 import paymentRoutes from "./routes/payment.js";
 import { pool } from "./db.js";
 import { expirePlayerDisputes } from "./utils/disputeHelpers.js";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"]
+  }
+});
+
+// Expose io to routes
+app.locals.io = io;
+
+io.on("connection", (socket) => {
+  socket.on("join_match", (matchId) => {
+    socket.join(`match_${matchId}`);
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
@@ -45,7 +64,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Global Server Error: " + err.message });
 });
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 

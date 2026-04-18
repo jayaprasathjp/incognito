@@ -5,7 +5,7 @@ import { api } from '../utils/api';
 import appIcon from '../assets/app-icon.png';
 
 const Login = () => {
-    const [email, setEmail] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ const Login = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const data = await api.post('/auth/login', { email, password });
+            const data = await api.post('/auth/login', { identifier, password });
             if (data.token) {
                 login(data.token, data.user);
                 navigate(data.user.role === 'admin' ? '/admin' : '/dashboard');
@@ -48,10 +48,10 @@ const Login = () => {
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
                         <input 
-                            type="email" 
-                            placeholder="Email Address" 
-                            value={email} 
-                            onChange={(e) => setEmail(e.target.value)} 
+                            type="text" 
+                            placeholder="Email or Alias" 
+                            value={identifier} 
+                            onChange={(e) => setIdentifier(e.target.value)} 
                             required 
                             className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
                         />
