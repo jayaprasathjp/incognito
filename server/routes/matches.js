@@ -12,6 +12,12 @@ import {
     ensureScoreConflictDispute,
 } from "../utils/disputeHelpers.js";
 
+const emitMatchUpdate = (req, matchId) => {
+    if (req.app.locals.io) {
+        req.app.locals.io.to(`match_${matchId}`).emit('match_updated');
+    }
+};
+
 // Supabase client for storage
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -159,6 +165,7 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
             }
 
             await client.query('COMMIT');
+            emitMatchUpdate(req, id);
             res.json({ message: responseMsg });
         } catch (e) {
             await client.query('ROLLBACK');
@@ -198,6 +205,7 @@ router.post("/:id/room-code", authenticateToken, async (req, res) => {
             );
 
             await client.query('COMMIT');
+            emitMatchUpdate(req, id);
             res.json({ message: "Room code submitted successfully", game_room_code });
         } catch (e) {
             await client.query('ROLLBACK');
@@ -355,6 +363,7 @@ router.post("/:id/disputes", authenticateToken, async (req, res) => {
             );
 
             await client.query("COMMIT");
+            emitMatchUpdate(req, id);
             res.json({ dispute: ins.rows[0], message: "Dispute submitted. Your opponent has 1 hour to respond." });
         } catch (e) {
             await client.query("ROLLBACK");
@@ -448,6 +457,7 @@ router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, r
                     [id]
                 );
                 await client.query("COMMIT");
+                emitMatchUpdate(req, id);
                 return res.json({
                     message:
                         "Dispute accepted. Admin has been notified and will review the case.",
@@ -472,6 +482,7 @@ router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, r
             );
             await checkIfTournamentFinished(id, client);
             await client.query("COMMIT");
+            emitMatchUpdate(req, id);
             return res.json({ message: "Both players are disqualified from this match." });
         } catch (e) {
             await client.query("ROLLBACK");
@@ -601,6 +612,7 @@ router.post("/:id/ready", authenticateToken, async (req, res) => {
             );
 
             await client.query('COMMIT');
+            emitMatchUpdate(req, id);
             res.json({ message: "Check-in successful", match: { ...match, checked_in_at: checkedInAt } });
         } catch (e) {
             await client.query('ROLLBACK');
@@ -642,6 +654,7 @@ router.post("/:id/check-walkover", authenticateToken, async (req, res) => {
                 // both lose/cancel - we set status to cancelled
                 await client.query("UPDATE matches SET status = 'cancelled' WHERE id = $1", [id]);
                 await client.query('COMMIT');
+                emitMatchUpdate(req, id);
                 return res.json({ message: "Match cancelled. Neither player checked in." });
             } else {
                 throw new Error("Both players are ready. Play the match.");
@@ -654,6 +667,7 @@ router.post("/:id/check-walkover", authenticateToken, async (req, res) => {
             );
             await checkIfTournamentFinished(id, client);
             await client.query('COMMIT');
+            emitMatchUpdate(req, id);
             res.json({ message: "Walkover applied successfully.", winner_id: winnerId });
 
         } catch (e) {
@@ -684,6 +698,7 @@ router.post("/:id/check-timeout", authenticateToken, async (req, res) => {
             const match = matchRes.rows[0];
             if (match.status !== 'scheduled') {
                 await client.query('COMMIT');
+                emitMatchUpdate(req, id);
                 return res.json({ message: "Match already resolved", status: match.status });
             }
 
@@ -772,6 +787,7 @@ router.post("/:id/check-timeout", authenticateToken, async (req, res) => {
 
             // Both submitted — this shouldn't happen (auto-resolve already ran), but handle it
             await client.query('COMMIT');
+            emitMatchUpdate(req, id);
             res.json({ message: "Both players already submitted. Match should be resolved." });
 
         } catch (e) {

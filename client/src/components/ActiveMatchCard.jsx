@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { api } from '../utils/api';
+import { io } from 'socket.io-client';
+import { api, SOCKET_URL } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 // Existing MatchSubmission component from PlayerDashboard
@@ -502,6 +503,7 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
     const [matchState, setMatchState] = useState('loading');
     const [roomCodeInput, setRoomCodeInput] = useState('');
     const [submittingCode, setSubmittingCode] = useState(false);
+    const [isEditingRoomCode, setIsEditingRoomCode] = useState(false);
     const [remaining, setRemaining] = useState(null);
     const [matchStartTime, setMatchStartTime] = useState(null);
 
@@ -561,8 +563,19 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
 
     useEffect(() => {
         fetchMatchState();
-        const intervalId = setInterval(fetchMatchState, 30000); // refresh every 30s
-        return () => clearInterval(intervalId);
+        
+        const socket = io(SOCKET_URL);
+        socket.on('connect', () => {
+            socket.emit('join_match', matchId);
+        });
+        
+        socket.on('match_updated', () => {
+            fetchMatchState();
+        });
+
+        return () => {
+            socket.disconnect();
+        };
     }, [matchId, fetchMatchState]);
 
     // Auto-transition from ready_waiting to active when match time arrives
@@ -660,6 +673,7 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
         try {
             const data = await api.post(`/matches/${matchId}/room-code`, { game_room_code: roomCodeInput });
             if (data.error) throw new Error(data.error);
+            setIsEditingRoomCode(false);
             await fetchMatchState();
         } catch (e) {
             alert(e.message || 'Failed to submit room code');
@@ -676,6 +690,7 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
     const opponentName = isPlayer1 ? match.player2_name || match.opponent_name : match.player1_name || match.opponent_name;
     const amIReady = isPlayer1 ? match.player1_ready : match.player2_ready;
     const isOpponentReady = isPlayer1 ? match.player2_ready : match.player1_ready;
+    const canEditRoomCode = match.isHome && (matchState === 'waiting_checkin' || matchState === 'checking_in' || matchState === 'ready_waiting' || (matchState === 'active' && remaining !== null && remaining >= 50 * 60));
 
     return (
         <div className="w-full max-w-sm mb-8 p-6 bg-white rounded-2xl border border-blue-100 shadow-xl text-center relative overflow-hidden">
@@ -830,11 +845,15 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                         <div className="mb-6 p-4 rounded-xl border border-blue-200 bg-blue-50/50 shadow-inner">
                             <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Game Room Code</h4>
                             
-                            {!match.game_room_code ? (
+                            {!match.game_room_code || isEditingRoomCode ? (
                                 match.isHome ? (
                                     // HOME PLAYER: Create and share room code
                                     <div className="space-y-3">
-                                        <p className="text-xs text-blue-700">You are the <strong>HOME</strong> player. Create a game room and share the code here.</p>
+                                        {isEditingRoomCode ? (
+                                            <p className="text-xs text-blue-700">You are updating the room code. The opponent will be notified.</p>
+                                        ) : (
+                                            <p className="text-xs text-blue-700">You are the <strong>HOME</strong> player. Create a game room and share the code here.</p>
+                                        )}
                                         <div className="flex gap-2">
                                             <input 
                                                 type="text" 
@@ -843,12 +862,20 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                                                 value={roomCodeInput}
                                                 onChange={e => setRoomCodeInput(e.target.value)}
                                             />
+                                            {isEditingRoomCode && (
+                                                <button 
+                                                    onClick={() => setIsEditingRoomCode(false)}
+                                                    className="px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-colors shadow-sm"
+                                                >
+                                                    CANCEL
+                                                </button>
+                                            )}
                                             <button 
                                                 onClick={handleRoomCodeSubmit}
                                                 disabled={submittingCode}
                                                 className="px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-sm"
                                             >
-                                                {submittingCode ? '...' : 'SHARE'}
+                                                {submittingCode ? '...' : (isEditingRoomCode ? 'UPDATE' : 'SHARE')}
                                             </button>
                                         </div>
                                     </div>
@@ -861,10 +888,23 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                             ) : (
                                 // CODE SHARED
                                 <div>
-                                    <div className="text-3xl font-black text-slate-800 tracking-widest my-2 select-all">
-                                        {match.game_room_code}
+                                    <div className="flex items-center justify-center gap-3">
+                                        <div className="text-3xl font-black text-slate-800 tracking-widest my-2 select-all">
+                                            {match.game_room_code}
+                                        </div>
+                                        {canEditRoomCode && !match.hasSubmited && !match.disputes?.length && (
+                                            <button 
+                                                onClick={() => {
+                                                    setRoomCodeInput(match.game_room_code);
+                                                    setIsEditingRoomCode(true);
+                                                }}
+                                                className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-bold rounded-lg transition-colors border border-blue-200"
+                                            >
+                                                EDIT
+                                            </button>
+                                        )}
                                     </div>
-                                    <p className="text-[10px] text-slate-500 font-medium">This code is locked to this match. Good luck!</p>
+                                    <p className="text-[10px] text-slate-500 font-medium mt-1">This code is locked to this match. Good luck!</p>
                                 </div>
                             )}
                         </div>
