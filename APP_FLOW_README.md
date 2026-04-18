@@ -293,6 +293,7 @@ Each player independently submits:
 - **Their score** (e.g., "I scored 3")
 - **Opponent's score** (e.g., "They scored 1")
 - **Proof screenshot** (uploaded to Supabase Storage)
+- **Dispute Reason & Category** (if they disagree with opponent or have issues)
 
 ### All Possible Outcomes After Both Submit
 
@@ -308,10 +309,13 @@ Each player independently submits:
 When only one player submits their result:
 
 1. A `player_claim` dispute is created automatically
-2. The opponent gets **exactly 1 hour** to respond with their own score + proof
+2. The opponent gets **exactly 1 hour** to respond with:
+   - **Their scores** (Claiming their side)
+   - **Remark** (Explanation)
+   - **Proof screenshots**
 3. **If opponent responds within 1 hour:**
-   - If they **accept** → goes to admin for final review (`awaiting_admin`)
-   - If they **reject** → match is cancelled as "double DQ" (both disqualified from that match)
+   - If they **accept** (agree with result) → Match auto-completes.
+   - If they **reject/disagree** (provide conflicting scores) → Match goes to admin review (`pending_review`).
 4. **If opponent does NOT respond within 1 hour:**
    - **Automatic resolution** → the submitter **wins by default** with score 3-0
 
@@ -376,11 +380,13 @@ As explained in Phase 4, if the admin has already saved the round schedule, fixt
 
 After every match completion, the system runs `checkIfTournamentFinished()`:
 
-1. Finds the **maximum round number** (the final round) for this tournament
-2. Checks if the just-completed match is in that final round
+1. Finds the **maximum round number** (the final round) for this tournament.
+2. Checks if the just-completed match is in that final round.
 3. Looks at ALL matches in the final round — are they ALL `completed` or `cancelled`?
-4. **If yes AND a winner exists** → Tournament → `completed`, winner is recorded
-5. **If yes BUT no winner** (rare edge case) → Tournament → `paused` for admin to intervene
+4. **If yes AND a winner exists** → The system **automatically**:
+    - Sets Tournament `status = 'completed'`.
+    - Updates Tournament `winner_id` to the final winner.
+5. **If yes BUT no winner** (rare edge case) → Tournament → `paused` for admin to intervene.
 
 ### What Players See After Tournament Ends
 
@@ -416,6 +422,7 @@ When a tournament is completed and the admin wants to start a new season, they "
 | All disputes from old tournament | ✅ Yes — permanently removed |
 | All matches from old tournament | ✅ Yes — permanently removed |
 | Round configurations | ✅ Yes — cleared |
+| Participant list | ✅ Yes — all participants removed to free capacity |
 
 ### What Stays After Cycle
 
@@ -428,10 +435,11 @@ When a tournament is completed and the admin wants to start a new season, they "
 
 ### After Cycling
 
-- Admin sees the **"Create New Tournament"** form (back to Phase 2)
-- New tournament, new settings, new season
-- Players can re-register and pay for the new tournament
-- The entire lifecycle begins again
+- Clicking **"End & Clear Tournament Data"** (only visible when tournament is `completed`) triggers the wipe.
+- After the action succeeds, the admin is **automatically transitioned** to the "Create New Tournament" form.
+- New tournament, new settings, new season.
+- Players can re-register and pay for the new tournament.
+- The entire lifecycle begins again.
 
 ---
 
@@ -441,7 +449,7 @@ When a tournament is completed and the admin wants to start a new season, they "
 |--------|-------|------------------|
 | **Dashboard** | `/admin/dashboard` | Overview statistics and quick insights |
 | **Player Management** | `/admin/players` | View all players, see full profile (institution, phone, email), match history, payment history, ban/unban players |
-| **Tournament Control** | `/admin/tournament` | Create tournaments, configure brackets, set round dates, activate/pause, generate fixtures, cycle to new season |
+| **Tournament Control** | `/admin/tournament` | Configure brackets, set round dates, activate/pause, generate fixtures. After completion, use "End & Clear" to wipe data and start a new season. |
 | **Matches** | `/admin/matches` | View all matches filtered by round, see results, winner details, proof screenshots |
 | **Disputes** | `/admin/disputes` | Review proof screenshots from both players, set winner, reject dispute, schedule rematch |
 | **Payments** | `/admin/payments` | Full transaction history, search by username/reference/Flutterwave ID, filter by payment status and tournament |
@@ -683,9 +691,9 @@ When the match timer expires and scores aren't resolved:
       ↓
  8.  Home player shares room code → players play FIFA → take screenshot
       ↓
- 9.  PLAYERS submit scores + proof → auto-resolve if they agree
+ 9.  PLAYERS submit scores, reason/category, and proof → auto-resolve if they agree
       ↓
-10.  If scores conflict → DISPUTE created → admin reviews proofs → picks winner
+10.  If scores conflict → DISPUTE reviewed by admin (using reason & scores) → picks winner
       ↓
 11.  If one player doesn't respond → AUTO-EXPIRES after 1 hour → submitter wins
       ↓
@@ -693,11 +701,11 @@ When the match timer expires and scores aren't resolved:
       ↓
 13.  Repeat steps 7–12 until the FINAL match
       ↓
-14.  Final resolved → TOURNAMENT COMPLETED → 🏆 Winner crowned
+14.  Final resolved → TOURNAMENT AUTO-COMPLETES → 🏆 Winner crowned & recorded
       ↓
 15.  Winner fills bank details → prize money transferred
       ↓
-16.  ADMIN cycles tournament → data cleaned → back to step 1
+16.  ADMIN clicks "End & Clear" → data cleaned → AUTO-TRANSITION to Step 1
 ```
 
 ---
