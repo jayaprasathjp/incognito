@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Gavel, CheckCircle, RefreshCw, XCircle, ChevronDown, ChevronUp, Search, ArrowUpDown, Clock, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
@@ -66,18 +67,49 @@ const ScorePill = ({ label, score }) => (
     </div>
 );
 
-const InlineScreenshots = ({ urls }) => {
+const InlineScreenshots = ({ urls, onView }) => {
     const list = Array.isArray(urls) ? urls : (urls ? [urls] : []);
     if (!list.length) return <p className="text-xs text-slate-400 italic">No screenshots</p>;
     return (
         <div className="flex flex-wrap gap-2 mt-1">
             {list.map((u, i) => (
-                <a key={i} href={u} target="_blank" rel="noopener noreferrer" title={`Screenshot ${i + 1}`}>
+                <div key={i} onClick={() => onView?.(u)} className="cursor-pointer group relative">
                     <img src={u} alt={`Screenshot ${i + 1}`}
-                        className="h-16 w-24 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition-opacity shadow-sm" />
-                </a>
+                        className="h-16 w-24 object-cover rounded-lg border border-slate-200 hover:border-slate-400 transition-all shadow-sm" />
+                    <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 rounded-lg transition-opacity flex items-center justify-center">
+                        <Search size={14} className="text-white drop-shadow-md" />
+                    </div>
+                </div>
             ))}
         </div>
+    );
+};
+
+const FullScreenViewer = ({ imageUrl, onClose }) => {
+    if (!imageUrl) return null;
+    return createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-in fade-in zoom-in duration-200"
+             onClick={onClose}>
+            <button 
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
+                className="absolute top-4 right-4 p-3 bg-white/20 active:bg-white/40 text-white rounded-full transition-all z-[100000] shadow-xl border border-white/10"
+                aria-label="Close"
+            >
+                <XCircle size={28} />
+            </button>
+            <div className="w-full h-full flex items-center justify-center p-2" onClick={e => e.stopPropagation()}>
+                <img 
+                    src={imageUrl} 
+                    alt="Proof" 
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl select-none"
+                    style={{ WebkitUserDrag: 'none' }}
+                />
+            </div>
+            <p className="fixed bottom-10 left-0 right-0 text-center text-white/40 text-[10px] uppercase font-bold tracking-[0.2em] pointer-events-none drop-shadow-md">
+                Tap anywhere to close
+            </p>
+        </div>,
+        document.body
     );
 };
 
@@ -115,6 +147,7 @@ const Disputes = () => {
     const [rematchTime, setRematchTime] = useState("");
     const [adminNotes, setAdminNotes] = useState("");
     const [adminReason, setAdminReason] = useState("");
+    const [viewerImage, setViewerImage] = useState(null);
 
     // player history cache  { [userId]: { total, disputes } }
     const [historyCache, setHistoryCache] = useState({});
@@ -295,6 +328,21 @@ const Disputes = () => {
                                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${STATUS_COLOR[d.status] || "bg-slate-100 text-slate-500 border-slate-200"}`}>
                                                     {d.status?.replace(/_/g, " ")}
                                                 </span>
+
+                                                {/* Opponent Response Status Badge */}
+                                                {!isResolved && (
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border transition-colors
+                                                        ${!d.opponent_action 
+                                                            ? "bg-slate-50 text-slate-400 border-slate-200 animate-pulse" 
+                                                            : d.opponent_action.startsWith('accept') 
+                                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                                                : "bg-red-50 text-red-700 border-red-200"
+                                                        }`}
+                                                    >
+                                                        {!d.opponent_action ? "No Response" : d.opponent_action}
+                                                    </span>
+                                                )}
+
                                                 {d.status === "pending" && d.respond_by && (
                                                     <CountdownBadge respondBy={d.respond_by} />
                                                 )}
@@ -355,17 +403,17 @@ const Disputes = () => {
                                             {(d.carry_score_p1 != null) && (
                                                 <p className="text-xs text-blue-600">Score ref: {d.carry_score_p1} – {d.carry_score_p2}</p>
                                             )}
-                                            <InlineScreenshots urls={submitterShots} />
+                                            <InlineScreenshots urls={submitterShots} onView={setViewerImage} />
                                         </div>
 
                                         {/* Opponent response */}
                                         {d.opponent_action ? (
-                                            <div className={`rounded-xl p-3 border space-y-2 ${d.opponent_action === "accept" ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"}`}>
-                                                <p className={`text-[10px] font-bold uppercase ${d.opponent_action === "accept" ? "text-emerald-700" : "text-red-700"}`}>
+                                            <div className={`rounded-xl p-3 border space-y-2 ${d.opponent_action.startsWith('accept') ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"}`}>
+                                                <p className={`text-[10px] font-bold uppercase ${d.opponent_action.startsWith('accept') ? "text-emerald-700" : "text-red-700"}`}>
                                                     {d.opponent_name || "Opponent"}'s Response
-                                                    <span className="ml-1 font-normal capitalize">({d.opponent_action}d)</span>
+                                                    <span className="ml-1 font-normal capitalize">({d.opponent_action})</span>
                                                 </p>
-                                                {d.opponent_action === "accept" && (
+                                                {d.opponent_action.startsWith('accept') && (
                                                     <div className="flex gap-2">
                                                         <ScorePill label="Their score" score={d.opponent_score_for} />
                                                         <ScorePill label="Opp. score" score={d.opponent_score_against} />
@@ -374,7 +422,7 @@ const Disputes = () => {
                                                 {d.opponent_description && (
                                                     <p className="text-xs text-slate-600 bg-white/70 p-2 rounded-lg">{d.opponent_description}</p>
                                                 )}
-                                                <InlineScreenshots urls={oppShots} />
+                                                <InlineScreenshots urls={oppShots} onView={setViewerImage} />
                                             </div>
                                         ) : (
                                             <p className="text-xs text-slate-400 italic">Awaiting opponent response…</p>
@@ -457,7 +505,7 @@ const Disputes = () => {
                                                 <ScorePill label="Won" score={selected.opponent_score_for} />
                                                 <ScorePill label="Lost" score={selected.opponent_score_against} />
                                             </div>
-                                            <InlineScreenshots urls={selected.opponent_screenshots || []} />
+                                            <InlineScreenshots urls={selected.opponent_screenshots || []} onView={setViewerImage} />
                                         </>
                                     ) : (
                                         <p className="text-xs text-slate-400 italic mt-1">No response yet</p>
@@ -566,6 +614,8 @@ const Disputes = () => {
                     </div>
                 </div>
             )}
+            {/* Full Screen Viewer Portal */}
+            <FullScreenViewer imageUrl={viewerImage} onClose={() => setViewerImage(null)} />
         </div>
     );
 };
