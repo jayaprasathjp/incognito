@@ -124,11 +124,22 @@ router.get("/players", async (req, res) => {
 router.get("/players/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const user = await pool.query("SELECT id, username, email, role, status, institution, referral_code FROM users WHERE id = $1", [id]);
+        const user = await pool.query("SELECT id, username, email, role, status, institution, whatsapp_number, referral_code FROM users WHERE id = $1", [id]);
         if (user.rows.length === 0) return res.status(404).json({ error: "Player not found" });
 
         const bank = await pool.query("SELECT * FROM bank_details WHERE user_id = $1", [id]);
         const referrals = await pool.query("SELECT COUNT(*) FROM referrals WHERE referrer_id = $1", [id]);
+
+        const matches = await pool.query(
+            "SELECT id, round, status, match_code, updated_at as created_at, winner_id, score_player1, score_player2, " +
+            "CASE WHEN player1_id = $1 THEN 'Player 1' ELSE 'Player 2' END as position, " +
+            "CASE WHEN winner_id = $1 THEN true ELSE false END as is_winner " +
+            "FROM matches WHERE player1_id = $1 OR player2_id = $1 ORDER BY updated_at DESC", [id]
+        );
+
+        const payments = await pool.query(
+            "SELECT id, amount, status, reference, created_at FROM payments WHERE user_id = $1 ORDER BY created_at DESC", [id]
+        );
 
         res.json({
             profile: user.rows[0],
@@ -136,7 +147,9 @@ router.get("/players/:id", async (req, res) => {
             referralStats: {
                 code: user.rows[0].referral_code,
                 count: parseInt(referrals.rows[0].count)
-            }
+            },
+            recentMatches: matches.rows || [],
+            recentPayments: payments.rows || []
         });
     } catch (err) {
         console.error(err);
