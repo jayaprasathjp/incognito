@@ -144,7 +144,7 @@ async function seedDisputes() {
         INSERT INTO disputes (
             match_id, submitted_by, dispute_kind, reason, status, 
             submitter_screenshots, submitter_score_for, submitter_score_against,
-            opponent_description, opponent_score_for, opponent_score_against, opponent_screenshots,
+            opponent_remark, opponent_score_for, opponent_score_against, opponent_screenshots,
             opponent_action
         )
         VALUES (

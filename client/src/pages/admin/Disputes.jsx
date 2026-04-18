@@ -88,7 +88,7 @@ const InlineScreenshots = ({ urls, onView }) => {
 const FullScreenViewer = ({ imageUrl, onClose }) => {
     if (!imageUrl) return null;
     return createPortal(
-        <div className="fixed inset-0 z-[99999] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-in fade-in zoom-in duration-200"
+        <div className="fixed inset-0 z-[99999] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-md cursor-pointer animate-in fade-in duration-200"
              onClick={onClose}>
             <button 
                 onClick={(e) => { e.stopPropagation(); onClose(); }}
@@ -97,11 +97,11 @@ const FullScreenViewer = ({ imageUrl, onClose }) => {
             >
                 <XCircle size={28} />
             </button>
-            <div className="w-full h-full flex items-center justify-center p-2" onClick={e => e.stopPropagation()}>
+            <div className="w-full h-full flex items-center justify-center p-2 pointer-events-none">
                 <img 
                     src={imageUrl} 
                     alt="Proof" 
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl select-none"
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl pointer-events-auto"
                     style={{ WebkitUserDrag: 'none' }}
                 />
             </div>
@@ -148,6 +148,10 @@ const Disputes = () => {
     const [adminNotes, setAdminNotes] = useState("");
     const [adminReason, setAdminReason] = useState("");
     const [viewerImage, setViewerImage] = useState(null);
+
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 10;
 
     // player history cache  { [userId]: { total, disputes } }
     const [historyCache, setHistoryCache] = useState({});
@@ -248,6 +252,16 @@ const Disputes = () => {
         return list;
     }, [disputes, filterStatus, search, sortOrder]);
 
+    // Reset pagination when filter/search changes
+    useEffect(() => { setCurrentPage(1); }, [filterStatus, search]);
+
+    const paginated = useMemo(() => {
+        const start = (currentPage - 1) * PAGE_SIZE;
+        return filtered.slice(start, start + PAGE_SIZE);
+    }, [filtered, currentPage]);
+
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+
     const FILTER_TABS = [
         { key: "unresolved",     label: "Unresolved",   color: "bg-orange-100 text-orange-700 border-orange-300" },
         { key: "awaiting_admin", label: "Admin Review",  color: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -257,30 +271,34 @@ const Disputes = () => {
 
     /* ── Render ── */
     return (
-        <div className="space-y-4 pb-10">
+        <div className="pb-10">
             {/* Sticky toolbar */}
-            <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 border-b border-slate-100 px-1 pt-2 pb-3 space-y-2">
-                <div className="flex justify-between items-center">
+            <div className="sticky top-0 -mx-4 z-30">
+                {/* Scroll Shield: Masks the content as it scrolls into the gap above the header */}
+                <div className="absolute top-[-100px] left-0 right-0 h-[100px] bg-white pointer-events-none border-b border-transparent" />
+                
+                <div className="bg-white border-b border-slate-100 px-4 pt-2 pb-3 space-y-2 shadow-sm">
+                <div className="flex justify-between items-center px-2">
                     <div className="flex items-baseline gap-2">
                         <h1 className="text-2xl font-bold text-slate-900">Disputes</h1>
                         <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                            {filtered.length}/{disputes.length}
+                            {filtered.length}
                         </span>
                     </div>
                     <button onClick={fetchDisputes} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 text-sm font-medium">
                         Refresh
                     </button>
                 </div>
-                <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <div className="relative px-2">
+                    <Search size={14} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input type="text" placeholder="Search player, match ID, or reason…" value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-slate-300" />
+                        className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-xl bg-slate-50 focus:bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300" />
                 </div>
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                <div className="flex items-center gap-1.5 overflow-x-auto p-2 scrollbar-hide no-scrollbar">
                     {FILTER_TABS.map(f => (
                         <button key={f.key} onClick={() => setFilterStatus(f.key)}
-                            className={`shrink-0 px-3 py-1 rounded-full text-xs font-bold border transition-all
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all min-w-max
                                 ${filterStatus === f.key ? f.color + " ring-2 ring-offset-1 ring-current" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
                             {f.label}
                             {f.key !== "all" && (
@@ -295,12 +313,15 @@ const Disputes = () => {
                         </button>
                     ))}
                     <button onClick={() => setSortOrder(o => o === "desc" ? "asc" : "desc")}
-                        className="ml-auto shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50">
+                        className="ml-auto shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 min-w-max">
                         <ArrowUpDown size={11} />
                         {sortOrder === "desc" ? "Newest" : "Oldest"}
                     </button>
                 </div>
             </div>
+        </div>
+        
+        <div className="mt-4 space-y-4 px-1">
 
             {loading ? (
                 <div className="py-16 flex justify-center"><Loader /></div>
@@ -309,8 +330,8 @@ const Disputes = () => {
                     {disputes.length === 0 ? "No disputes found" : "No disputes match your filters"}
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {filtered.map(d => {
+                <div className="space-y-3 px-2">
+                    {paginated.map(d => {
                         const isOpen = expanded === d.id;
                         const isResolved = d.status === "resolved";
                         const submitterShots = d.submitter_screenshots || [];
@@ -388,9 +409,6 @@ const Disputes = () => {
                                         <div className="space-y-1">
                                             <p className="text-[10px] font-bold text-slate-400 uppercase">Reason</p>
                                             <p className="text-sm text-slate-800 font-medium">{d.reason || "—"}</p>
-                                            {d.description && (
-                                                <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">{d.description}</p>
-                                            )}
                                         </div>
 
                                         {/* Submitter claim */}
@@ -400,9 +418,7 @@ const Disputes = () => {
                                                 <ScorePill label="Their score" score={d.submitter_score_for} />
                                                 <ScorePill label="Opp. score" score={d.submitter_score_against} />
                                             </div>
-                                            {(d.carry_score_p1 != null) && (
-                                                <p className="text-xs text-blue-600">Score ref: {d.carry_score_p1} – {d.carry_score_p2}</p>
-                                            )}
+
                                             <InlineScreenshots urls={submitterShots} onView={setViewerImage} />
                                         </div>
 
@@ -419,8 +435,8 @@ const Disputes = () => {
                                                         <ScorePill label="Opp. score" score={d.opponent_score_against} />
                                                     </div>
                                                 )}
-                                                {d.opponent_description && (
-                                                    <p className="text-xs text-slate-600 bg-white/70 p-2 rounded-lg">{d.opponent_description}</p>
+                                                {d.opponent_remark && (
+                                                    <p className="text-xs text-slate-600 bg-white/70 p-2 rounded-lg">{d.opponent_remark}</p>
                                                 )}
                                                 <InlineScreenshots urls={oppShots} onView={setViewerImage} />
                                             </div>
@@ -466,6 +482,31 @@ const Disputes = () => {
                     })}
                 </div>
             )}
+        </div>
+
+        {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4 mt-8 mx-2 shadow-sm">
+                    <button 
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm disabled:opacity-40 transition-all hover:bg-slate-200"
+                    >
+                        Previous
+                    </button>
+                    <div className="flex flex-col items-center">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Page</span>
+                        <span className="text-sm font-black text-slate-800">{currentPage} of {totalPages}</span>
+                    </div>
+                    <button 
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm disabled:opacity-40 transition-all hover:bg-slate-200"
+                    >
+                        Next
+                    </button>
+                </div>
+            )}
 
             {/* Resolve Modal */}
             {selected && (
@@ -484,7 +525,6 @@ const Disputes = () => {
                             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-sm space-y-1">
                                 <p className="text-xs font-bold text-slate-400 uppercase">{CATEGORY_LABEL[selected.reason_category] || selected.dispute_kind}</p>
                                 <p className="text-slate-800">{selected.reason}</p>
-                                {selected.description && <p className="text-xs text-slate-500">{selected.description}</p>}
                             </div>
 
                             {/* Scores at a glance */}
@@ -495,7 +535,7 @@ const Disputes = () => {
                                         <ScorePill label="Won" score={selected.submitter_score_for} />
                                         <ScorePill label="Lost" score={selected.submitter_score_against} />
                                     </div>
-                                    <InlineScreenshots urls={selected.submitter_screenshots || []} />
+                                    <InlineScreenshots urls={selected.submitter_screenshots || []} onView={setViewerImage} />
                                 </div>
                                 <div className={`border rounded-xl p-3 ${selected.opponent_action ? "bg-emerald-50 border-emerald-100" : "bg-slate-50 border-slate-100"}`}>
                                     <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase">{selected.opponent_name || "Opponent"}</p>

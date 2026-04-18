@@ -186,12 +186,9 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
     const [open, setOpen] = useState(false);
     const [reasonCategory, setReasonCategory] = useState("connection_issues");
     const [reason, setReason] = useState('');
-    const [description, setDescription] = useState("");
-    const [carry1, setCarry1] = useState('');
-    const [carry2, setCarry2] = useState('');
     const [proofFile, setProofFile] = useState(null);
     const [submitScreenshots, setSubmitScreenshots] = useState([]);
-    const [responseDescription, setResponseDescription] = useState("");
+    const [responseRemark, setResponseRemark] = useState("");
     const [responseScoreFor, setResponseScoreFor] = useState("");
     const [responseScoreAgainst, setResponseScoreAgainst] = useState("");
     const [responseFiles, setResponseFiles] = useState([]);
@@ -235,27 +232,16 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                 if (up.error) throw new Error(up.error);
                 shotUrls.push(up.url);
             }
-            const a = carry1 !== '' ? parseInt(carry1, 10) : 0;
-            const b = carry2 !== '' ? parseInt(carry2, 10) : 0;
-            const isP1 = match?.player1_id === user?.id;
             const body = {
                 reason_category: reasonCategory,
                 reason: reason.trim(),
-                description: description.trim() || null,
                 evidence_url,
                 screenshots: shotUrls,
-                score_for: a,
-                score_against: b,
-                carry_score_p1: isP1 ? a : b,
-                carry_score_p2: isP1 ? b : a,
             };
             const data = await api.post(`/matches/${matchId}/disputes`, body);
             if (data.error) throw new Error(data.error);
             alert(data.message || "Dispute submitted.");
             setReason('');
-            setDescription("");
-            setCarry1('');
-            setCarry2('');
             setProofFile(null);
             setSubmitScreenshots([]);
             setOpen(false);
@@ -280,8 +266,8 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
             if (responseFiles.length === 0) {
                 throw new Error("Upload at least one screenshot.");
             }
-            if (action === "reject" && responseDescription.trim().length < 3) {
-                throw new Error("Description is required for reject.");
+            if (action === "reject" && responseRemark.trim().length < 3) {
+                throw new Error("Remark is required for reject.");
             }
             const shotUrls = [];
             for (const file of responseFiles) {
@@ -293,14 +279,14 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
             }
             const data = await api.post(`/matches/${matchId}/disputes/${pending.id}/respond`, {
                 action,
-                description: responseDescription.trim(),
+                remark: responseRemark.trim(),
                 score_for: parseInt(responseScoreFor, 10),
                 score_against: parseInt(responseScoreAgainst, 10),
                 screenshots: shotUrls,
             });
             if (data.error) throw new Error(data.error);
             alert(data.message);
-            setResponseDescription("");
+            setResponseRemark("");
             setResponseScoreFor("");
             setResponseScoreAgainst("");
             setResponseFiles([]);
@@ -345,9 +331,9 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                     <textarea
                         className="w-full p-2 rounded-lg border border-amber-200 text-sm mb-2"
                         rows={2}
-                        placeholder="Description (required for reject)"
-                        value={responseDescription}
-                        onChange={(e) => setResponseDescription(e.target.value)}
+                        placeholder="Remark (required for reject)"
+                        value={responseRemark}
+                        onChange={(e) => setResponseRemark(e.target.value)}
                     />
                     <input
                         type="file"
@@ -429,35 +415,6 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
                             />
-                            <textarea
-                                className="w-full p-2 rounded-lg border border-slate-200 text-sm"
-                                rows={2}
-                                placeholder="Additional description"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                            />
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="text-[10px] text-slate-500 font-bold">Your score <span className="font-normal text-slate-400">(for admin ref.)</span></label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        className="w-full p-2 rounded-lg border border-slate-200 text-sm"
-                                        value={carry1}
-                                        onChange={(e) => setCarry1(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-slate-500 font-bold">Opp. score <span className="font-normal text-slate-400">(for admin ref.)</span></label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        className="w-full p-2 rounded-lg border border-slate-200 text-sm"
-                                        value={carry2}
-                                        onChange={(e) => setCarry2(e.target.value)}
-                                    />
-                                </div>
-                            </div>
                             <label className="block text-[10px] text-slate-500 font-bold">Proof image (optional)</label>
                             <input
                                 type="file"
