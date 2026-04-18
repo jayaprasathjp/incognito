@@ -105,8 +105,7 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
                 return res.status(400).json({ error: "This match is under admin review. Result submission is disabled." });
             }
 
-            const carry1 = parseInt(match.carried_score_p1, 10) || 0;
-            const carry2 = parseInt(match.carried_score_p2, 10) || 0;
+
 
             // Save the claim for the specific player
             if (isP1) {
@@ -139,19 +138,17 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
                 const p2ClaimsP1Score = parseInt(match.p2_opp_score, 10);
 
                 if (p1ClaimsP1Score === p2ClaimsP1Score && p1ClaimsP2Score === p2ClaimsP2Score) {
-                    const totalP1 = carry1 + p1ClaimsP1Score;
-                    const totalP2 = carry2 + p1ClaimsP2Score;
-                    if (totalP1 === totalP2) {
+                    if (p1ClaimsP1Score === p1ClaimsP2Score) {
                         await client.query(`UPDATE matches SET status = 'pending_review' WHERE id = $1`, [id]);
                         await ensureScoreConflictDispute(client, id, req.user.id);
-                        responseMsg = "Equal total scores (including carry-over). Admin must decide.";
+                        responseMsg = "Equal scores. Admin must decide.";
                     } else {
-                        const winnerId = totalP1 > totalP2 ? match.player1_id : match.player2_id;
+                        const winnerId = p1ClaimsP1Score > p1ClaimsP2Score ? match.player1_id : match.player2_id;
                         await client.query(
                             `UPDATE matches 
                              SET status = 'completed', score_player1 = $1, score_player2 = $2, winner_id = $3
                              WHERE id = $4`,
-                            [totalP1, totalP2, winnerId, id]
+                            [p1ClaimsP1Score, p1ClaimsP2Score, winnerId, id]
                         );
                         await checkIfTournamentFinished(id, client);
                         responseMsg = "Both scores match! Match completed.";
@@ -278,13 +275,10 @@ router.post("/:id/disputes", authenticateToken, async (req, res) => {
     const {
         reason,
         reason_category,
-        description,
         evidence_url,
         screenshots,
         score_for,
         score_against,
-        carry_score_p1,
-        carry_score_p2,
     } = req.body;
 
     if (!reason || String(reason).trim().length < 3) {
@@ -331,8 +325,7 @@ router.post("/:id/disputes", authenticateToken, async (req, res) => {
                 return res.status(400).json({ error: "A player dispute is already open on this match." });
             }
 
-            const c1 = Math.max(0, parseInt(carry_score_p1, 10) || 0);
-            const c2 = Math.max(0, parseInt(carry_score_p2, 10) || 0);
+
 
             const submitShots = Array.isArray(screenshots)
                 ? screenshots.filter((u) => typeof u === "string" && u.trim())
@@ -343,19 +336,16 @@ router.post("/:id/disputes", authenticateToken, async (req, res) => {
             const ins = await client.query(
                 `INSERT INTO disputes (
                     match_id, submitted_by, reason, evidence_url, status,
-                    dispute_kind, respond_by, carry_score_p1, carry_score_p2,
-                    reason_category, description, submitter_score_for, submitter_score_against, submitter_screenshots
-                ) VALUES ($1, $2, $3, $4, 'pending', 'player_claim', NOW() + INTERVAL '1 hour', $5, $6, $7, $8, $9, $10, $11::jsonb)
+                    dispute_kind, respond_by,
+                    reason_category, submitter_score_for, submitter_score_against, submitter_screenshots
+                ) VALUES ($1, $2, $3, $4, 'pending', 'player_claim', NOW() + INTERVAL '1 hour', $5, $6, $7, $8::jsonb)
                 RETURNING *`,
                 [
                     id,
                     req.user.id,
                     String(reason).trim(),
                     evidence_url || null,
-                    c1,
-                    c2,
                     reason_category,
-                    description || null,
                     sf,
                     sa,
                     JSON.stringify(submitShots),
@@ -379,7 +369,7 @@ router.post("/:id/disputes", authenticateToken, async (req, res) => {
 
 router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, res) => {
     const { id, disputeId } = req.params;
-    const { action, description, score_for, score_against, screenshots } = req.body;
+    const { action, remark, score_for, score_against, screenshots } = req.body;
 
     if (!["accept", "reject"].includes(action)) {
         return res.status(400).json({ error: "action must be 'accept' or 'reject'" });
@@ -436,9 +426,9 @@ router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, r
                 await client.query("ROLLBACK");
                 return res.status(400).json({ error: "Please upload at least one screenshot." });
             }
-            if (action === "reject" && (!description || String(description).trim().length < 3)) {
+            if (action === "reject" && (!remark || String(remark).trim().length < 3)) {
                 await client.query("ROLLBACK");
-                return res.status(400).json({ error: "Description is required when rejecting a dispute." });
+                return res.status(400).json({ error: "Remark is required when rejecting a dispute." });
             }
 
             if (action === "accept") {
@@ -469,12 +459,12 @@ router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, r
                  SET status = 'resolved',
                      opponent_action = 'rejected',
                      resolved_outcome = 'double_dq',
-                     opponent_description = $2,
+                     opponent_remark = $2,
                      opponent_score_for = $3,
                      opponent_score_against = $4,
                      opponent_screenshots = $5::jsonb
                  WHERE id = $1`,
-                [disputeId, String(description || "").trim(), sf, sa, JSON.stringify(oppShots)]
+                [disputeId, String(remark || "").trim(), sf, sa, JSON.stringify(oppShots)]
             );
             await client.query(
                 `UPDATE matches SET status = 'cancelled', winner_id = NULL, match_code = 'DISPUTE_DOUBLE_DQ' WHERE id = $1`,

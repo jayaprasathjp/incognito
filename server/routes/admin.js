@@ -741,8 +741,6 @@ router.post("/disputes/:id/resolve", async (req, res) => {
                         checked_in_at = NULL,
                         winner_id = NULL,
                         score_player1 = NULL, score_player2 = NULL,
-                        carried_score_p1 = 0,
-                        carried_score_p2 = 0,
                         match_time = $2
                      WHERE id = $1`,
                     [matchId, time]
