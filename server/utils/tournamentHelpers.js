@@ -10,7 +10,7 @@ export const checkIfTournamentFinished = async (matchId, client = pool) => {
     try {
         // Find the match details
         const matchRes = await client.query(
-            "SELECT tournament_id, round, winner_id FROM matches WHERE id = $1",
+            "SELECT tournament_id, round, winner_id, status FROM matches WHERE id = $1",
             [matchId]
         );
         if (matchRes.rows.length === 0) return;

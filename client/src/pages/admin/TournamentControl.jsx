@@ -74,6 +74,7 @@ const TournamentControl = () => {
 
     // Rounds Configuration State
     const [roundsSchedule, setRoundsSchedule] = useState(null);
+    const [showCreateForm, setShowCreateForm] = useState(false);
     
 
     const calculateRounds = () => {
@@ -409,6 +410,9 @@ const TournamentControl = () => {
             
             if (data.tournament || data.id || data.message) { 
                 toast.success(`Tournament updated successfully`);
+                if (action === 'reset') {
+                    setShowCreateForm(true);
+                }
                 fetchTournament();
             } else {
                  toast.error(data.error || "Action failed");
@@ -426,12 +430,22 @@ const TournamentControl = () => {
         </div>
     );
 
-    if (!tournament || !tournament.id || tournament.status === 'completed') {
+    if (!tournament || !tournament.id || showCreateForm) {
         return (
             <div className="max-w-4xl mx-auto space-y-2">
-                <h1 className="text-3xl font-bold flex items-center gap-2">
-                    <Trophy className="text-yellow-500" /> Create New Tournament
-                </h1>
+                <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                        <Trophy className="text-yellow-500" /> Create New Tournament
+                    </h1>
+                    {tournament && showCreateForm && (
+                         <button 
+                            onClick={() => setShowCreateForm(false)}
+                            className="text-slate-500 hover:text-slate-700 font-medium text-sm"
+                         >
+                            Back to Results
+                         </button>
+                    )}
+                </div>
                 
                 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
                     <form onSubmit={handleCreate} className="space-y-6">
@@ -535,7 +549,9 @@ const TournamentControl = () => {
 
     return (
         <div className="space-y-8">
-            <h1 className="text-3xl font-bold">Tournament Control</h1>
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold">Tournament Control</h1>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Control Panel */}
@@ -1035,20 +1051,22 @@ const TournamentControl = () => {
                              )}
                         </div>
 
-                        <div className="pt-4 border-t border-red-100 mt-6">
-                            <button
-                                onClick={() => handleAction('reset')}
-                                disabled={actionLoading === 'reset'}
-                                className="w-full flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 font-bold rounded-lg transition-colors"
-                            >
-                                {actionLoading === 'reset' ? <Loader2 className="animate-spin" size={18} /> : null}
-                                End & Clear Tournament Data
-                            </button>
-                            <p className="text-[10px] text-slate-500 text-center mt-2 leading-tight">
-                                WARNING: This deletes all participants, matches, and rounds to free up database space.<br/>
-                                The tournament record is kept for history.
-                            </p>
-                        </div>
+                        {tournament.status === 'completed' && (
+                            <div className="pt-4 border-t border-red-100 mt-6">
+                                <button
+                                    onClick={() => handleAction('reset')}
+                                    disabled={actionLoading === 'reset'}
+                                    className="w-full flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 font-bold rounded-lg transition-colors"
+                                >
+                                    {actionLoading === 'reset' ? <Loader2 className="animate-spin" size={18} /> : null}
+                                    End & Clear Tournament Data
+                                </button>
+                                <p className="text-[10px] text-slate-500 text-center mt-2 leading-tight">
+                                    WARNING: This deletes all participants, matches, disputes, and rounds to free up database space.<br/>
+                                    The tournament record is kept for history.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
