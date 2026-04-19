@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../utils/api';
 import appIcon from '../assets/app-icon.png';
 
@@ -11,12 +12,19 @@ const ResetPassword = () => {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
         if (password !== confirmPassword) {
             setError("Passwords don't match");
+            return;
+        }
+
+        if (password.length < 6 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+            setError('Password must be at least 6 characters and contain both letters and numbers');
             return;
         }
 
@@ -62,27 +70,41 @@ const ResetPassword = () => {
 
                 {!message && (
                     <form onSubmit={handleSubmit} className="space-y-5">
-                        <div>
+                        <div className="relative">
                             <input 
-                                type="password" 
+                                type={showPassword ? "text" : "password"} 
                                 placeholder="New Password" 
                                 value={password} 
                                 onChange={(e) => setPassword(e.target.value)} 
                                 required 
                                 minLength={6}
-                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
+                                className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                            >
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
                         </div>
-                         <div>
+                         <div className="relative">
                             <input 
-                                type="password" 
+                                type={showConfirmPassword ? "text" : "password"} 
                                 placeholder="Confirm New Password" 
                                 value={confirmPassword} 
                                 onChange={(e) => setConfirmPassword(e.target.value)} 
                                 required 
                                 minLength={6}
-                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
+                                className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                            >
+                                {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
                         </div>
                         
                         <button 

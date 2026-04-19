@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../utils/api';
 import appIcon from '../assets/app-icon.png';
 import nigerianUniversities from '../data/nigerianUniversities';
@@ -17,6 +18,7 @@ const Register = () => {
     const [agreed, setAgreed] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
@@ -54,6 +56,16 @@ const Register = () => {
 
         if (!agreed) {
             setError('You must agree to the tournament rules.');
+            return;
+        }
+
+        if (!/^[a-zA-Z0-9]+$/.test(formData.alias)) {
+            setError('Alias must be alphanumeric. No spaces or special characters allowed.');
+            return;
+        }
+
+        if (formData.password.length < 6 || !/[a-zA-Z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
+            setError('Password must be at least 6 characters and contain both letters and numbers');
             return;
         }
 
@@ -207,17 +219,26 @@ const Register = () => {
                     </div>
 
                     {/* Password */}
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1 relative">
                         <label className="text-sm text-slate-600">Enter a password</label>
-                        <input 
-                            type="password" 
-                            name="password"
-                            placeholder="........" 
-                            value={formData.password} 
-                            onChange={handleChange} 
-                            required 
-                            className="w-full p-3 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400"
-                        />
+                        <div className="relative">
+                            <input 
+                                type={showPassword ? "text" : "password"} 
+                                name="password"
+                                placeholder="........" 
+                                value={formData.password} 
+                                onChange={handleChange} 
+                                required 
+                                className="w-full p-3 pr-10 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
                     </div>
                     
                     {/* Referral Code (Optional) */}

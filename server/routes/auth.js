@@ -17,6 +17,14 @@ router.post("/register", async (req, res) => {
             return res.status(400).json({ error: "All fields are required" });
         }
 
+        if (!/^[a-zA-Z0-9]+$/.test(username)) {
+            return res.status(400).json({ error: "Alias must be alphanumeric. No spaces or special characters allowed." });
+        }
+
+        if (password.length < 6 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+            return res.status(400).json({ error: "Password must be at least 6 characters and contain both letters and numbers" });
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
         
         // Generate a unique referral code for the new user
@@ -170,6 +178,10 @@ router.post("/reset-password/:resetToken", async (req, res) => {
     try {
         const { resetToken } = req.params;
         const { password } = req.body;
+
+        if (!password || password.length < 6 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+            return res.status(400).json({ error: "Password must be at least 6 characters and contain both letters and numbers" });
+        }
 
         // Note: In production, verify if reset_password_expires is stored as BigInt (need handling) or BigInt string
         // Postgres BIGINT returns as string in node-postgres usually, or we cast.
