@@ -501,17 +501,7 @@ const PlayerDashboard = () => {
                                                 Registration Opens Soon
                                             </div>
                                         );
-                                    } else if (tournamentData.tournament.status === 'active') {
-                                        return (
-                                            <Link to={`/tournament/${tournamentData.tournament.id}`} className="block w-full">
-                                                <div className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold border border-blue-100 flex items-center justify-center gap-2 mb-2">
-                                                    <span className="animate-pulse">●</span> Tournament Live
-                                                </div>
-                                                <button className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold shadow-md hover:bg-slate-800 transition-colors">
-                                                    VIEW TOURNAMENT
-                                                </button>
-                                            </Link>
-                                        );
+
                                     } else {
                                         return (
                                             <div className="w-full py-3 bg-slate-100 text-slate-500 rounded-xl font-bold border border-slate-200">

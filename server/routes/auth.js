@@ -120,7 +120,7 @@ router.post("/forgot-password", async (req, res) => {
         const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
 
         if (user.rows.length === 0) {
-            return res.status(200).json({ message: "If an account with that email exists, a reset link has been sent." });
+            return res.status(404).json({ error: "No account found with that email address." });
         }
 
         const resetToken = crypto.randomBytes(20).toString("hex");
@@ -150,7 +150,7 @@ router.post("/forgot-password", async (req, res) => {
                 html: message,
             });
 
-            res.status(200).json({ message: "If an account with that email exists, a reset link has been sent." });
+            res.status(200).json({ message: "Success! A password reset link has been sent to your email." });
         } catch (error) {
             await pool.query(
                 "UPDATE users SET reset_password_token = NULL, reset_password_expires = NULL WHERE email = $1",
