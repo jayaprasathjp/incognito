@@ -17,8 +17,11 @@ const ForgotPassword = () => {
         
         try {
             const data = await api.post('/auth/forgot-password', { email });
-            // API returns 200 with a message even if email doesn't exist (security)
-            setMessage(data.message);
+            if (data.error) {
+                setError(data.error);
+            } else {
+                setMessage(data.message || 'Success! A password reset link has been sent.');
+            }
         } catch (err) {
             setError('Failed to send reset email. Please try again.');
         } finally {
