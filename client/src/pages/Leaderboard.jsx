@@ -14,6 +14,7 @@ const Leaderboard = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [tooltipState, setTooltipState] = useState({ visible: false, x: 0, y: 0, player: null });
     const itemsPerPage = 10;
 
     useEffect(() => {
@@ -225,9 +226,22 @@ const Leaderboard = () => {
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="p-2 sm:p-5">
+                                                    <td 
+                                                        className="p-2 sm:p-5 cursor-pointer sm:cursor-default active:bg-slate-100 sm:active:bg-transparent transition-colors relative" 
+                                                        onClick={(e) => {
+                                                            const rect = e.currentTarget.getBoundingClientRect();
+                                                            // Always pop out at a fixed offset to the right of the column
+                                                            // instead of varying based on the exact click location
+                                                            setTooltipState({
+                                                                visible: true,
+                                                                x: rect.left + 120, // Fixed distance from the cell's left edge
+                                                                y: rect.top + (rect.height / 2), // Center vertically with row
+                                                                player
+                                                            });
+                                                        }}
+                                                    >
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-slate-800 font-bold text-sm sm:text-lg truncate max-w-[100px] sm:max-w-none">{player.alias}</span>
+                                                            <span className="text-slate-800 font-bold text-sm sm:text-lg truncate max-w-[80px] sm:max-w-none">{player.alias}</span>
                                                             {getInstitutionAbbrev(player.institution) && (
                                                                 <span className="bg-slate-100 text-slate-500 text-[8px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-full shrink-0">
                                                                     {getInstitutionAbbrev(player.institution)}
@@ -314,6 +328,38 @@ const Leaderboard = () => {
                     </div>
                 )}
             </div>
+
+            {/* Player Info Tooltip - True Floating Behavior */}
+            {tooltipState.visible && tooltipState.player && (
+                <>
+                    {/* Invisible backdrop to dismiss when tapping away */}
+                    <div 
+                        className="fixed inset-0 z-40 bg-transparent"
+                        onClick={() => setTooltipState(prev => ({ ...prev, visible: false }))}
+                    ></div>
+
+                    {/* Floating Tooltip Bubble (Right-facing) */}
+                    <div 
+                        className="fixed z-50 bg-indigo-950 border border-indigo-400/40 text-white rounded-lg shadow-[0_8px_30px_rgba(79,70,229,0.3)] px-3 py-2.5 max-w-[180px] pointer-events-none animate-in fade-in zoom-in-95 duration-100"
+                        style={{ 
+                            left: `${tooltipState.x}px`, 
+                            top: `${tooltipState.y}px`,
+                            transform: 'translateY(-50%)' // Center bubble vertically with the arrow
+                        }}
+                    >
+                        {/* Little directional arrow (caret) pointing LEFT at the text */}
+                        <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 bg-indigo-950 border-b border-l border-indigo-400/40 transform rotate-45"></div>
+                        
+                        <div className="relative z-10">
+                            <div className="font-extrabold text-xs mb-0.5 text-white truncate drop-shadow-md">{tooltipState.player.alias}</div>
+                            <div className="text-indigo-200 text-[10px] uppercase font-bold leading-tight line-clamp-2">
+                                {tooltipState.player.institution && tooltipState.player.institution !== 'N/A' ? tooltipState.player.institution : "Not Specified"}
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+
         </div>
     );
 };
