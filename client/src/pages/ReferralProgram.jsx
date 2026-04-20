@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +11,7 @@ const ReferralProgram = () => {
     const [referralCode, setReferralCode] = useState("");
     const [stats, setStats] = useState({ totalReferrals: 0 });
     const [copied, setCopied] = useState(false);
+    const [shareCopied, setShareCopied] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -40,6 +40,43 @@ const ReferralProgram = () => {
             navigator.clipboard.writeText(referralCode);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    const handleShare = async () => {
+        if (!referralCode || referralCode === "Error") {
+            return;
+        }
+
+        const registrationUrl = `${window.location.origin}/register?ref=${encodeURIComponent(referralCode)}`;
+        const shareText = `Join INCØGNITØ with my referral code ${referralCode}. Register here: ${registrationUrl}`;
+
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: 'Join INCØGNITØ',
+                    text: `Use my referral code: ${referralCode}`,
+                    url: registrationUrl
+                });
+                return;
+            }
+
+            await navigator.clipboard.writeText(shareText);
+            setShareCopied(true);
+            setTimeout(() => setShareCopied(false), 2000);
+        } catch (error) {
+            // User may cancel the native share sheet; ignore in that case.
+            if (error?.name === 'AbortError') {
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(shareText);
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2000);
+            } catch (copyError) {
+                console.error('Failed to share referral link', copyError);
+            }
         }
     };
 
@@ -98,11 +135,14 @@ const ReferralProgram = () => {
                 </div>
 
                 {/* Share Button */}
-                <button className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-3 mb-12">
+                <button
+                    onClick={handleShare}
+                    className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-3 mb-12"
+                >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                     </svg>
-                    SHARE CODE
+                    {shareCopied ? 'LINK COPIED' : 'SHARE CODE'}
                 </button>
 
                 {/* Stats */}

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../utils/api';
 import appIcon from '../assets/app-icon.png';
@@ -22,6 +22,7 @@ const Register = () => {
     const [showPassword, setShowPassword] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
     // Institution search state
     const [institutionSearch, setInstitutionSearch] = useState('');
@@ -41,6 +42,18 @@ const Register = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    useEffect(() => {
+        const referralFromUrl = searchParams.get('ref') || searchParams.get('referralCode');
+        if (!referralFromUrl) {
+            return;
+        }
+
+        setFormData((prev) => ({
+            ...prev,
+            referralCode: referralFromUrl.trim().toUpperCase()
+        }));
+    }, [searchParams]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
