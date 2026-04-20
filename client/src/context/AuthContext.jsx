@@ -9,7 +9,7 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(typeof window === 'undefined' ? false : true);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const [announcementEvent, setAnnouncementEvent] = useState(null);
 

@@ -45,7 +45,7 @@ async function prerender() {
       fs.writeFileSync(filePath, html)
       console.log(`✓ Prerendered: ${url} -> ${file}`)
     } catch (e) {
-      console.error(`✗ Error prerendering ${url}:`, e)
+      console.error(`✗ Error prerendering ${url}:`, e.stack || e)
     }
   }
 

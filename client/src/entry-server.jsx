@@ -3,9 +3,17 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App.jsx'
 
+// SSR Mocking for browser globals
+if (typeof global !== 'undefined' && !global.localStorage) {
+  global.localStorage = {
+    getItem: () => null,
+    setItem: () => null,
+    removeItem: () => null,
+  };
+}
+
 /**
  * Server entry point for prerendering.
- * React Router 7's MemoryRouter is SSR-safe as it doesn't depend on the DOM.
  */
 export function render(url) {
   return renderToString(
