@@ -161,21 +161,21 @@ const Announcements = () => {
     ];
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-4 sm:space-y-6">
+            <div className="flex items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-black tracking-tight">Announcements</h1>
-                    <p className="text-slate-500 mt-2">Broadcast updates to all players, the current tournament field, or selected individuals.</p>
+                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Announcements</h1>
+                    <p className="hidden sm:block text-sm sm:text-base text-slate-500 mt-2">Broadcast updates to all players, the tournament field, or individuals.</p>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 shadow-sm">
-                    <Megaphone size={18} className="text-blue-600" />
-                    {recipientCount} recipient{recipientCount === 1 ? '' : 's'} selected
+                <div className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-sm font-bold text-slate-600 shadow-sm whitespace-nowrap">
+                    <Megaphone size={14} className="text-blue-600 sm:w-[18px] sm:h-[18px]" />
+                    {recipientCount}
                 </div>
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.9fr)]">
-                <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200 space-y-6">
-                    <div className="grid gap-4 md:grid-cols-3">
+                <div className="bg-white rounded-3xl p-4 sm:p-7 shadow-sm border border-slate-200 space-y-4 sm:space-y-6">
+                    <div className="flex sm:grid gap-3 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0 snap-x">
                         {targetOptions.map((option) => {
                             const isActive = target === option.value;
 
@@ -184,22 +184,22 @@ const Announcements = () => {
                                     key={option.value}
                                     type="button"
                                     onClick={() => setTarget(option.value)}
-                                    className={`text-left rounded-2xl border p-4 transition-all ${
+                                    className={`text-left rounded-2xl border p-2.5 sm:p-4 transition-all flex-1 min-w-[100px] sm:min-w-0 snap-center ${
                                         isActive
                                             ? 'border-slate-900 bg-slate-900 text-white shadow-lg'
                                             : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
                                     }`}
                                 >
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isActive ? 'bg-white/10' : 'bg-white text-slate-700 border border-slate-200'}`}>
+                                    <div className="flex items-center justify-between mb-1.5 sm:mb-4">
+                                        <div className={`w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl flex items-center justify-center ${isActive ? 'bg-white/10' : 'bg-white text-slate-700 border border-slate-200'}`}>
                                             {option.icon}
                                         </div>
-                                        <span className={`text-xs font-black uppercase tracking-[0.2em] ${isActive ? 'text-slate-200' : 'text-slate-400'}`}>
+                                        <span className={`text-[9px] sm:text-xs font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] ${isActive ? 'text-slate-200' : 'text-slate-400'}`}>
                                             {option.count}
                                         </span>
                                     </div>
-                                    <h2 className={`font-black text-base ${isActive ? 'text-white' : 'text-slate-900'}`}>{option.label}</h2>
-                                    <p className={`mt-2 text-sm leading-6 ${isActive ? 'text-slate-200' : 'text-slate-500'}`}>{option.description}</p>
+                                    <h2 className={`font-black text-[11px] sm:text-base leading-tight ${isActive ? 'text-white' : 'text-slate-900'}`}>{option.label}</h2>
+                                    <p className={`mt-1 sm:mt-2 text-xs sm:text-sm leading-relaxed sm:leading-6 hidden sm:block ${isActive ? 'text-slate-200' : 'text-slate-500'}`}>{option.description}</p>
                                 </button>
                             );
                         })}
@@ -273,10 +273,10 @@ const Announcements = () => {
                         </div>
                     )}
 
-                    <div className="space-y-3">
-                        <label className="text-sm font-semibold text-slate-600">Message</label>
+                    <div className="space-y-2 sm:space-y-3">
+                        <label className="text-xs sm:text-sm font-semibold text-slate-600">Message</label>
                         <textarea
-                            className="w-full min-h-[190px] rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-slate-900 focus:outline-none focus:border-slate-900 leading-7"
+                            className="w-full min-h-[140px] sm:min-h-[190px] rounded-2xl sm:rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 sm:px-5 sm:py-4 text-slate-900 focus:outline-none focus:border-slate-900 leading-normal sm:leading-7 text-sm sm:text-base shadow-inner"
                             placeholder="Write the announcement your players should receive..."
                             value={announcement}
                             onChange={(event) => setAnnouncement(event.target.value)}
@@ -302,20 +302,20 @@ const Announcements = () => {
                 </div>
 
                 <div className="space-y-6">
-                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                        <h2 className="text-lg font-black text-slate-900">Delivery preview</h2>
-                        <p className="text-sm text-slate-500 mt-2">Review who will get the current message before sending.</p>
+                    <div className="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-200">
+                        <h2 className="text-base sm:text-lg font-black text-slate-900 text-center sm:text-left">Delivery preview</h2>
+                        <p className="text-xs sm:text-sm text-slate-500 mt-1 sm:mt-2 text-center sm:text-left">Quick glance at your target audience.</p>
 
-                        <div className="mt-5 grid gap-4">
-                            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                                <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Target</div>
-                                <div className="text-lg font-black text-slate-900">
+                        <div className="mt-4 sm:mt-5 grid grid-cols-2 lg:grid-cols-1 gap-3 sm:gap-4">
+                            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3 sm:p-4">
+                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 sm:mb-2">Target</div>
+                                <div className="text-sm sm:text-lg font-black text-slate-900 truncate">
                                     {targetOptions.find((option) => option.value === target)?.label}
                                 </div>
                             </div>
-                            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                                <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Recipients</div>
-                                <div className="text-3xl font-black text-slate-900">{recipientCount}</div>
+                            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3 sm:p-4">
+                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 sm:mb-2">Recipients</div>
+                                <div className="text-xl sm:text-3xl font-black text-slate-900">{recipientCount}</div>
                             </div>
                         </div>
                     </div>
