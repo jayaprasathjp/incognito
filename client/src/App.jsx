@@ -60,6 +60,9 @@ function App() {
 
               
               {/* Admin Routes */}
+              {/* Public Info Pages - Not Protected for SEO */}
+              <Route path="/roadmap" element={<Roadmap />} />
+              <Route path="/rules" element={<Rules />} />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<Navigate to="/admin/dashboard" replace />} />
@@ -75,8 +78,6 @@ function App() {
               <Route element={<ProtectedRoute />}>
                  <Route path="/dashboard" element={<PlayerDashboard />} />
                  <Route path="/announcements" element={<PlayerAnnouncements />} />
-                 <Route path="/roadmap" element={<Roadmap />} />
-                 <Route path="/rules" element={<Rules />} />
                  <Route path="/matches" element={<MyMatches />} />
                  <Route path="/referral" element={<ReferralProgram />} />
                  <Route path="/bank-details" element={<BankDetails />} />

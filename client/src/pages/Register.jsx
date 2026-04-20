@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../utils/api';
 import appIcon from '../assets/app-icon.png';
@@ -14,14 +14,17 @@ const Register = () => {
         whatsapp: '',
         email: '',
         password: '',
+        confirmPassword: '',
         referralCode: ''
     });
     const [agreed, setAgreed] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
     // Institution search state
     const [institutionSearch, setInstitutionSearch] = useState('');
@@ -41,6 +44,18 @@ const Register = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    useEffect(() => {
+        const referralFromUrl = searchParams.get('ref') || searchParams.get('referralCode');
+        if (!referralFromUrl) {
+            return;
+        }
+
+        setFormData((prev) => ({
+            ...prev,
+            referralCode: referralFromUrl.trim().toUpperCase()
+        }));
+    }, [searchParams]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -62,6 +77,11 @@ const Register = () => {
 
         if (!/^[a-zA-Z0-9]+$/.test(formData.alias)) {
             setError('Alias must be alphanumeric. No spaces or special characters allowed.');
+            return;
+        }
+
+        if (formData.password !== formData.confirmPassword) {
+            setError('Passwords do not match');
             return;
         }
 
@@ -243,6 +263,29 @@ const Register = () => {
                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
                             >
                                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Confirm Password */}
+                    <div className="flex flex-col gap-1 relative">
+                        <label className="text-sm text-slate-600">Confirm password</label>
+                        <div className="relative">
+                            <input
+                                type={showConfirmPassword ? "text" : "password"}
+                                name="confirmPassword"
+                                placeholder="........"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                required
+                                className="w-full p-3 pr-10 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                            >
+                                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                         </div>
                     </div>
