@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Megaphone, Send, Users, UserRound, UserSquare2 } from "lucide-react";
+import { Check, Megaphone, Send, Trash2, Users, UserRound, UserSquare2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../../utils/api";
 
@@ -9,6 +9,7 @@ const Announcements = () => {
     const [selectedRecipientIds, setSelectedRecipientIds] = useState([]);
     const [search, setSearch] = useState("");
     const [sending, setSending] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [audience, setAudience] = useState({ allPlayers: [], currentTournamentPlayers: [], currentTournament: null });
     const [history, setHistory] = useState([]);
@@ -104,6 +105,32 @@ const Announcements = () => {
             toast.error(error.message || 'Failed to send announcement');
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleDeleteAnnouncement = async (announcementId) => {
+        const confirmed = window.confirm('Delete this announcement and all related rows from the announcement tables?');
+
+        if (!confirmed) {
+            return;
+        }
+
+        setDeletingId(announcementId);
+
+        try {
+            const data = await api.delete(`/admin/announcements/${announcementId}`);
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            setHistory((current) => current.filter((item) => item.id !== announcementId));
+            toast.success('Announcement deleted');
+        } catch (error) {
+            console.error(error);
+            toast.error(error.message || 'Failed to delete announcement');
+        } finally {
+            setDeletingId(null);
         }
     };
 
@@ -316,7 +343,18 @@ const Announcements = () => {
                                         <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-slate-600 border border-slate-200">
                                             {item.audience_type === 'all' ? 'All users' : item.audience_type === 'current_tournament' ? 'Tournament players' : 'Individuals'}
                                         </span>
-                                        <span className="text-xs text-slate-500">{new Date(item.created_at).toLocaleString()}</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs text-slate-500">{new Date(item.created_at).toLocaleString()}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteAnnouncement(item.id)}
+                                                disabled={deletingId === item.id}
+                                                className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                <Trash2 size={14} />
+                                                {deletingId === item.id ? 'Deleting...' : 'Delete'}
+                                            </button>
+                                        </div>
                                     </div>
                                     <p className="text-sm leading-6 text-slate-700 whitespace-pre-wrap">{item.message}</p>
                                     <div className="mt-4 flex items-center justify-between text-xs font-semibold text-slate-500">

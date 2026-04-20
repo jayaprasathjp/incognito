@@ -40,6 +40,20 @@ export const api = {
         });
         return res.json();
     },
+    delete: async (endpoint, init = {}) => {
+        const token = localStorage.getItem('token');
+        const { headers: extraHeaders, ...rest } = init;
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            method: 'DELETE',
+            ...rest,
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                ...(extraHeaders || {}),
+            },
+        });
+        return res.json();
+    },
     upload: async (endpoint, formData) => {
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}${endpoint}`, {

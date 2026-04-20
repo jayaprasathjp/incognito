@@ -88,6 +88,7 @@ router.get("/announcements/unread-count", authenticateToken, async (req, res) =>
             `SELECT COUNT(*)::int AS unread_count
              FROM announcements a
              WHERE a.target_user_ids IS NOT NULL
+                             AND a.deleted_at IS NULL
                AND (
                     a.audience_type = 'all'
                     OR (
@@ -143,6 +144,7 @@ router.get("/announcements", authenticateToken, async (req, res) => {
                  LEFT JOIN tournaments t ON t.id = a.tournament_id
                  LEFT JOIN users creator ON creator.id = a.created_by
                  WHERE a.target_user_ids IS NOT NULL
+                                     AND a.deleted_at IS NULL
                    AND (
                         a.audience_type = 'all'
                         OR (
@@ -168,6 +170,7 @@ router.get("/announcements", authenticateToken, async (req, res) => {
                 `SELECT COUNT(*)::int AS unread_count
                  FROM announcements a
                  WHERE a.target_user_ids IS NOT NULL
+                                     AND a.deleted_at IS NULL
                    AND (
                         a.audience_type = 'all'
                         OR (
@@ -215,6 +218,7 @@ router.post("/announcements/read-all", authenticateToken, async (req, res) => {
              SELECT a.id, $1, NOW()
              FROM announcements a
              WHERE a.target_user_ids IS NOT NULL
+                             AND a.deleted_at IS NULL
                AND (
                     a.audience_type = 'all'
                     OR (

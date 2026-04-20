@@ -899,6 +899,7 @@ router.get("/announcements", async (req, res) => {
              FROM announcements a
              LEFT JOIN tournaments t ON t.id = a.tournament_id
              LEFT JOIN users creator ON creator.id = a.created_by
+               WHERE a.deleted_at IS NULL
              GROUP BY a.id, t.title, creator.username
              ORDER BY a.created_at DESC
              LIMIT 25`
@@ -983,6 +984,53 @@ router.post("/announcements", async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(400).json({ error: err.message || "Server error" });
+    }
+});
+
+router.delete("/announcements/:id", async (req, res) => {
+    try {
+        await ensureAnnouncementTables();
+
+        const announcementId = Number(req.params.id);
+
+        if (!Number.isInteger(announcementId) || announcementId <= 0) {
+            return res.status(400).json({ error: "Invalid announcement id" });
+        }
+
+        const client = await pool.connect();
+
+        try {
+            await client.query("BEGIN");
+
+            const existingAnnouncement = await client.query(
+                `SELECT id FROM announcements WHERE id = $1 AND deleted_at IS NULL`,
+                [announcementId]
+            );
+
+            if (existingAnnouncement.rows.length === 0) {
+                await client.query("ROLLBACK");
+                return res.status(404).json({ error: "Announcement not found" });
+            }
+
+            await client.query(
+                `UPDATE announcements
+                 SET deleted_at = NOW()
+                 WHERE id = $1`,
+                [announcementId]
+            );
+
+            await client.query("COMMIT");
+
+            res.json({ message: "Announcement deleted" });
+        } catch (dbError) {
+            await client.query("ROLLBACK");
+            throw dbError;
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message || "Server error" });
     }
 });
 
