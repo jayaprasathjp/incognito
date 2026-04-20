@@ -1,69 +1,331 @@
-import { useState } from "react";
-import { useAuth } from "../../context/AuthContext";
-import { Send, Megaphone } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, Megaphone, Send, Users, UserRound, UserSquare2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { api } from "../../utils/api";
 
 const Announcements = () => {
-    const { token } = useAuth();
     const [announcement, setAnnouncement] = useState("");
+    const [target, setTarget] = useState("all");
+    const [selectedRecipientIds, setSelectedRecipientIds] = useState([]);
+    const [search, setSearch] = useState("");
+    const [sending, setSending] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [audience, setAudience] = useState({ allPlayers: [], currentTournamentPlayers: [], currentTournament: null });
+    const [history, setHistory] = useState([]);
 
-    const handleSendAnnouncement = async (target) => { // target: 'all' | 'round'
-        if (!announcement.trim()) return toast.error("Please enter a message");
-        if (!confirm(`Send to ${target === 'all' ? 'ALL players' : 'Current Round players'}?`)) return;
-
+    const loadAnnouncementData = async () => {
+        setLoading(true);
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/announcements`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ message: announcement, target })
-            });
+            const [audienceData, historyData] = await Promise.all([
+                api.get('/admin/announcements/audience'),
+                api.get('/admin/announcements'),
+            ]);
 
-            if (res.ok) {
-                toast.success("Announcement sent successfully");
-                setAnnouncement("");
+            if (audienceData.error) {
+                throw new Error(audienceData.error);
             }
+
+            if (historyData.error) {
+                throw new Error(historyData.error);
+            }
+
+            setAudience({
+                allPlayers: audienceData.allPlayers || [],
+                currentTournamentPlayers: audienceData.currentTournamentPlayers || [],
+                currentTournament: audienceData.currentTournament || null,
+            });
+            setHistory(historyData.announcements || []);
         } catch (error) {
-            toast.error("Failed to send announcement");
+            console.error(error);
+            toast.error(error.message || 'Failed to load announcement tools');
+        } finally {
+            setLoading(false);
         }
     };
 
+    useEffect(() => {
+        loadAnnouncementData();
+    }, []);
+
+    const filteredPlayers = useMemo(() => {
+        const query = search.trim().toLowerCase();
+        if (!query) return audience.allPlayers;
+
+        return audience.allPlayers.filter((player) =>
+            player.username.toLowerCase().includes(query) ||
+            player.email.toLowerCase().includes(query)
+        );
+    }, [audience.allPlayers, search]);
+
+    const recipientCount = target === 'all'
+        ? audience.allPlayers.length
+        : target === 'current_tournament'
+            ? audience.currentTournamentPlayers.length
+            : selectedRecipientIds.length;
+
+    const toggleRecipient = (id) => {
+        setSelectedRecipientIds((current) => (
+            current.includes(id)
+                ? current.filter((recipientId) => recipientId !== id)
+                : [...current, id]
+        ));
+    };
+
+    const handleSendAnnouncement = async () => {
+        if (!announcement.trim()) {
+            toast.error('Please enter a message');
+            return;
+        }
+
+        if (target === 'individuals' && selectedRecipientIds.length === 0) {
+            toast.error('Select at least one player');
+            return;
+        }
+
+        setSending(true);
+
+        try {
+            const data = await api.post('/admin/announcements', {
+                message: announcement,
+                target,
+                recipientIds: selectedRecipientIds,
+            });
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            toast.success(`Announcement sent to ${data.recipientCount} player${data.recipientCount === 1 ? '' : 's'}`);
+            setAnnouncement('');
+            setSelectedRecipientIds([]);
+            await loadAnnouncementData();
+        } catch (error) {
+            console.error(error);
+            toast.error(error.message || 'Failed to send announcement');
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const targetOptions = [
+        {
+            value: 'all',
+            label: 'All users',
+            description: 'Broadcast to every player account in the system.',
+            count: audience.allPlayers.length,
+            icon: <Users size={20} />,
+        },
+        {
+            value: 'current_tournament',
+            label: 'Current tournament players',
+            description: audience.currentTournament
+                ? `Only approved players in ${audience.currentTournament.title}.`
+                : 'Only approved players in the latest tournament.',
+            count: audience.currentTournamentPlayers.length,
+            icon: <UserRound size={20} />,
+        },
+        {
+            value: 'individuals',
+            label: 'Specific individuals',
+            description: 'Search and hand-pick one or many players.',
+            count: selectedRecipientIds.length,
+            icon: <UserSquare2 size={20} />,
+        },
+    ];
+
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold">Announcements</h1>
-            
-            <div className="bg-white rounded-2xl overflow-hidden p-6 shadow-sm border border-slate-200">
-                <div className="max-w-2xl mx-auto space-y-6">
-                    <div className="text-center">
-                        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
-                            <Megaphone size={32} />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-900">Broadcast Announcement</h2>
-                        <p className="text-slate-500">Send messages to players via their dashboard.</p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <h1 className="text-3xl font-black tracking-tight">Announcements</h1>
+                    <p className="text-slate-500 mt-2">Broadcast updates to all players, the current tournament field, or selected individuals.</p>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 shadow-sm">
+                    <Megaphone size={18} className="text-blue-600" />
+                    {recipientCount} recipient{recipientCount === 1 ? '' : 's'} selected
+                </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.9fr)]">
+                <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200 space-y-6">
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {targetOptions.map((option) => {
+                            const isActive = target === option.value;
+
+                            return (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    onClick={() => setTarget(option.value)}
+                                    className={`text-left rounded-2xl border p-4 transition-all ${
+                                        isActive
+                                            ? 'border-slate-900 bg-slate-900 text-white shadow-lg'
+                                            : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isActive ? 'bg-white/10' : 'bg-white text-slate-700 border border-slate-200'}`}>
+                                            {option.icon}
+                                        </div>
+                                        <span className={`text-xs font-black uppercase tracking-[0.2em] ${isActive ? 'text-slate-200' : 'text-slate-400'}`}>
+                                            {option.count}
+                                        </span>
+                                    </div>
+                                    <h2 className={`font-black text-base ${isActive ? 'text-white' : 'text-slate-900'}`}>{option.label}</h2>
+                                    <p className={`mt-2 text-sm leading-6 ${isActive ? 'text-slate-200' : 'text-slate-500'}`}>{option.description}</p>
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    <div className="space-y-2">
-                            <label className="text-sm text-slate-500 font-medium">Message</label>
+                    {target === 'individuals' && (
+                        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900">Choose recipients</h3>
+                                    <p className="text-sm text-slate-500">Search players and select who should receive this message.</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedRecipientIds(filteredPlayers.map((player) => player.id))}
+                                        className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:border-slate-300"
+                                    >
+                                        Select filtered
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedRecipientIds([])}
+                                        className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:border-slate-300"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                            </div>
+
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder="Search by username or email"
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:border-slate-900"
+                            />
+
+                            <div className="grid gap-3 max-h-80 overflow-y-auto pr-1">
+                                {filteredPlayers.map((player) => {
+                                    const checked = selectedRecipientIds.includes(player.id);
+
+                                    return (
+                                        <button
+                                            key={player.id}
+                                            type="button"
+                                            onClick={() => toggleRecipient(player.id)}
+                                            className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all ${
+                                                checked
+                                                    ? 'border-slate-900 bg-slate-900 text-white'
+                                                    : 'border-slate-200 bg-white hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <div>
+                                                <div className={`font-bold ${checked ? 'text-white' : 'text-slate-900'}`}>{player.username}</div>
+                                                <div className={`text-sm ${checked ? 'text-slate-200' : 'text-slate-500'}`}>{player.email}</div>
+                                            </div>
+                                            <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${checked ? 'border-white bg-white text-slate-900' : 'border-slate-300 text-transparent'}`}>
+                                                <Check size={14} />
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {filteredPlayers.length === 0 && (
+                                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-medium text-slate-500">
+                                    No players match that search.
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="space-y-3">
+                        <label className="text-sm font-semibold text-slate-600">Message</label>
                         <textarea
-                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-blue-500 min-h-[150px] transition-all shadow-inner"
-                            placeholder="Type your announcement here..."
+                            className="w-full min-h-[190px] rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-slate-900 focus:outline-none focus:border-slate-900 leading-7"
+                            placeholder="Write the announcement your players should receive..."
                             value={announcement}
-                            onChange={(e) => setAnnouncement(e.target.value)}
+                            onChange={(event) => setAnnouncement(event.target.value)}
                         ></textarea>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <button 
-                            onClick={() => handleSendAnnouncement('all')}
-                            className="py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-md"
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="text-sm text-slate-500">
+                            {target === 'current_tournament' && audience.currentTournament && (
+                                <span>Current tournament: <span className="font-semibold text-slate-700">{audience.currentTournament.title}</span></span>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleSendAnnouncement}
+                            disabled={sending || loading || recipientCount === 0}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-white font-bold shadow-md hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <Send size={20} /> Send to All Players
+                            <Send size={18} />
+                            {sending ? 'Sending...' : 'Send announcement'}
                         </button>
-                        <button 
-                            onClick={() => handleSendAnnouncement('round')}
-                            className="py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-md"
-                        >
-                            <Send size={20} /> Send to Current Round
-                        </button>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
+                        <h2 className="text-lg font-black text-slate-900">Delivery preview</h2>
+                        <p className="text-sm text-slate-500 mt-2">Review who will get the current message before sending.</p>
+
+                        <div className="mt-5 grid gap-4">
+                            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                                <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Target</div>
+                                <div className="text-lg font-black text-slate-900">
+                                    {targetOptions.find((option) => option.value === target)?.label}
+                                </div>
+                            </div>
+                            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                                <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Recipients</div>
+                                <div className="text-3xl font-black text-slate-900">{recipientCount}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h2 className="text-lg font-black text-slate-900">Recent broadcasts</h2>
+                                <p className="text-sm text-slate-500">Latest messages sent from the admin panel.</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 max-h-[34rem] overflow-y-auto pr-1">
+                            {loading ? (
+                                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm font-medium text-slate-500">
+                                    Loading announcement history...
+                                </div>
+                            ) : history.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm font-medium text-slate-500">
+                                    No broadcasts sent yet.
+                                </div>
+                            ) : history.map((item) => (
+                                <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <div className="flex items-center justify-between gap-3 mb-3">
+                                        <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-slate-600 border border-slate-200">
+                                            {item.audience_type === 'all' ? 'All users' : item.audience_type === 'current_tournament' ? 'Tournament players' : 'Individuals'}
+                                        </span>
+                                        <span className="text-xs text-slate-500">{new Date(item.created_at).toLocaleString()}</span>
+                                    </div>
+                                    <p className="text-sm leading-6 text-slate-700 whitespace-pre-wrap">{item.message}</p>
+                                    <div className="mt-4 flex items-center justify-between text-xs font-semibold text-slate-500">
+                                        <span>{item.recipient_count} recipients</span>
+                                        <span>{item.read_count} read</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>

@@ -10,6 +10,7 @@ import Welcome from './pages/Welcome';
 import Leaderboard from './pages/Leaderboard';
 import TournamentDetails from './pages/TournamentDetails';
 import PlayerDashboard from './pages/PlayerDashboard';
+import PlayerAnnouncements from './pages/PlayerAnnouncements';
 import Roadmap from './pages/Roadmap';
 import Rules from './pages/Rules';
 import MyMatches from './pages/MyMatches';
@@ -70,6 +71,7 @@ function App() {
 
               <Route element={<ProtectedRoute />}>
                  <Route path="/dashboard" element={<PlayerDashboard />} />
+                 <Route path="/announcements" element={<PlayerAnnouncements />} />
                  <Route path="/roadmap" element={<Roadmap />} />
                  <Route path="/rules" element={<Rules />} />
                  <Route path="/matches" element={<MyMatches />} />

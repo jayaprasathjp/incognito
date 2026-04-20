@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import Loader from '../components/Loader';
+import { api } from '../utils/api';
 
 const AuthContext = createContext();
 
@@ -7,6 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -25,6 +27,31 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  const refreshUnreadAnnouncements = useCallback(async () => {
+    const activeToken = localStorage.getItem('token');
+
+    if (!activeToken) {
+      setUnreadAnnouncements(0);
+      return;
+    }
+
+    try {
+      const data = await api.get('/user/announcements/unread-count');
+      setUnreadAnnouncements(Number(data?.count) || 0);
+    } catch (error) {
+      console.error('Failed to refresh unread announcements', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!token) {
+      setUnreadAnnouncements(0);
+      return;
+    }
+
+    refreshUnreadAnnouncements();
+  }, [token, refreshUnreadAnnouncements]);
+
   const login = (newToken, userData) => {
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(userData));
@@ -37,10 +64,11 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    setUnreadAnnouncements(0);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, unreadAnnouncements, refreshUnreadAnnouncements }}>
       {loading ? (
         <div className="min-h-screen flex items-center justify-center">
             <Loader />

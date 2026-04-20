@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
+import MenuButton from '../components/MenuButton';
 
 const Rules = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -74,15 +75,7 @@ const Rules = () => {
             <div className="flex items-center justify-center p-4 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm relative">
                 <img src={appIcon} alt="Logo" className="absolute left-4 w-8 h-8 object-contain" />
                 <span className="font-bold text-lg tracking-wider text-slate-800">INCØGNITØ</span>
-                <button 
-                    onClick={() => setIsMenuOpen(true)}
-                    className="absolute right-4 p-2 text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 focus:outline-none"
-                    aria-label="Menu"
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                </button>
+                <MenuButton onClick={() => setIsMenuOpen(true)} />
             </div>
 
             <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />

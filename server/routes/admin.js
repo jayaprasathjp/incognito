@@ -2,6 +2,11 @@ import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken, authorizeAdmin } from "../middleware/auth.js";
 import { checkIfTournamentFinished } from "../utils/tournamentHelpers.js";
+import {
+    ensureAnnouncementTables,
+    getAnnouncementAudience,
+    resolveAnnouncementRecipients,
+} from "../utils/announcementHelpers.js";
 
 const router = express.Router();
 
@@ -863,16 +868,102 @@ router.get("/payments", async (req, res) => {
     }
 });
 
-router.post("/announcements", async (req, res) => {
+router.get("/announcements/audience", async (req, res) => {
     try {
-        const { message, target } = req.body; // target: 'all', 'round'
-        // Logic to send announcement (e.g. create notification records)
-        // For MVP, just log it.
-        console.log(`Announcement to ${target}: ${message}`);
-        res.json({ message: "Announcement sent" });
+        const audience = await getAnnouncementAudience();
+        res.json(audience);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.get("/announcements", async (req, res) => {
+    try {
+        await ensureAnnouncementTables();
+
+        const result = await pool.query(
+            `SELECT a.id,
+                    a.message,
+                    a.audience_type,
+                    a.created_at,
+                    a.tournament_id,
+                    t.title AS tournament_title,
+                    creator.username AS created_by_username,
+                    COUNT(ar.id)::int AS recipient_count,
+                    COUNT(ar.id) FILTER (WHERE ar.read_at IS NOT NULL)::int AS read_count
+             FROM announcements a
+             LEFT JOIN announcement_recipients ar ON ar.announcement_id = a.id
+             LEFT JOIN tournaments t ON t.id = a.tournament_id
+             LEFT JOIN users creator ON creator.id = a.created_by
+             GROUP BY a.id, t.title, creator.username
+             ORDER BY a.created_at DESC
+             LIMIT 25`
+        );
+
+        res.json({ announcements: result.rows });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/announcements", async (req, res) => {
+    try {
+        await ensureAnnouncementTables();
+
+        const { message, target, recipientIds } = req.body;
+        const trimmedMessage = String(message || "").trim();
+
+        if (!trimmedMessage) {
+            return res.status(400).json({ error: "Announcement message is required" });
+        }
+
+        const { audienceType, recipients, tournament } = await resolveAnnouncementRecipients(target, recipientIds);
+
+        if (recipients.length === 0) {
+            return res.status(400).json({ error: "No recipients found for this announcement" });
+        }
+
+        const client = await pool.connect();
+
+        try {
+            await client.query("BEGIN");
+
+            const announcementResult = await client.query(
+                `INSERT INTO announcements (message, audience_type, tournament_id, created_by)
+                 VALUES ($1, $2, $3, $4)
+                 RETURNING *`,
+                [trimmedMessage, audienceType, tournament?.id || null, req.user.id]
+            );
+
+            const announcement = announcementResult.rows[0];
+
+            for (const recipient of recipients) {
+                await client.query(
+                    `INSERT INTO announcement_recipients (announcement_id, user_id)
+                     VALUES ($1, $2)
+                     ON CONFLICT (announcement_id, user_id) DO NOTHING`,
+                    [announcement.id, recipient.id]
+                );
+            }
+
+            await client.query("COMMIT");
+
+            res.json({
+                message: "Announcement sent",
+                announcement,
+                recipientCount: recipients.length,
+            });
+        } catch (dbError) {
+            await client.query("ROLLBACK");
+            throw dbError;
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(400).json({ error: err.message || "Server error" });
     }
 });
 
