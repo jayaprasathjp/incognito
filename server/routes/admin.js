@@ -950,6 +950,25 @@ router.post("/announcements", async (req, res) => {
 
             await client.query("COMMIT");
 
+            const announcementPayload = {
+                id: announcement.id,
+                message: announcement.message,
+                audience_type: announcement.audience_type,
+                tournament_id: announcement.tournament_id,
+                tournament_title: tournament?.title || null,
+                created_at: announcement.created_at,
+                created_by_username: req.user.username || 'Admin',
+                read_at: null,
+            };
+
+            if (req.app.locals.io) {
+                for (const recipient of recipients) {
+                    req.app.locals.io.to(`user_${recipient.id}`).emit('announcement_created', {
+                        announcement: announcementPayload,
+                    });
+                }
+            }
+
             res.json({
                 message: "Announcement sent",
                 announcement,

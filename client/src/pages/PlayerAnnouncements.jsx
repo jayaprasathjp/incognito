@@ -14,14 +14,13 @@ const audienceLabelMap = {
 };
 
 const PlayerAnnouncements = () => {
-    const { token, refreshUnreadAnnouncements } = useAuth();
+    const { token, refreshUnreadAnnouncements, announcementEvent } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [announcements, setAnnouncements] = useState([]);
     const [loading, setLoading] = useState(true);
     const [newlyReadCount, setNewlyReadCount] = useState(0);
 
-    useEffect(() => {
-        const fetchAnnouncements = async () => {
+    const fetchAnnouncements = async ({ markAsRead = true } = {}) => {
             setLoading(true);
 
             try {
@@ -34,11 +33,11 @@ const PlayerAnnouncements = () => {
 
                 setAnnouncements(data.announcements || []);
 
-                if ((data.unreadCount || 0) > 0) {
+                if (markAsRead && (data.unreadCount || 0) > 0) {
                     await api.post('/user/announcements/read-all', {});
                     setNewlyReadCount(data.unreadCount || 0);
                     await refreshUnreadAnnouncements();
-                } else {
+                } else if (markAsRead) {
                     setNewlyReadCount(0);
                 }
             } catch (error) {
@@ -49,10 +48,32 @@ const PlayerAnnouncements = () => {
             }
         };
 
+    useEffect(() => {
+        const loadPage = async () => {
+            await fetchAnnouncements({ markAsRead: true });
+        };
+
         if (token) {
-            fetchAnnouncements();
+            loadPage();
         }
     }, [token, refreshUnreadAnnouncements]);
+
+    useEffect(() => {
+        if (!announcementEvent?.announcement) return;
+
+        setAnnouncements((current) => {
+            const exists = current.some((item) => item.id === announcementEvent.announcement.id);
+            if (exists) return current;
+            return [announcementEvent.announcement, ...current];
+        });
+
+        const syncReadState = async () => {
+            await api.post('/user/announcements/read-all', {});
+            await refreshUnreadAnnouncements();
+        };
+
+        syncReadState();
+    }, [announcementEvent, refreshUnreadAnnouncements]);
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans relative overflow-hidden">

@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import Loader from '../components/Loader';
 import { api } from '../utils/api';
+import { io } from 'socket.io-client';
+import { SOCKET_URL } from '../utils/api';
 
 const AuthContext = createContext();
 
@@ -9,6 +11,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
+  const [announcementEvent, setAnnouncementEvent] = useState(null);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -52,6 +55,31 @@ export const AuthProvider = ({ children }) => {
     refreshUnreadAnnouncements();
   }, [token, refreshUnreadAnnouncements]);
 
+  useEffect(() => {
+    if (!token || !user?.id) return;
+
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('connect', () => {
+      socket.emit('join_user', user.id);
+    });
+
+    socket.on('announcement_created', ({ announcement }) => {
+      setAnnouncementEvent({
+        announcement,
+        receivedAt: Date.now(),
+      });
+      refreshUnreadAnnouncements();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [token, user?.id, refreshUnreadAnnouncements]);
+
   const login = (newToken, userData) => {
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(userData));
@@ -68,7 +96,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, unreadAnnouncements, refreshUnreadAnnouncements }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, unreadAnnouncements, refreshUnreadAnnouncements, announcementEvent }}>
       {loading ? (
         <div className="min-h-screen flex items-center justify-center">
             <Loader />
