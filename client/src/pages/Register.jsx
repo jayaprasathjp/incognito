@@ -5,6 +5,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../utils/api';
 import appIcon from '../assets/app-icon.png';
 import nigerianUniversities from '../data/nigerianUniversities';
+import SEO from '../components/SEO';
 
 const Register = () => {
     const [formData, setFormData] = useState({
@@ -107,6 +108,11 @@ const Register = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-start pt-10 pb-6 bg-white text-slate-900 font-sans">
+            <SEO
+                title="Register"
+                description="Create your INCØGNITØ account and join anonymous university eFootball tournaments in Nigeria."
+                noindex={true}
+            />
             <div className="w-full max-w-md px-6">
                 
                 {/* Logo Section */}

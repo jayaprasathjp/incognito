@@ -1,0 +1,21 @@
+{
+  "name": "INCØGNITØ",
+  "short_name": "INCØGNITØ",
+  "description": "Anonymous Nigerian university eFootball tournaments and esports competition platform.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/web-icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/web-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import appIcon from '../assets/app-icon.png';
 import Sidebar from '../components/Sidebar';
 import Loader from '../components/Loader';
 import MenuButton from '../components/MenuButton';
+import SEO from '../components/SEO';
 
 const Roadmap = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -118,6 +119,10 @@ const Roadmap = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans relative overflow-hidden">
+            <SEO
+                title="Tournament Roadmap"
+                description="See the INCØGNITØ tournament roadmap, registration phase, match rounds, and competition schedule for upcoming campus esports events."
+            />
             {/* Ambient Background Elements */}
             <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/10 blur-[120px] pointer-events-none"></div>
             <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>

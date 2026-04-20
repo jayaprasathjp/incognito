@@ -6,6 +6,7 @@ import { api } from '../utils/api';
 import Loader from '../components/Loader';
 import Sidebar from '../components/Sidebar';
 import MenuButton from '../components/MenuButton';
+import SEO from '../components/SEO';
 
 const Leaderboard = () => {
     const { user } = useAuth();
@@ -68,6 +69,10 @@ const Leaderboard = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans relative overflow-hidden">
+            <SEO
+                title="Leaderboard"
+                description="Track the official INCØGNITØ leaderboard, tournament rankings, points, goals scored, and campus esports standings."
+            />
             {/* Ambient Background Elements */}
             <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/20 blur-[120px] pointer-events-none"></div>
             <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/20 blur-[120px] pointer-events-none"></div>

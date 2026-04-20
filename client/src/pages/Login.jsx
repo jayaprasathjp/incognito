@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../utils/api';
 import appIcon from '../assets/app-icon.png';
+import SEO from '../components/SEO';
 
 const Login = () => {
     const [identifier, setIdentifier] = useState('');
@@ -34,6 +35,11 @@ const Login = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 text-slate-900">
+            <SEO
+                title="Login"
+                description="Log in to your INCØGNITØ player account to manage tournaments, matches, and rankings."
+                noindex={true}
+            />
             <div className="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
                 <div className="text-center mb-8">
                     <img src={appIcon} alt="Logo" className="w-16 h-16 object-contain mx-auto mb-4 drop-shadow-md" />
