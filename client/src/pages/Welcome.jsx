@@ -72,7 +72,7 @@ const Welcome = () => {
     return (
         <div className="min-h-screen flex flex-col items-center justify-start gap-8 p-6 bg-white text-slate-900 font-sans" style={{ backgroundColor: '#ffffff', color: '#0f172a' }}>
             <SEO
-                title="Nigerian University eFootball Tournaments"
+                title="INCØGNITØ"
                 description="INCØGNITØ runs anonymous eFootball tournaments for Nigerian university players. Register, compete, follow leaderboards, and play on a fair campus esports platform."
                 structuredData={[
                     {
