@@ -35,10 +35,12 @@ import Footer from './components/Footer';
 import ConnectivityToast from './components/ConnectivityToast';
 
 function App() {
+  const isBrowser = typeof window !== 'undefined';
+
   return (
     <AuthProvider>
-      <Analytics />
-      <SpeedInsights />
+      {isBrowser && <Analytics />}
+      {isBrowser && <SpeedInsights />}
       <div className="flex flex-col min-h-screen">
         <ConnectivityToast />
         <Toaster position="top-right" toastOptions={{

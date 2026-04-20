@@ -60,7 +60,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         </Link>
     );
 
-    return createPortal(
+    const content = (
         <>
             {/* Overlay */}
             <div 
@@ -157,9 +157,14 @@ const Sidebar = ({ isOpen, onClose }) => {
                     )}
                 </div>
             </div>
-        </>,
-        document.body
+        </>
     );
+
+    if (typeof window === 'undefined') {
+        return content;
+    }
+
+    return createPortal(content, document.body);
 };
 
 export default Sidebar;
