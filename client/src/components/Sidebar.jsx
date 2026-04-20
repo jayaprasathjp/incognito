@@ -3,9 +3,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { createPortal } from 'react-dom';
 import { api } from '../utils/api';
+import { Bell, Landmark, LayoutDashboard, Megaphone, ScrollText, Swords, Trophy, Users } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose }) => {
-    const { logout, user, token } = useAuth();
+    const { logout, user, token, unreadAnnouncements } = useAuth();
     const location = useLocation();
     const [registrationEnded, setRegistrationEnded] = useState(false);
 
@@ -26,6 +27,38 @@ const Sidebar = ({ isOpen, onClose }) => {
     }, [user, token]);
 
     const isActive = (path) => location.pathname === path;
+
+    const playerLinks = [
+        { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+        ...(registrationEnded ? [{ to: '/leaderboard', label: 'Leaderboard', icon: <Trophy size={18} /> }] : []),
+        { to: '/announcements', label: 'Announcements', icon: <Megaphone size={18} />, badge: unreadAnnouncements },
+        { to: '/roadmap', label: 'Roadmap', icon: <Bell size={18} /> },
+        { to: '/rules', label: 'Rules', icon: <ScrollText size={18} /> },
+        { to: '/matches', label: 'My Matches', icon: <Swords size={18} /> },
+        { to: '/referral', label: 'Referral Program', icon: <Users size={18} /> },
+        { to: '/bank-details', label: 'Bank Details', icon: <Landmark size={18} /> },
+    ];
+
+    const renderNavLink = (item) => (
+        <Link
+            key={item.to}
+            to={item.to}
+            className={`flex items-center gap-3 p-4 rounded-xl text-sm font-medium transition-all ${
+                isActive(item.to) ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+            onClick={onClose}
+        >
+            <span className="shrink-0">{item.icon}</span>
+            <span className="flex-1">{item.label}</span>
+            {item.badge > 0 && (
+                <span className={`min-w-5 h-5 px-1 rounded-full text-[10px] font-black flex items-center justify-center ${
+                    isActive(item.to) ? 'bg-white text-slate-900' : 'bg-rose-500 text-white'
+                }`}>
+                    {item.badge > 99 ? '99+' : item.badge}
+                </span>
+            )}
+        </Link>
+    );
 
     return createPortal(
         <>
@@ -100,71 +133,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                         ) : (
                             // Authenticated Player Links
                             <>
-                                <Link 
-                                    to="/dashboard" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/dashboard') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    Dashboard
-                                </Link>
-                                {registrationEnded && (
-                                <Link 
-                                    to="/leaderboard" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/leaderboard') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    Leaderboard
-                                </Link>
-                                )}
-                                <Link 
-                                    to="/roadmap" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/roadmap') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    Roadmap
-                                </Link>
-                                <Link 
-                                    to="/rules" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/rules') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    Rules
-                                </Link>
-                                <Link 
-                                    to="/matches" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/matches') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    My Matches
-                                </Link>
-                                <Link 
-                                    to="/referral" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/referral') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    Referral Program
-                                </Link>
-                                <Link 
-                                    to="/bank-details" 
-                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
-                                        isActive('/bank-details') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                    onClick={onClose}
-                                >
-                                    Bank Details
-                                </Link>
+                                {playerLinks.map(renderNavLink)}
                             </>
                         )}
                     </nav>

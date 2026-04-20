@@ -2,6 +2,7 @@ import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken } from "../middleware/auth.js";
 import crypto from "crypto";
+import { ensureAnnouncementTables } from "../utils/announcementHelpers.js";
 
 const router = express.Router();
 
@@ -73,6 +74,85 @@ router.post("/bank-details", authenticateToken, async (req, res) => {
             );
             res.json(insert.rows[0]);
         }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.get("/announcements/unread-count", authenticateToken, async (req, res) => {
+    try {
+        await ensureAnnouncementTables();
+
+        const result = await pool.query(
+            `SELECT COUNT(*)::int AS unread_count
+             FROM announcement_recipients
+             WHERE user_id = $1
+               AND read_at IS NULL`,
+            [req.user.id]
+        );
+
+        res.json({ count: result.rows[0]?.unread_count || 0 });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.get("/announcements", authenticateToken, async (req, res) => {
+    try {
+        await ensureAnnouncementTables();
+
+        const [announcementsResult, unreadCountResult] = await Promise.all([
+            pool.query(
+                `SELECT a.id,
+                        a.message,
+                        a.audience_type,
+                        a.created_at,
+                        a.tournament_id,
+                        t.title AS tournament_title,
+                        ar.read_at,
+                        creator.username AS created_by_username
+                 FROM announcement_recipients ar
+                 JOIN announcements a ON a.id = ar.announcement_id
+                 LEFT JOIN tournaments t ON t.id = a.tournament_id
+                 LEFT JOIN users creator ON creator.id = a.created_by
+                 WHERE ar.user_id = $1
+                 ORDER BY a.created_at DESC`,
+                [req.user.id]
+            ),
+            pool.query(
+                `SELECT COUNT(*)::int AS unread_count
+                 FROM announcement_recipients
+                 WHERE user_id = $1
+                   AND read_at IS NULL`,
+                [req.user.id]
+            ),
+        ]);
+
+        res.json({
+            announcements: announcementsResult.rows,
+            unreadCount: unreadCountResult.rows[0]?.unread_count || 0,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.post("/announcements/read-all", authenticateToken, async (req, res) => {
+    try {
+        await ensureAnnouncementTables();
+
+        const result = await pool.query(
+            `UPDATE announcement_recipients
+             SET read_at = COALESCE(read_at, NOW())
+             WHERE user_id = $1
+               AND read_at IS NULL`,
+            [req.user.id]
+        );
+
+        res.json({ updatedCount: result.rowCount || 0 });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Server error" });
