@@ -890,10 +890,13 @@ router.get("/announcements", async (req, res) => {
                     a.tournament_id,
                     t.title AS tournament_title,
                     creator.username AS created_by_username,
-                    COUNT(ar.id)::int AS recipient_count,
-                    COUNT(ar.id) FILTER (WHERE ar.read_at IS NOT NULL)::int AS read_count
+                    COALESCE(array_length(a.target_user_ids, 1), 0) AS recipient_count,
+                    (
+                        SELECT COUNT(*)::int
+                        FROM announcement_reads read_rows
+                        WHERE read_rows.announcement_id = a.id
+                    ) AS read_count
              FROM announcements a
-             LEFT JOIN announcement_recipients ar ON ar.announcement_id = a.id
              LEFT JOIN tournaments t ON t.id = a.tournament_id
              LEFT JOIN users creator ON creator.id = a.created_by
              GROUP BY a.id, t.title, creator.username
@@ -921,7 +924,13 @@ router.post("/announcements", async (req, res) => {
 
         const { audienceType, recipients, tournament } = await resolveAnnouncementRecipients(target, recipientIds);
 
-        if (recipients.length === 0) {
+        const recipientUserIds = [...new Set(
+            recipients
+                .map((recipient) => Number(recipient.id))
+                .filter((value) => Number.isInteger(value) && value > 0)
+        )];
+
+        if (recipientUserIds.length === 0) {
             return res.status(400).json({ error: "No recipients found for this announcement" });
         }
 
@@ -931,22 +940,13 @@ router.post("/announcements", async (req, res) => {
             await client.query("BEGIN");
 
             const announcementResult = await client.query(
-                `INSERT INTO announcements (message, audience_type, tournament_id, created_by)
-                 VALUES ($1, $2, $3, $4)
+                `INSERT INTO announcements (message, audience_type, tournament_id, created_by, target_user_ids)
+                 VALUES ($1, $2, $3, $4, $5)
                  RETURNING *`,
-                [trimmedMessage, audienceType, tournament?.id || null, req.user.id]
+                [trimmedMessage, audienceType, tournament?.id || null, req.user.id, recipientUserIds]
             );
 
             const announcement = announcementResult.rows[0];
-
-            for (const recipient of recipients) {
-                await client.query(
-                    `INSERT INTO announcement_recipients (announcement_id, user_id)
-                     VALUES ($1, $2)
-                     ON CONFLICT (announcement_id, user_id) DO NOTHING`,
-                    [announcement.id, recipient.id]
-                );
-            }
 
             await client.query("COMMIT");
 
@@ -962,8 +962,8 @@ router.post("/announcements", async (req, res) => {
             };
 
             if (req.app.locals.io) {
-                for (const recipient of recipients) {
-                    req.app.locals.io.to(`user_${recipient.id}`).emit('announcement_created', {
+                for (const userId of recipientUserIds) {
+                    req.app.locals.io.to(`user_${userId}`).emit('announcement_created', {
                         announcement: announcementPayload,
                     });
                 }
@@ -972,7 +972,7 @@ router.post("/announcements", async (req, res) => {
             res.json({
                 message: "Announcement sent",
                 announcement,
-                recipientCount: recipients.length,
+                recipientCount: recipientUserIds.length,
             });
         } catch (dbError) {
             await client.query("ROLLBACK");

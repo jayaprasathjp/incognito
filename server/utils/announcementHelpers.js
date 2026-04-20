@@ -8,8 +8,12 @@ export async function ensureAnnouncementTables() {
             audience_type TEXT NOT NULL,
             tournament_id INTEGER REFERENCES tournaments(id) ON DELETE SET NULL,
             created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            target_user_ids INTEGER[] NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+
+        ALTER TABLE announcements
+        ADD COLUMN IF NOT EXISTS target_user_ids INTEGER[] NULL;
 
         CREATE TABLE IF NOT EXISTS announcement_recipients (
             id SERIAL PRIMARY KEY,
@@ -25,6 +29,20 @@ export async function ensureAnnouncementTables() {
 
         CREATE INDEX IF NOT EXISTS idx_announcement_recipients_user_read_at
             ON announcement_recipients(user_id, read_at);
+
+        CREATE TABLE IF NOT EXISTS announcement_reads (
+            id SERIAL PRIMARY KEY,
+            announcement_id INTEGER NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (announcement_id, user_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_announcement_reads_user_id
+            ON announcement_reads(user_id);
+
+        CREATE INDEX IF NOT EXISTS idx_announcement_reads_announcement_id
+            ON announcement_reads(announcement_id);
     `);
 }
 

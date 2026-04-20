@@ -86,9 +86,32 @@ router.get("/announcements/unread-count", authenticateToken, async (req, res) =>
 
         const result = await pool.query(
             `SELECT COUNT(*)::int AS unread_count
-             FROM announcement_recipients
-             WHERE user_id = $1
-               AND read_at IS NULL`,
+             FROM announcements a
+             WHERE a.target_user_ids IS NOT NULL
+               AND (
+                    a.audience_type = 'all'
+                    OR (
+                        a.audience_type IN ('current_tournament', 'round')
+                        AND a.tournament_id IS NOT NULL
+                        AND EXISTS (
+                            SELECT 1
+                            FROM participants p
+                            WHERE p.tournament_id = a.tournament_id
+                              AND p.user_id = $1
+                              AND p.status = 'approved'
+                        )
+                    )
+                    OR (
+                        a.audience_type = 'individuals'
+                        AND $1 = ANY(a.target_user_ids)
+                    )
+               )
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM announcement_reads r
+                    WHERE r.announcement_id = a.id
+                      AND r.user_id = $1
+               )`,
             [req.user.id]
         );
 
@@ -111,21 +134,64 @@ router.get("/announcements", authenticateToken, async (req, res) => {
                         a.created_at,
                         a.tournament_id,
                         t.title AS tournament_title,
-                        ar.read_at,
+                        r.read_at,
                         creator.username AS created_by_username
-                 FROM announcement_recipients ar
-                 JOIN announcements a ON a.id = ar.announcement_id
+                 FROM announcements a
+                 LEFT JOIN announcement_reads r
+                    ON r.announcement_id = a.id
+                   AND r.user_id = $1
                  LEFT JOIN tournaments t ON t.id = a.tournament_id
                  LEFT JOIN users creator ON creator.id = a.created_by
-                 WHERE ar.user_id = $1
+                 WHERE a.target_user_ids IS NOT NULL
+                   AND (
+                        a.audience_type = 'all'
+                        OR (
+                            a.audience_type IN ('current_tournament', 'round')
+                            AND a.tournament_id IS NOT NULL
+                            AND EXISTS (
+                                SELECT 1
+                                FROM participants p
+                                WHERE p.tournament_id = a.tournament_id
+                                  AND p.user_id = $1
+                                  AND p.status = 'approved'
+                            )
+                        )
+                        OR (
+                            a.audience_type = 'individuals'
+                            AND $1 = ANY(a.target_user_ids)
+                        )
+                   )
                  ORDER BY a.created_at DESC`,
                 [req.user.id]
             ),
             pool.query(
                 `SELECT COUNT(*)::int AS unread_count
-                 FROM announcement_recipients
-                 WHERE user_id = $1
-                   AND read_at IS NULL`,
+                 FROM announcements a
+                 WHERE a.target_user_ids IS NOT NULL
+                   AND (
+                        a.audience_type = 'all'
+                        OR (
+                            a.audience_type IN ('current_tournament', 'round')
+                            AND a.tournament_id IS NOT NULL
+                            AND EXISTS (
+                                SELECT 1
+                                FROM participants p
+                                WHERE p.tournament_id = a.tournament_id
+                                  AND p.user_id = $1
+                                  AND p.status = 'approved'
+                            )
+                        )
+                        OR (
+                            a.audience_type = 'individuals'
+                            AND $1 = ANY(a.target_user_ids)
+                        )
+                   )
+                   AND NOT EXISTS (
+                        SELECT 1
+                        FROM announcement_reads r
+                        WHERE r.announcement_id = a.id
+                          AND r.user_id = $1
+                   )`,
                 [req.user.id]
             ),
         ]);
@@ -144,15 +210,40 @@ router.post("/announcements/read-all", authenticateToken, async (req, res) => {
     try {
         await ensureAnnouncementTables();
 
-        const result = await pool.query(
-            `UPDATE announcement_recipients
-             SET read_at = COALESCE(read_at, NOW())
-             WHERE user_id = $1
-               AND read_at IS NULL`,
+        const compactResult = await pool.query(
+            `INSERT INTO announcement_reads (announcement_id, user_id, read_at)
+             SELECT a.id, $1, NOW()
+             FROM announcements a
+             WHERE a.target_user_ids IS NOT NULL
+               AND (
+                    a.audience_type = 'all'
+                    OR (
+                        a.audience_type IN ('current_tournament', 'round')
+                        AND a.tournament_id IS NOT NULL
+                        AND EXISTS (
+                            SELECT 1
+                            FROM participants p
+                            WHERE p.tournament_id = a.tournament_id
+                              AND p.user_id = $1
+                              AND p.status = 'approved'
+                        )
+                    )
+                    OR (
+                        a.audience_type = 'individuals'
+                        AND $1 = ANY(a.target_user_ids)
+                    )
+               )
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM announcement_reads r
+                    WHERE r.announcement_id = a.id
+                      AND r.user_id = $1
+               )
+             ON CONFLICT (announcement_id, user_id) DO NOTHING`,
             [req.user.id]
         );
 
-        res.json({ updatedCount: result.rowCount || 0 });
+        res.json({ updatedCount: compactResult.rowCount || 0 });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Server error" });
