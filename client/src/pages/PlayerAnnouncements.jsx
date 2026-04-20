@@ -88,12 +88,12 @@ const PlayerAnnouncements = () => {
 
             <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
-            <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12 relative z-10">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-8">
+            <div className="max-w-4xl mx-auto px-4 py-6 sm:py-9 relative z-10">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-6">
                     <div>
-                        <p className="text-xs font-black uppercase tracking-[0.3em] text-emerald-600 mb-2">Inbox</p>
-                        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900">Announcements</h1>
-                        <p className="text-sm text-slate-500 mt-2">Official updates from the admin team land here.</p>
+                        <p className="text-[10px] sm:text-xs font-black uppercase tracking-[0.3em] text-emerald-600 mb-1">Inbox</p>
+                        <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-slate-900">Announcements</h1>
+                        <p className="text-xs sm:text-sm text-slate-500 mt-1">Official updates from the admin team land here.</p>
                     </div>
                     {newlyReadCount > 0 && (
                         <div className="inline-flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm font-medium text-emerald-700">
@@ -114,31 +114,34 @@ const PlayerAnnouncements = () => {
                         <p className="text-slate-500 font-medium">When admins broadcast updates, they will show up here.</p>
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-2 sm:space-y-3">
                         {announcements.map((announcement) => (
-                            <div key={announcement.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-7">
-                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                    <div className="flex gap-4 min-w-0">
-                                        <div className="w-12 h-12 shrink-0 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
-                                            <Megaphone size={22} />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                                                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-slate-600">
+                            <div key={announcement.id} className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm p-3 sm:p-5">
+                                <div className="flex gap-2 sm:gap-4 items-start min-w-0">
+                                    <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-lg sm:rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
+                                        <Megaphone size={14} className="sm:w-[18px] sm:h-[18px]" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                            <div className="flex flex-wrap items-center gap-1">
+                                                <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-600">
                                                     {audienceLabelMap[announcement.audience_type] || 'Announcement'}
                                                 </span>
                                                 {announcement.tournament_title && (
-                                                    <span className="inline-flex items-center rounded-full bg-sky-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-sky-700">
+                                                    <span className="inline-flex items-center rounded-md bg-sky-50 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-sky-700">
                                                         {announcement.tournament_title}
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-base sm:text-lg leading-7 text-slate-800 whitespace-pre-wrap">{announcement.message}</p>
+                                            <div className="text-[10px] sm:text-xs text-slate-500 shrink-0 text-right">
+                                                <span className="hidden sm:inline">By {announcement.created_by_username || 'Admin'} • </span>
+                                                {new Date(announcement.created_at).toLocaleDateString()}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="text-sm text-slate-500 shrink-0 sm:text-right">
-                                        <div className="font-semibold text-slate-700">{new Date(announcement.created_at).toLocaleString()}</div>
-                                        <div className="mt-1">By {announcement.created_by_username || 'Admin'}</div>
+                                        <p className="text-xs sm:text-base leading-relaxed text-slate-800 whitespace-pre-wrap">{announcement.message}</p>
+                                        <div className="sm:hidden text-[9px] text-slate-400 mt-1 uppercase font-bold tracking-tighter">
+                                            By {announcement.created_by_username || 'Admin'} • {new Date(announcement.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
