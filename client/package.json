@@ -25,6 +25,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@prerenderer/renderer-jsdom": "^1.1.9",
+    "@prerenderer/rollup-plugin": "^0.3.12",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
