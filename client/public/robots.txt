@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /matches
+Disallow: /referral
+Disallow: /bank-details
+Disallow: /announcements
+
+Sitemap: https://www.playincognito.ng/sitemap.xml

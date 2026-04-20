@@ -3,6 +3,7 @@ import appIcon from '../assets/app-icon.png';
 import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import MenuButton from '../components/MenuButton';
+import SEO from '../components/SEO';
 
 const Rules = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -71,6 +72,10 @@ const Rules = () => {
 
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans relative">
+            <SEO
+                title="Tournament Rules"
+                description="Read the official INCØGNITØ tournament rules for match setup, reporting, disputes, check-ins, and player conduct."
+            />
             {/* Header */}
             <div className="flex items-center justify-center p-4 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm relative">
                 <img src={appIcon} alt="Logo" className="absolute left-4 w-8 h-8 object-contain" />

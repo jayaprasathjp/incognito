@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 import { api } from '../utils/api';
+import SEO from '../components/SEO';
 
 const Welcome = () => {
     const [activeModal, setActiveModal] = useState(null);
@@ -70,6 +71,35 @@ const Welcome = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-start gap-8 p-6 bg-white text-slate-900 font-sans" style={{ backgroundColor: '#ffffff', color: '#0f172a' }}>
+            <SEO
+                title="Nigerian University eFootball Tournaments"
+                description="INCØGNITØ runs anonymous eFootball tournaments for Nigerian university players. Register, compete, follow leaderboards, and play on a fair campus esports platform."
+                structuredData={[
+                    {
+                        '@context': 'https://schema.org',
+                        '@type': 'Organization',
+                        name: 'INCØGNITØ',
+                        url: 'https://www.playincognito.ng',
+                        logo: 'https://www.playincognito.ng/web-icon.png',
+                        sameAs: [
+                            'https://instagram.com/playincognitohq',
+                            'https://x.com/playincognitohq'
+                        ],
+                        contactPoint: {
+                            '@type': 'ContactPoint',
+                            contactType: 'customer support',
+                            email: 'playincognito.ng@gmail.com',
+                            telephone: '+2348080433495'
+                        }
+                    },
+                    {
+                        '@context': 'https://schema.org',
+                        '@type': 'WebSite',
+                        name: 'INCØGNITØ',
+                        url: 'https://www.playincognito.ng'
+                    }
+                ]}
+            />
             {/* Top Section: Logo & Branding */}
             <div className="flex flex-col items-center justify-center w-full mt-12 mb-8">
                 <div className="mb-6">

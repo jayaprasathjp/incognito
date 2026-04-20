@@ -8,7 +8,7 @@ const MenuButton = ({ onClick, className = '' }) => {
     return (
         <button
             onClick={onClick}
-            className={`absolute right-4 p-2 text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 focus:outline-none relative ${className}`}
+            className={`absolute right-4 p-2 text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 focus:outline-none ${className}`}
             aria-label="Menu"
         >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
