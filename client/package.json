@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:prerender": "vite build",
+    "build:prerender": "vite build && vite build --ssr src/entry-server.jsx --outDir dist-server && node scripts/prerender.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -20,13 +20,10 @@
     "react-dom": "^19.2.5",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.14.1",
-    "socket.io-client": "^4.8.3",
-    "vite-plugin-prerender": "^1.0.8"
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@prerenderer/renderer-jsdom": "^1.1.9",
-    "@prerenderer/rollup-plugin": "^0.3.12",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -36,6 +33,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "jsdom": "^29.0.2",
     "postcss": "^8.5.10",
     "tailwindcss": "^4.2.2",
     "vite": "^8.0.9"

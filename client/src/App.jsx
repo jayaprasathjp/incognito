@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './pages/Login';
@@ -37,59 +37,57 @@ import ConnectivityToast from './components/ConnectivityToast';
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Analytics />
-        <SpeedInsights />
-        <div className="flex flex-col min-h-screen">
-          <ConnectivityToast />
-          <Toaster position="top-right" toastOptions={{
-            style: {
-              background: '#1a1a20',
-              color: '#fff',
-              border: '1px solid rgba(255,255,255,0.1)'
-            }
-          }} />
-          <div className="flex-grow">
-            <Routes>
-              <Route path="/" element={<Welcome />} />
-              <Route path="/leaderboard" element={<Leaderboard />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password/:token" element={<ResetPassword />} />
+      <Analytics />
+      <SpeedInsights />
+      <div className="flex flex-col min-h-screen">
+        <ConnectivityToast />
+        <Toaster position="top-right" toastOptions={{
+          style: {
+            background: '#1a1a20',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.1)'
+          }
+        }} />
+        <div className="flex-grow">
+          <Routes>
+            <Route path="/" element={<Welcome />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-              
-              {/* Admin Routes */}
-              {/* Public Info Pages - Not Protected for SEO */}
-              <Route path="/roadmap" element={<Roadmap />} />
-              <Route path="/rules" element={<Rules />} />
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/admin" element={<AdminLayout />}>
-                  <Route index element={<Navigate to="/admin/dashboard" replace />} />
-                  <Route path="dashboard" element={<AdminDashboard />} />
-                  <Route path="players" element={<PlayerManagement />} />
-                  <Route path="tournament" element={<TournamentControl />} />
-                  <Route path="matches" element={<Matches />} />
-                  <Route path="disputes" element={<Disputes />} />
-                  <Route path="payments" element={<Payments />} />
-                  <Route path="announcements" element={<Announcements />} />
-              </Route>
+            
+            {/* Admin Routes */}
+            {/* Public Info Pages - Not Protected for SEO */}
+            <Route path="/roadmap" element={<Roadmap />} />
+            <Route path="/rules" element={<Rules />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="players" element={<PlayerManagement />} />
+                <Route path="tournament" element={<TournamentControl />} />
+                <Route path="matches" element={<Matches />} />
+                <Route path="disputes" element={<Disputes />} />
+                <Route path="payments" element={<Payments />} />
+                <Route path="announcements" element={<Announcements />} />
+            </Route>
 
-              <Route element={<ProtectedRoute />}>
-                 <Route path="/dashboard" element={<PlayerDashboard />} />
-                 <Route path="/announcements" element={<PlayerAnnouncements />} />
-                 <Route path="/matches" element={<MyMatches />} />
-                 <Route path="/referral" element={<ReferralProgram />} />
-                 <Route path="/bank-details" element={<BankDetails />} />
-                 <Route path="/tournament/:id" element={<TournamentDetails />} />
-              </Route>
+            <Route element={<ProtectedRoute />}>
+               <Route path="/dashboard" element={<PlayerDashboard />} />
+               <Route path="/announcements" element={<PlayerAnnouncements />} />
+               <Route path="/matches" element={<MyMatches />} />
+               <Route path="/referral" element={<ReferralProgram />} />
+               <Route path="/bank-details" element={<BankDetails />} />
+               <Route path="/tournament/:id" element={<TournamentDetails />} />
+            </Route>
 
-              <Route path="*" element={<Navigate to="/login" />} />
-            </Routes>
-          </div>
-          <Footer />
+            <Route path="*" element={<Navigate to="/login" />} />
+          </Routes>
         </div>
-      </BrowserRouter>
+        <Footer />
+      </div>
     </AuthProvider>
   );
 }
