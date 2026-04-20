@@ -890,12 +890,16 @@ router.get("/announcements", async (req, res) => {
                     a.tournament_id,
                     t.title AS tournament_title,
                     creator.username AS created_by_username,
-                    COUNT(ar.id)::int AS recipient_count,
-                    COUNT(ar.id) FILTER (WHERE ar.read_at IS NOT NULL)::int AS read_count
+                    COALESCE(array_length(a.target_user_ids, 1), 0) AS recipient_count,
+                    (
+                        SELECT COUNT(*)::int
+                        FROM announcement_reads read_rows
+                        WHERE read_rows.announcement_id = a.id
+                    ) AS read_count
              FROM announcements a
-             LEFT JOIN announcement_recipients ar ON ar.announcement_id = a.id
              LEFT JOIN tournaments t ON t.id = a.tournament_id
              LEFT JOIN users creator ON creator.id = a.created_by
+               WHERE a.deleted_at IS NULL
              GROUP BY a.id, t.title, creator.username
              ORDER BY a.created_at DESC
              LIMIT 25`
@@ -921,7 +925,13 @@ router.post("/announcements", async (req, res) => {
 
         const { audienceType, recipients, tournament } = await resolveAnnouncementRecipients(target, recipientIds);
 
-        if (recipients.length === 0) {
+        const recipientUserIds = [...new Set(
+            recipients
+                .map((recipient) => Number(recipient.id))
+                .filter((value) => Number.isInteger(value) && value > 0)
+        )];
+
+        if (recipientUserIds.length === 0) {
             return res.status(400).json({ error: "No recipients found for this announcement" });
         }
 
@@ -931,29 +941,39 @@ router.post("/announcements", async (req, res) => {
             await client.query("BEGIN");
 
             const announcementResult = await client.query(
-                `INSERT INTO announcements (message, audience_type, tournament_id, created_by)
-                 VALUES ($1, $2, $3, $4)
+                `INSERT INTO announcements (message, audience_type, tournament_id, created_by, target_user_ids)
+                 VALUES ($1, $2, $3, $4, $5)
                  RETURNING *`,
-                [trimmedMessage, audienceType, tournament?.id || null, req.user.id]
+                [trimmedMessage, audienceType, tournament?.id || null, req.user.id, recipientUserIds]
             );
 
             const announcement = announcementResult.rows[0];
 
-            for (const recipient of recipients) {
-                await client.query(
-                    `INSERT INTO announcement_recipients (announcement_id, user_id)
-                     VALUES ($1, $2)
-                     ON CONFLICT (announcement_id, user_id) DO NOTHING`,
-                    [announcement.id, recipient.id]
-                );
-            }
-
             await client.query("COMMIT");
+
+            const announcementPayload = {
+                id: announcement.id,
+                message: announcement.message,
+                audience_type: announcement.audience_type,
+                tournament_id: announcement.tournament_id,
+                tournament_title: tournament?.title || null,
+                created_at: announcement.created_at,
+                created_by_username: req.user.username || 'Admin',
+                read_at: null,
+            };
+
+            if (req.app.locals.io) {
+                for (const userId of recipientUserIds) {
+                    req.app.locals.io.to(`user_${userId}`).emit('announcement_created', {
+                        announcement: announcementPayload,
+                    });
+                }
+            }
 
             res.json({
                 message: "Announcement sent",
                 announcement,
-                recipientCount: recipients.length,
+                recipientCount: recipientUserIds.length,
             });
         } catch (dbError) {
             await client.query("ROLLBACK");
@@ -964,6 +984,53 @@ router.post("/announcements", async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(400).json({ error: err.message || "Server error" });
+    }
+});
+
+router.delete("/announcements/:id", async (req, res) => {
+    try {
+        await ensureAnnouncementTables();
+
+        const announcementId = Number(req.params.id);
+
+        if (!Number.isInteger(announcementId) || announcementId <= 0) {
+            return res.status(400).json({ error: "Invalid announcement id" });
+        }
+
+        const client = await pool.connect();
+
+        try {
+            await client.query("BEGIN");
+
+            const existingAnnouncement = await client.query(
+                `SELECT id FROM announcements WHERE id = $1 AND deleted_at IS NULL`,
+                [announcementId]
+            );
+
+            if (existingAnnouncement.rows.length === 0) {
+                await client.query("ROLLBACK");
+                return res.status(404).json({ error: "Announcement not found" });
+            }
+
+            await client.query(
+                `UPDATE announcements
+                 SET deleted_at = NOW()
+                 WHERE id = $1`,
+                [announcementId]
+            );
+
+            await client.query("COMMIT");
+
+            res.json({ message: "Announcement deleted" });
+        } catch (dbError) {
+            await client.query("ROLLBACK");
+            throw dbError;
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message || "Server error" });
     }
 });
 

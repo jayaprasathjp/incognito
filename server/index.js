@@ -13,6 +13,7 @@ import { pool } from "./db.js";
 import { expirePlayerDisputes } from "./utils/disputeHelpers.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
 
 const app = express();
 const httpServer = createServer(app);
@@ -27,8 +28,26 @@ const io = new Server(httpServer, {
 app.locals.io = io;
 
 io.on("connection", (socket) => {
+  const token = socket.handshake.auth?.token;
+
+  if (token) {
+    try {
+      const user = jwt.verify(token, process.env.JWT_SECRET || "default_secret");
+      socket.data.user = user;
+      socket.join(`user_${user.id}`);
+    } catch (error) {
+      console.log("Socket auth failed:", error.message);
+    }
+  }
+
   socket.on("join_match", (matchId) => {
     socket.join(`match_${matchId}`);
+  });
+
+  socket.on("join_user", (userId) => {
+    if (socket.data.user?.id === Number(userId)) {
+      socket.join(`user_${userId}`);
+    }
   });
 });
 
