@@ -58,7 +58,7 @@ const SEO = ({
         ensureMeta('meta[name="robots"]', { name: 'robots', content: noindex ? 'noindex, nofollow' : 'index, follow' });
         ensureMeta('meta[name="keywords"]', {
             name: 'keywords',
-            content: keywords || 'INCØGNITØ, Nigerian university esports, eFootball tournament, campus gaming, esports Nigeria',
+            content: keywords || 'INCØGNITØ, playincognito, Nigerian university esports, eFootball tournament, campus gaming, esports Nigeria',
         });
         ensureMeta('meta[property="og:title"]', { property: 'og:title', content: resolvedTitle });
         ensureMeta('meta[property="og:description"]', { property: 'og:description', content: resolvedDescription });

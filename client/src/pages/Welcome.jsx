@@ -72,13 +72,14 @@ const Welcome = () => {
     return (
         <div className="min-h-screen flex flex-col items-center justify-start gap-8 p-6 bg-white text-slate-900 font-sans" style={{ backgroundColor: '#ffffff', color: '#0f172a' }}>
             <SEO
-                title="INCØGNITØ"
+                title="PlayIncognito | INCØGNITØ - Nigerian University eFootball Tournaments"
                 description="INCØGNITØ runs anonymous eFootball tournaments for Nigerian university players. Register, compete, follow leaderboards, and play on a fair campus esports platform."
                 structuredData={[
                     {
                         '@context': 'https://schema.org',
                         '@type': 'Organization',
                         name: 'INCØGNITØ',
+                        alternateName:"PlayIncognito",
                         url: 'https://www.playincognito.ng',
                         logo: 'https://www.playincognito.ng/web-icon.png',
                         sameAs: [
@@ -96,6 +97,7 @@ const Welcome = () => {
                         '@context': 'https://schema.org',
                         '@type': 'WebSite',
                         name: 'INCØGNITØ',
+                        alternateName:"PlayIncognito",
                         url: 'https://www.playincognito.ng'
                     }
                 ]}
