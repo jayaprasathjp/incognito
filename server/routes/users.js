@@ -6,6 +6,42 @@ import { ensureAnnouncementTables } from "../utils/announcementHelpers.js";
 
 const router = express.Router();
 
+// Get basic profile details
+router.get("/profile", authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT username, email, whatsapp_number, institution FROM users WHERE id = $1", 
+            [req.user.id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// Update basic profile details
+router.put("/profile", authenticateToken, async (req, res) => {
+    const { email, whatsapp_number, institution } = req.body;
+    try {
+        const update = await pool.query(
+            `UPDATE users 
+             SET email = $1, whatsapp_number = $2, institution = $3 
+             WHERE id = $4 RETURNING username, email, whatsapp_number, institution`,
+            [email, whatsapp_number, institution, req.user.id]
+        );
+        if (update.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        res.json(update.rows[0]);
+    } catch (error) {
+        if (error.code === '23505') { // Unique violation usually for email
+            return res.status(400).json({ error: "Email already exists" });
+        }
+        console.error(error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
 // Get Current User (Profile + Referral Code + Stats)
 router.get("/referral", authenticateToken, async (req, res) => {
     try {

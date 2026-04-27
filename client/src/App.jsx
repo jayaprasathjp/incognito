@@ -17,6 +17,7 @@ import MyMatches from './pages/MyMatches';
 import ReferralProgram from './pages/ReferralProgram';
 import BankDetails from './pages/BankDetails';
 import ActiveMatch from './pages/ActiveMatch';
+import PersonalDetails from './pages/PersonalDetails';
 
 import AdminLayout from './layouts/AdminLayout';
 import AdminLogin from './pages/admin/AdminLogin';
@@ -82,6 +83,7 @@ function App() {
                <Route path="/matches" element={<MyMatches />} />
                <Route path="/referral" element={<ReferralProgram />} />
                <Route path="/bank-details" element={<BankDetails />} />
+               <Route path="/personal-details" element={<PersonalDetails />} />
                <Route path="/tournament/:id" element={<TournamentDetails />} />
             </Route>
 

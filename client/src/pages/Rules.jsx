@@ -60,8 +60,8 @@ const Rules = () => {
         },
         {
             id: 11,
-            title: 'Disconnects & Rematches',
-            description: 'If a match gets disconnected before full time after a goal(s) has been scored, click on dispute, make your claim and play a 5 minutes rematch. Your previous scores will be automatically added.'
+            title: 'Disputes & Disconnections',
+            description: 'Disputes can only be submitted after the match room code is shared. If your opponent accepts your dispute, an admin will review the case. If your opponent rejects the dispute, both players are automatically disqualified.'
         },
         {
             id: 12,
