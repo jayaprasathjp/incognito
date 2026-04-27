@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { createPortal } from 'react-dom';
 import { api } from '../utils/api';
-import { Bell, Landmark, LayoutDashboard, Megaphone, ScrollText, Swords, Trophy, Users } from 'lucide-react';
+import { Bell, Landmark, LayoutDashboard, Megaphone, ScrollText, Swords, Trophy, Users, User } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose }) => {
     const { logout, user, token, unreadAnnouncements } = useAuth();
@@ -37,6 +37,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         { to: '/matches', label: 'My Matches', icon: <Swords size={18} /> },
         { to: '/referral', label: 'Referral Program', icon: <Users size={18} /> },
         { to: '/bank-details', label: 'Bank Details', icon: <Landmark size={18} /> },
+        { to: '/personal-details', label: 'Personal Details', icon: <User size={18} /> },
     ];
 
     const renderNavLink = (item) => (

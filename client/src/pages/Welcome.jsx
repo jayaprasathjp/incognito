@@ -111,7 +111,7 @@ const Welcome = () => {
                 </h1>
                 
                 <p className="text-slate-600 text-lg font-medium text-center">
-                    Play anonymously, Win publicly.
+                    Play anonymously. Win publicly. Not.
                 </p>
             </div>
 
@@ -167,7 +167,7 @@ const Welcome = () => {
                 <Modal title="About INCØGNITØ" onClose={() => setActiveModal(null)}>
                     <p><strong>INCØGNITØ</strong> is an anonymous, student-focused e-football tournament built for pure competition.</p>
                     <p>We created INCØGNITØ to strip away names, reputations, and popularity and let skill speak for itself. In this tournament, players compete without knowing who they’re facing. No bias. No distractions. Just gameplay.</p>
-                    <p>INCØGNITØ is designed for university students who want something different from the usual campus competitions: a fair, intense, and immersive experience where everyone enters on equal ground.</p>
+                    <p>INCØGNITØ is designed for Nigerian university students who want something different from the usual campus competitions. INCØGNITØ 1.0 launched in December 2025, and INCØGNITØ 2.0 is set to kick off in 2026 — bigger, better, and fully automated. Here, everyone competes using an alias, with no real names.</p>
                     
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                         <p className="font-bold mb-2">Our focus is simple:</p>
@@ -180,7 +180,7 @@ const Welcome = () => {
                     </div>
                     
                     <p className="font-medium italic text-slate-900 text-center pt-2">
-                        "INCØGNITØ isn’t about fame. It’s about proving yourself, anonymously."
+                        INCØGNITØ isn’t about fame. It’s about proving yourself, anonymously.
                     </p>
                 </Modal>
             )}

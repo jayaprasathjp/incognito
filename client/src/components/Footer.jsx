@@ -26,12 +26,12 @@ const Footer = () => {
 
                     {/* Legal Text */}
                     <p className="text-[10px] md:text-xs font-medium tracking-widest uppercase opacity-60 max-w-2xl leading-relaxed mb-2">
-                        "Konami and eFootball are registered trademarks of their respective owners. <br className="hidden md:block"/>This event is independently organized."
+                        Konami and eFootball are registered trademarks of their respective owners. <br className="hidden md:block"/>This event is independently organized.
                     </p>
                     
                     {/* Copyright */}
                     <p className="text-[10px] text-slate-400">
-                        © {new Date().getFullYear()} Incøgnitø League. All rights reserved.
+                        © Play Incognito {new Date().getFullYear()}. All rights reserved.
                     </p>
                 </div>
             </div>
