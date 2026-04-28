@@ -113,7 +113,7 @@ const Welcome = () => {
                 </h1>
                 
                 <p className="text-slate-600 text-lg font-medium text-center">
-                    Play anonymously. Win publicly. Not.
+                    Play anonymously. Win publicly.
                 </p>
             </div>
 
