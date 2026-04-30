@@ -22,7 +22,8 @@ import PersonalDetails from './pages/PersonalDetails';
 import AdminLayout from './layouts/AdminLayout';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import PlayerManagement from './pages/admin/PlayerManagement';
+import UserManagement from './pages/admin/UserManagement';
+import ParticipantsManagement from './pages/admin/ParticipantsManagement';
 import TournamentControl from './pages/admin/TournamentControl';
 import Matches from './pages/admin/Matches';
 import Disputes from './pages/admin/Disputes';
@@ -70,7 +71,8 @@ function App() {
             <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
-                <Route path="players" element={<PlayerManagement />} />
+                <Route path="participants" element={<ParticipantsManagement />} />
+                <Route path="users" element={<UserManagement />} />
                 <Route path="tournament" element={<TournamentControl />} />
                 <Route path="matches" element={<Matches />} />
                 <Route path="disputes" element={<Disputes />} />

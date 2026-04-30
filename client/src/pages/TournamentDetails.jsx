@@ -86,7 +86,7 @@ const TournamentDetails = () => {
     const isAdmin = user?.role === 'admin';
     const isParticipant = participants.some(p => p.user_id === user?.id);
     const pendingParticipants = participants.filter(p => p.status === 'pending');
-    const approvedParticipants = participants.filter(p => p.status === 'approved');
+    const approvedParticipants = participants.filter(p => p.status === 'in');
 
     return (
         <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
@@ -121,8 +121,8 @@ const TournamentDetails = () => {
                                     <div key={p.id} className="glass-card" style={{ padding: '1rem' }}>
                                         <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>{p.username}</div>
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <button onClick={() => handleApprove(p.user_id, 'approved')} className="btn" style={{ background: '#4ade80', color: 'black', padding: '5px 10px', fontSize: '0.8rem' }}>Accept</button>
-                                            <button onClick={() => handleApprove(p.user_id, 'rejected')} className="btn" style={{ background: '#ef4444', color: 'white', padding: '5px 10px', fontSize: '0.8rem' }}>Reject</button>
+                                            <button onClick={() => handleApprove(p.user_id, 'in')} className="btn" style={{ background: '#4ade80', color: 'black', padding: '5px 10px', fontSize: '0.8rem' }}>Accept</button>
+                                            <button onClick={() => handleApprove(p.user_id, 'out')} className="btn" style={{ background: '#ef4444', color: 'white', padding: '5px 10px', fontSize: '0.8rem' }}>Reject</button>
                                         </div>
                                     </div>
                                 ))}

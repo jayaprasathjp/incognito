@@ -38,7 +38,7 @@ router.post("/register", async (req, res) => {
 
             // Insert user
             const newUserResult = await client.query(
-                "INSERT INTO users (username, email, password_hash, institution, whatsapp_number, role, referral_code) VALUES ($1, $2, $3, $4, $5, 'player', $6) RETURNING id, username, email, role, referral_code",
+                "INSERT INTO users (username, email, password_hash, institution, whatsapp_number, role, referral_code, status) VALUES ($1, $2, $3, $4, $5, 'player', $6, 'inactive') RETURNING id, username, email, role, referral_code, status",
                 [username, email, hashedPassword, institution, whatsapp_number, newReferralCode]
             );
             const newUser = newUserResult.rows[0];

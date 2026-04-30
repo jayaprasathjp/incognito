@@ -35,7 +35,8 @@ const AdminSidebar = ({ isOpen, onClose }) => {
 
     const navItems = [
         { path: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
-        { path: "/admin/players", label: "Players", icon: <Users size={20} /> },
+        { path: "/admin/participants", label: "Participants", icon: <Users size={20} /> },
+        { path: "/admin/users", label: "Manage Users", icon: <Users size={20} /> },
         { path: "/admin/tournament", label: "Tournament", icon: <Trophy size={20} /> },
         { path: "/admin/matches", label: "Matches", icon: <Swords size={20} /> },
         { path: "/admin/disputes", label: "Disputes", icon: <Gavel size={20} /> },

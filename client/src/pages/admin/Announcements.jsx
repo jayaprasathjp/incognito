@@ -146,8 +146,8 @@ const Announcements = () => {
             value: 'current_tournament',
             label: 'Current tournament players',
             description: audience.currentTournament
-                ? `Only approved players in ${audience.currentTournament.title}.`
-                : 'Only approved players in the latest tournament.',
+                ? `Only active (In) players in ${audience.currentTournament.title}.`
+                : 'Only active (In) players in the latest tournament.',
             count: audience.currentTournamentPlayers.length,
             icon: <UserRound size={20} />,
         },

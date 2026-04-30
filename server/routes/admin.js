@@ -186,6 +186,79 @@ router.get("/referrals", async (req, res) => {
     }
 });
 
+// === PARTICIPANTS ===
+router.get("/participants", async (req, res) => {
+    try {
+        const { search } = req.query;
+        // get current tournament
+        const tResult = await pool.query("SELECT id FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        if (tResult.rows.length === 0) return res.json([]);
+        const tournamentId = tResult.rows[0].id;
+
+        let query = `
+            SELECT u.id, u.username, u.email, u.status AS user_status, p.status, p.joined_at AS created_at
+            FROM users u
+            JOIN participants p ON u.id = p.user_id
+            WHERE p.tournament_id = $1
+        `;
+        let params = [tournamentId];
+        
+        if (search) {
+            query += " AND (u.username ILIKE $2 OR u.email ILIKE $2)";
+            params.push(`%${search}%`);
+        }
+        
+        query += " ORDER BY p.joined_at DESC";
+
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.get("/participants/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tResult = await pool.query("SELECT id FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        if (tResult.rows.length === 0) return res.status(404).json({ error: "No active tournament" });
+        const tournamentId = tResult.rows[0].id;
+
+        const user = await pool.query("SELECT id, username, email, role, status, institution, whatsapp_number FROM users WHERE id = $1", [id]);
+        if (user.rows.length === 0) return res.status(404).json({ error: "Player not found" });
+
+        const matches = await pool.query(
+            "SELECT id, round, status, match_code, updated_at as created_at, winner_id, score_player1, score_player2, " +
+            "CASE WHEN player1_id = $1 THEN 'Player 1' ELSE 'Player 2' END as position, " +
+            "CASE WHEN winner_id = $1 THEN true ELSE false END as is_winner " +
+            "FROM matches WHERE tournament_id = $2 AND (player1_id = $1 OR player2_id = $1) ORDER BY updated_at DESC", [id, tournamentId]
+        );
+
+        const disputes = await pool.query(`
+            SELECT d.id, d.status, d.created_at, d.resolved_outcome, m.round 
+            FROM disputes d 
+            JOIN matches m ON d.match_id = m.id 
+            WHERE m.tournament_id = $2 AND (m.player1_id = $1 OR m.player2_id = $1) 
+            ORDER BY d.created_at DESC
+        `, [id, tournamentId]);
+
+        const payments = await pool.query(
+            "SELECT id, amount, status, reference, created_at FROM payments WHERE user_id = $1 ORDER BY created_at DESC", [id]
+        );
+
+        res.json({
+            profile: user.rows[0],
+            recentMatches: matches.rows || [],
+            disputes: disputes.rows || [],
+            recentPayments: payments.rows || []
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
 // === PLAYERS ===
 router.post("/players/:id/ban", async (req, res) => {
     try {
@@ -603,10 +676,21 @@ router.post("/matches/:id/override", async (req, res) => {
         const { id } = req.params;
         const { winner_id, score_p1, score_p2 } = req.body;
         
+        const matchRes = await pool.query("SELECT * FROM matches WHERE id = $1", [id]);
+        const match = matchRes.rows[0];
+        const loserId = winner_id == match.player1_id ? match.player2_id : match.player1_id;
+
         const update = await pool.query(
             "UPDATE matches SET winner_id = $1, score_player1 = $2, score_player2 = $3, status = 'completed' WHERE id = $4 RETURNING *",
             [winner_id, score_p1, score_p2, id]
         );
+
+        // Set loser status to 'out'
+        await pool.query(
+            "UPDATE participants SET status = 'out' WHERE user_id = $1 AND tournament_id = $2",
+            [loserId, match.tournament_id]
+        );
+
         await checkIfTournamentFinished(id);
         res.json(update.rows[0]);
     } catch (err) {
@@ -723,6 +807,14 @@ router.post("/disputes/:id/resolve", async (req, res) => {
                      WHERE id = $4`,
                     [w, s1, s2, matchId]
                 );
+
+                // Set loser to 'out'
+                const loserId = w === d.match_p1 ? d.match_p2 : d.match_p1;
+                await client.query(
+                    "UPDATE participants SET status = 'out' WHERE user_id = $1 AND tournament_id = $2",
+                    [loserId, d.tournament_id]
+                );
+
                 await client.query(
                     `UPDATE disputes SET status = 'resolved', resolved_outcome = 'winner_updated',
                          admin_notes = $2, admin_reason = $3
@@ -1112,7 +1204,7 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
             const pRes = await pool.query(
                 `SELECT p.user_id as id, p.session_preference, p.joined_at 
                  FROM participants p 
-                 WHERE p.tournament_id = $1 AND p.status = 'approved' 
+                 WHERE p.tournament_id = $1 AND p.status = 'in' 
                  ORDER BY p.joined_at ASC`,
                 [tournamentId]
             );
