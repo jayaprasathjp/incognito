@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { api } from '../utils/api';
 import appIcon from '../assets/app-icon.png';
 import nigerianUniversities from '../data/nigerianUniversities';
 import SEO from '../components/SEO';
 
 const Register = () => {
+
     const [formData, setFormData] = useState({
         alias: '',
         institution: '',
@@ -18,7 +19,7 @@ const Register = () => {
         referralCode: ''
     });
     const [agreed, setAgreed] = useState(false);
-    const [error, setError] = useState('');
+    const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -63,30 +64,31 @@ const Register = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
+        setErrors({});
 
+        const newErrors = {};
         if (!formData.institution) {
-            setError('Please select your institution.');
-            return;
+            newErrors.institution = 'Please select your institution.';
         }
 
         if (!agreed) {
-            setError('You must agree to the tournament rules.');
-            return;
+            newErrors.agreed = 'You must agree to the tournament rules.';
         }
 
         if (!/^[a-zA-Z0-9]+$/.test(formData.alias)) {
-            setError('Alias must be alphanumeric. No spaces or special characters allowed.');
-            return;
+            newErrors.alias = 'Alias must be alphanumeric. No spaces or special characters allowed.';
         }
 
         if (formData.password !== formData.confirmPassword) {
-            setError('Passwords do not match');
-            return;
+            newErrors.confirmPassword = 'Passwords do not match';
         }
 
         if (formData.password.length < 6 || !/[a-zA-Z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
-            setError('Password must be at least 6 characters and contain both letters and numbers');
+            newErrors.password = 'Password must be at least 6 characters and contain both letters and numbers';
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
             return;
         }
 
@@ -112,23 +114,37 @@ const Register = () => {
                 });
                 if (loginData.token) {
                     login(loginData.token, loginData.user);
-                    navigate('/dashboard'); // Or wherever appropriate
+                    navigate('/dashboard'); 
                 } else {
                      navigate('/login');
                 }
-            } else {
-                setError(data.error || 'Registration failed');
             }
         } catch (err) {
-            setError(err.message || 'Server error');
+            const data = err.response?.data;
+            if (data?.field) {
+                setErrors({ [data.field]: data.error });
+            } else {
+                setErrors({ submit: data?.error || 'Registration failed. Please try again.' });
+            }
         } finally {
             setLoading(false);
         }
     };
 
+
     return (
-        <div className="min-h-screen flex flex-col items-center justify-start pt-10 pb-6 bg-white text-slate-900 font-sans">
+        <div className="min-h-screen flex flex-col items-center justify-start pt-10 pb-6 bg-white text-slate-900 font-sans relative">
+            {/* Back Button */}
+            <button 
+                onClick={() => navigate(-1)} 
+                className="absolute top-6 left-6 p-2 rounded-full hover:bg-slate-50 transition-colors text-slate-600 hover:text-slate-900"
+                aria-label="Go back"
+            >
+                <ArrowLeft size={24} />
+            </button>
+
             <SEO
+
                 title="Register"
                 description="Create your INCØGNITØ account and join anonymous university eFootball tournaments in Nigeria."
                 noindex={true}
@@ -141,9 +157,9 @@ const Register = () => {
                     <h2 className="text-2xl font-normal tracking-wider text-slate-800 uppercase">Register</h2>
                 </div>
 
-                {error && (
+                {errors.submit && (
                     <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center mb-6 border border-red-100">
-                        {error}
+                        {errors.submit}
                     </div>
                 )}
 
@@ -151,15 +167,18 @@ const Register = () => {
                     {/* Alias */}
                     <div className="flex flex-col gap-1">
                         <label className="text-sm text-slate-600">Enter your alias</label>
-                        <input 
-                            type="text" 
-                            name="alias"
-                            placeholder="Your alias" 
-                            value={formData.alias} 
-                            onChange={handleChange} 
-                            required 
-                            className="w-full p-3 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400"
-                        />
+                        <div className="flex flex-col gap-1">
+                            <input 
+                                type="text" 
+                                name="alias"
+                                placeholder="Your alias" 
+                                value={formData.alias} 
+                                onChange={handleChange} 
+                                required 
+                                className={`w-full p-3 bg-white border rounded-lg outline-none transition-all text-slate-800 placeholder:text-slate-400 ${errors.alias ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-slate-500'}`}
+                            />
+                            {errors.alias && <span className="text-xs text-red-500 ml-1">{errors.alias}</span>}
+                        </div>
                     </div>
 
                     {/* Institution - Searchable Dropdown */}
@@ -176,7 +195,7 @@ const Register = () => {
                                     setShowDropdown(true);
                                 }}
                                 onFocus={() => setShowDropdown(true)}
-                                className="w-full p-3 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400 pr-10"
+                                className={`w-full p-3 bg-white border rounded-lg outline-none transition-all text-slate-800 placeholder:text-slate-400 pr-10 ${errors.institution ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-slate-500'}`}
                             />
                             {formData.institution && (
                                 <button
@@ -192,6 +211,7 @@ const Register = () => {
                                 </button>
                             )}
                         </div>
+                        {errors.institution && <span className="text-xs text-red-500 ml-1">{errors.institution}</span>}
                         {showDropdown && !formData.institution && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
                                 {filteredUniversities.length > 0 ? (
@@ -219,74 +239,86 @@ const Register = () => {
                     {/* WhatsApp */}
                      <div className="flex flex-col gap-1">
                         <label className="text-sm text-slate-600">Enter your WhatsApp phone number</label>
-                        <input 
-                            type="tel" 
-                            name="whatsapp"
-                            placeholder="+234 xxx xxx xxxx" 
-                            value={formData.whatsapp} 
-                            onChange={handleChange} 
-                            required 
-                            className="w-full p-3 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400"
-                        />
+                        <div className="flex flex-col gap-1">
+                            <input 
+                                type="tel" 
+                                name="whatsapp"
+                                placeholder="+234 xxx xxx xxxx" 
+                                value={formData.whatsapp} 
+                                onChange={handleChange} 
+                                required 
+                                className={`w-full p-3 bg-white border rounded-lg outline-none transition-all text-slate-800 placeholder:text-slate-400 ${errors.whatsapp ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-slate-500'}`}
+                            />
+                            {errors.whatsapp && <span className="text-xs text-red-500 ml-1">{errors.whatsapp}</span>}
+                        </div>
                     </div>
 
                     {/* Email */}
                     <div className="flex flex-col gap-1">
                         <label className="text-sm text-slate-600">Enter your e-mail address</label>
-                        <input 
-                            type="email" 
-                            name="email"
-                            placeholder="email@example.com" 
-                            value={formData.email} 
-                            onChange={handleChange} 
-                            required 
-                            className="w-full p-3 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400"
-                        />
+                        <div className="flex flex-col gap-1">
+                            <input 
+                                type="email" 
+                                name="email"
+                                placeholder="email@example.com" 
+                                value={formData.email} 
+                                onChange={handleChange} 
+                                required 
+                                className={`w-full p-3 bg-white border rounded-lg outline-none transition-all text-slate-800 placeholder:text-slate-400 ${errors.email ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-slate-500'}`}
+                            />
+                            {errors.email && <span className="text-xs text-red-500 ml-1">{errors.email}</span>}
+                        </div>
                     </div>
 
                     {/* Password */}
                     <div className="flex flex-col gap-1 relative">
                         <label className="text-sm text-slate-600">Enter a password</label>
-                        <div className="relative">
-                            <input 
-                                type={showPassword ? "text" : "password"} 
-                                name="password"
-                                placeholder="........" 
-                                value={formData.password} 
-                                onChange={handleChange} 
-                                required 
-                                className="w-full p-3 pr-10 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                            >
-                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
+                        <div className="flex flex-col gap-1">
+                            <div className="relative">
+                                <input 
+                                    type={showPassword ? "text" : "password"} 
+                                    name="password"
+                                    placeholder="........" 
+                                    value={formData.password} 
+                                    onChange={handleChange} 
+                                    required 
+                                    className={`w-full p-3 pr-10 bg-white border rounded-lg outline-none transition-all text-slate-800 placeholder:text-slate-400 ${errors.password ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-slate-500'}`}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
+                            {errors.password && <span className="text-xs text-red-500 ml-1">{errors.password}</span>}
                         </div>
                     </div>
 
                     {/* Confirm Password */}
                     <div className="flex flex-col gap-1 relative">
                         <label className="text-sm text-slate-600">Confirm password</label>
-                        <div className="relative">
-                            <input
-                                type={showConfirmPassword ? "text" : "password"}
-                                name="confirmPassword"
-                                placeholder="........"
-                                value={formData.confirmPassword}
-                                onChange={handleChange}
-                                required
-                                className="w-full p-3 pr-10 bg-white border border-slate-300 rounded-lg outline-none focus:border-slate-500 transition-all text-slate-800 placeholder:text-slate-400"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                            >
-                                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
+                        <div className="flex flex-col gap-1">
+                            <div className="relative">
+                                <input
+                                    type={showConfirmPassword ? "text" : "password"}
+                                    name="confirmPassword"
+                                    placeholder="........"
+                                    value={formData.confirmPassword}
+                                    onChange={handleChange}
+                                    required
+                                    className={`w-full p-3 pr-10 bg-white border rounded-lg outline-none transition-all text-slate-800 placeholder:text-slate-400 ${errors.confirmPassword ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-slate-500'}`}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                >
+                                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
+                            {errors.confirmPassword && <span className="text-xs text-red-500 ml-1">{errors.confirmPassword}</span>}
                         </div>
                     </div>
                     
@@ -312,7 +344,7 @@ const Register = () => {
                             onChange={(e) => setAgreed(e.target.checked)}
                             className="mt-1 w-5 h-5 border-slate-300 rounded text-slate-900 focus:ring-slate-500"
                         />
-                        <label htmlFor="terms" className="text-sm text-slate-600 leading-tight cursor-pointer">
+                        <label htmlFor="terms" className={`text-sm leading-tight cursor-pointer ${errors.agreed ? 'text-red-500' : 'text-slate-600'}`}>
                             I agree to follow the rules of the tournament and any non-compliance will lead to my immediate disqualification
                         </label>
                     </div>

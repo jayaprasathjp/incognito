@@ -307,7 +307,7 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                     <p className="text-xs font-black text-amber-800 uppercase tracking-wider mb-1">Opponent dispute</p>
                     <p className="text-sm text-amber-900 font-medium mb-1">{pending.reason}</p>
                     <p className="text-xs text-amber-700 mb-1">Category: {pending.reason_category || "others"}</p>
-                    <p className="text-[10px] text-amber-700 mb-3">
+                    <p className="text-[10px] text-amber-700 mb-3 break-all">
                         Submitted by {pending.submitted_by_name || "opponent"} — respond within 1 hour.
                     </p>
                     <div className="grid grid-cols-2 gap-2 mb-3">
@@ -385,7 +385,7 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                         <ul className="space-y-2 max-h-40 overflow-y-auto">
                             {list.map((d) => (
                                 <li key={d.id} className="text-xs border border-slate-100 rounded-lg p-2 bg-white">
-                                    <span className="font-bold text-slate-700">{d.submitted_by_name}</span>
+                                    <span className="font-bold text-slate-700 break-all">{d.submitted_by_name}</span>
                                     <span className="text-slate-400"> · {d.status}</span>
                                     {d.dispute_kind === "score_conflict" && (
                                         <span className="ml-1 text-amber-600 font-bold">admin review</span>
@@ -668,23 +668,23 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                     )}
                 </div>
             ) : (
-                <div className="flex justify-between items-center my-6 px-4">
-                    <div className="text-center relative">
+                <div className="flex justify-between items-center my-6 gap-2">
+                    <div className="flex-1 min-w-0 text-center relative">
                         {match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">HOME</div>}
                         {!match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">AWAY</div>}
                         <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
                             {user?.username?.[0]?.toUpperCase()}
                         </div>
-                        <p className="font-bold text-sm text-slate-900">You</p>
+                        <p className="font-bold text-sm text-slate-900 truncate px-1">You</p>
                     </div>
-                    <div className="text-slate-300 font-black text-xl">VS</div>
-                    <div className="text-center relative">
+                    <div className="text-slate-300 font-black text-xl shrink-0">VS</div>
+                    <div className="flex-1 min-w-0 text-center relative">
                         {!match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">HOME</div>}
                         {match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">AWAY</div>}
                         <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
                             {match?.match_code === 'BYE' ? '⭐' : (opponentName?.[0]?.toUpperCase() || '?')}
                         </div>
-                        <p className="font-bold text-sm text-slate-900">{match?.match_code === 'BYE' ? 'No Opponent' : (opponentName || 'Waiting')}</p>
+                        <p className="font-bold text-sm text-slate-900 truncate px-1" title={opponentName}>{match?.match_code === 'BYE' ? 'No Opponent' : (opponentName || 'Waiting')}</p>
                     </div>
                 </div>
             )}
@@ -896,7 +896,7 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                         {match.game_room_code && match.hasSubmited && (
                             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
                                 <p className="font-bold text-emerald-800 mb-1">Result Submitted</p>
-                                <p className="text-xs text-emerald-600">Waiting for {opponentName} to submit their result.</p>
+                                <p className="text-xs text-emerald-600 break-all">Waiting for {opponentName} to submit their result.</p>
                             </div>
                         )}
                     </div>
@@ -952,7 +952,7 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                                     <p className="text-[10px] text-slate-500 font-bold uppercase">Opp</p>
                                 </div>
                             </div>
-                            <p className="text-xs text-slate-500 font-medium">
+                            <p className="text-xs text-slate-500 font-medium break-all">
                                 Winner: <span className="font-bold text-slate-800">{winnerName}</span>
                             </p>
                             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{outcomeLabel}</p>

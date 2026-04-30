@@ -11,7 +11,8 @@ import {
     LogOut,
     Megaphone,
     Gavel,
-    X
+    X,
+    Share2
 } from "lucide-react";
 
 const AdminSidebar = ({ isOpen, onClose }) => {
@@ -40,6 +41,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         { path: "/admin/disputes", label: "Disputes", icon: <Gavel size={20} /> },
         { path: "/admin/payments", label: "Payments", icon: <CreditCard size={20} /> },
         { path: "/admin/announcements", label: "Announcements", icon: <Megaphone size={20} /> },
+        { path: "/admin/referral-tracks", label: "Referral Tracks", icon: <Share2 size={20} /> },
     ];
 
     const linkClass = (path) => `

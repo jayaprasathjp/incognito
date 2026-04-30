@@ -186,6 +186,12 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
             [id, req.user.id, session_preference || null]
         );
 
+        // Increment permanent tournament count in users table
+        await pool.query(
+            "UPDATE users SET tournament_joined = tournament_joined + 1 WHERE id = $1",
+            [req.user.id]
+        );
+
         res.status(201).json({ message: "Join request sent" });
     } catch (error) {
         if (error.code === '23505') { // Unique violation

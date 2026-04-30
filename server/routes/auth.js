@@ -10,8 +10,8 @@ const router = express.Router();
 
 // Register
 router.post("/register", async (req, res) => {
+    const { username, email, password, institution, whatsapp_number, referralCode } = req.body;
     try {
-        const { username, email, password, institution, whatsapp_number, referralCode } = req.body;
         // Basic validation
         if (!username || !email || !password) {
             return res.status(400).json({ error: "All fields are required" });
@@ -71,12 +71,27 @@ router.post("/register", async (req, res) => {
         }
     } catch (error) {
         if (error.code === '23505') { // Unique violation
-            return res.status(400).json({ error: "Username or email already exists" });
+            try {
+                // Check which field caused the conflict
+                const checkUsername = await pool.query("SELECT id FROM users WHERE username = $1", [username]);
+                if (checkUsername.rows.length > 0) {
+                    return res.status(400).json({ error: "This alias is already taken", field: "alias" });
+                }
+                const checkEmail = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+                if (checkEmail.rows.length > 0) {
+                    return res.status(400).json({ error: "This email is already registered", field: "email" });
+                }
+            } catch (checkError) {
+                console.error("Conflict check error:", checkError);
+            }
+            return res.status(400).json({ error: "Alias or email already exists" });
         }
-        console.error(error);
-        res.status(500).json({ error: "Server error" });
+        console.error("Registration error:", error);
+        res.status(500).json({ error: "Server error during registration" });
     }
 });
+
+
 
 // Login
 router.post("/login", async (req, res) => {

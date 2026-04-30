@@ -193,9 +193,10 @@ const PlayerDashboard = () => {
                     <h1 className="text-sm font-light text-slate-500 uppercase tracking-[0.2em] mb-1">
                         Welcome
                     </h1>
-                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
+                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter truncate max-w-[280px] mx-auto px-4" title={user?.username}>
                         {user?.username || 'PLAYER'}
                     </h2>
+
                 </div>
 
                 {/* Initial Loader */}

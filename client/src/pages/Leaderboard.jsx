@@ -19,22 +19,24 @@ const Leaderboard = () => {
     const [tooltipState, setTooltipState] = useState({ visible: false, x: 0, y: 0, player: null });
     const itemsPerPage = 10;
 
-    useEffect(() => {
-        const fetchLeaderboard = async () => {
-            try {
-                const data = await api.get('/leaderboard');
-                if (data.leaderboard) {
-                    setLeaderboardData(data.leaderboard);
-                    setTournamentData(data.tournament);
-                } else {
-                    setLeaderboardData(Array.isArray(data) ? data : []);
-                }
-            } catch (error) {
-                console.error("Failed to fetch leaderboard", error);
-            } finally {
-                setLoading(false);
+    const fetchLeaderboard = async () => {
+        setLoading(true);
+        try {
+            const data = await api.get('/leaderboard');
+            if (data.leaderboard) {
+                setLeaderboardData(data.leaderboard);
+                setTournamentData(data.tournament);
+            } else {
+                setLeaderboardData(Array.isArray(data) ? data : []);
             }
-        };
+        } catch (error) {
+            console.error("Failed to fetch leaderboard", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchLeaderboard();
     }, []);
 
@@ -147,34 +149,46 @@ const Leaderboard = () => {
 
                         {/* Search and Filters */}
                         {standardRoster.length > 0 && (
-                             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-                                <div className="relative w-full max-w-xs group transition-all duration-300">
-                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                        <svg className="w-4 h-4 text-indigo-500/70 group-focus-within:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                                        </svg>
-                                    </div>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search alias or University..." 
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-10 pr-10 py-2.5 bg-white/40 hover:bg-white/60 focus:bg-white/90 backdrop-blur-xl border border-white/50 focus:border-indigo-500/50 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 shadow-md shadow-indigo-500/5 transition-all text-slate-800 placeholder:text-slate-400 font-bold text-xs"
-                                    />
-                                    {searchQuery && (
-                                        <button 
-                                            onClick={() => setSearchQuery('')}
-                                            className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-indigo-600 transition-colors"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+                                <div className="flex items-center gap-2 w-full sm:w-auto max-w-sm sm:max-w-none">
+                                    <div className="relative flex-grow sm:w-72 group transition-all duration-300">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <svg className="w-4 h-4 text-indigo-500/70 group-focus-within:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                                             </svg>
-                                        </button>
-                                    )}
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search alias or University..." 
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full pl-10 pr-10 py-2.5 bg-white/40 hover:bg-white/60 focus:bg-white/90 backdrop-blur-xl border border-white/50 focus:border-indigo-500/50 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 shadow-md shadow-indigo-500/5 transition-all text-slate-800 placeholder:text-slate-400 font-bold text-xs"
+                                        />
+                                        {searchQuery && (
+                                            <button 
+                                                onClick={() => setSearchQuery('')}
+                                                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-indigo-600 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={fetchLeaderboard}
+                                        className="flex-shrink-0 p-2.5 bg-white/40 hover:bg-white/60 focus:bg-white/90 backdrop-blur-xl border border-white/50 focus:border-indigo-500/50 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 shadow-md shadow-indigo-500/5 transition-all text-indigo-600 font-bold text-xs flex items-center gap-2 active:scale-95"
+                                        title="Refresh Leaderboard"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                        </svg>
+                                        <span className="hidden sm:inline">Refresh</span>
+                                    </button>
                                 </div>
                                 
                                 {searchQuery && (
-                                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-500">
+                                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-500 ml-auto sm:ml-0">
                                         <div className="h-1 w-1 rounded-full bg-indigo-400 animate-pulse"></div>
                                         <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50/50 backdrop-blur-sm px-3 py-1 rounded-full border border-indigo-100/50">
                                             {filteredRoster.length} {filteredRoster.length === 1 ? 'match' : 'matches'}

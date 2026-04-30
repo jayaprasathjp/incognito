@@ -66,6 +66,12 @@ router.post("/initialize", authenticateToken, async (req, res) => {
                 [tournament_id, userId, session_preference || null]
             );
 
+            // Increment permanent tournament count in users table
+            await pool.query(
+                "UPDATE users SET tournament_joined = tournament_joined + 1 WHERE id = $1",
+                [userId]
+            );
+
             // Record a bypassed payment
             await pool.query(
                 "INSERT INTO payments (user_id, tournament_id, amount, status, reference, flw_transaction_id) VALUES ($1, $2, $3, 'completed', $4, 'BYPASS')",
@@ -171,6 +177,12 @@ router.post("/verify", authenticateToken, async (req, res) => {
             await pool.query(
                 "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'approved', $3)",
                 [payment.tournament_id, userId, session_preference || null]
+            );
+
+            // Increment permanent tournament count in users table
+            await pool.query(
+                "UPDATE users SET tournament_joined = tournament_joined + 1 WHERE id = $1",
+                [userId]
             );
 
             return res.json({ status: "success", message: "Payment verified. Tournament joined!" });
