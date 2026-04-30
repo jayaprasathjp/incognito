@@ -162,6 +162,30 @@ router.get("/players/:id", async (req, res) => {
     }
 });
 
+router.get("/referrals", async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                r.id,
+                r.created_at,
+                u1.username as referrer_name,
+                u1.id as restillferrer_id,
+                u2.username as referred_name,
+                u2.email as referred_email,
+                u2.id as referred_user_id,
+                u2.tournament_joined as tournaments_joined
+            FROM referrals r
+            JOIN users u1 ON r.referrer_id = u1.id
+            JOIN users u2 ON r.referred_user_id = u2.id
+            ORDER BY r.created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
 // === PLAYERS ===
 router.post("/players/:id/ban", async (req, res) => {
     try {

@@ -28,6 +28,7 @@ import Matches from './pages/admin/Matches';
 import Disputes from './pages/admin/Disputes';
 import Payments from './pages/admin/Payments';
 import Announcements from './pages/admin/Announcements';
+import ReferralTracks from './pages/admin/ReferralTracks';
 
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
@@ -75,6 +76,7 @@ function App() {
                 <Route path="disputes" element={<Disputes />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="announcements" element={<Announcements />} />
+                <Route path="referral-tracks" element={<ReferralTracks />} />
             </Route>
 
             <Route element={<ProtectedRoute />}>

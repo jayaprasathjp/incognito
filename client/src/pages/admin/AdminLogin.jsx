@@ -10,11 +10,13 @@ const AdminLogin = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
+    const [errors, setErrors] = useState({});
     const [showPassword, setShowPassword] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setErrors({});
         try {
             const data = await api.post('/auth/login', formData);
 
@@ -25,14 +27,16 @@ const AdminLogin = () => {
                     navigate("/admin/dashboard");
                 } else {
                     toast.error("Access Denied: Admins Only");
-                    setLoading(false);
                 }
-            } else {
-                toast.error(data.error || "Login Failed");
-                setLoading(false);
             }
-        } catch (error) {
-            toast.error("Something went wrong");
+        } catch (err) {
+            const data = err.response?.data;
+            if (data?.field) {
+                setErrors({ [data.field]: data.error });
+            } else {
+                setErrors({ submit: data?.error || "Login Failed" });
+            }
+        } finally {
             setLoading(false);
         }
     };
@@ -50,41 +54,53 @@ const AdminLogin = () => {
                     <p className="text-slate-500">Secure access for tournament management</p>
                 </div>
 
+                {errors.submit && (
+                    <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center mb-6 border border-red-100">
+                        {errors.submit}
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-600">Email or Alias</label>
-                        <div className="relative">
-                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                            <input
-                                type="text"
-                                className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-blue-500 transition-colors shadow-sm"
-                                placeholder="Enter your credentials"
-                                value={formData.identifier}
-                                onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
-                                required
-                            />
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm font-medium text-slate-600 ml-1">Email or Alias</label>
+                        <div className="flex flex-col gap-1">
+                            <div className="relative">
+                                <User className={`absolute left-4 top-1/2 -translate-y-1/2 ${errors.identifier ? 'text-red-400' : 'text-slate-400'}`} size={20} />
+                                <input
+                                    type="text"
+                                    className={`w-full pl-12 pr-4 py-3 bg-white border rounded-xl text-slate-900 focus:outline-none transition-colors shadow-sm ${errors.identifier ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'}`}
+                                    placeholder="Enter your credentials"
+                                    value={formData.identifier}
+                                    onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            {errors.identifier && <span className="text-xs text-red-500 ml-1">{errors.identifier}</span>}
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-600">Password</label>
-                        <div className="relative">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                            <input
-                                type={showPassword ? "text" : "password"}
-                                className="w-full pl-12 pr-12 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-blue-500 transition-colors shadow-sm"
-                                placeholder="••••••••"
-                                value={formData.password}
-                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                            >
-                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm font-medium text-slate-600 ml-1">Password</label>
+                        <div className="flex flex-col gap-1">
+                            <div className="relative">
+                                <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 ${errors.password ? 'text-red-400' : 'text-slate-400'}`} size={20} />
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    className={`w-full pl-12 pr-12 py-3 bg-white border rounded-xl text-slate-900 focus:outline-none transition-colors shadow-sm ${errors.password ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'}`}
+                                    placeholder="••••••••"
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                >
+                                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                </button>
+                            </div>
+                            {errors.password && <span className="text-xs text-red-500 ml-1">{errors.password}</span>}
                         </div>
                     </div>
 
@@ -108,6 +124,7 @@ const AdminLogin = () => {
                 </form>
             </div>
         </div>
+
     );
 };
 
