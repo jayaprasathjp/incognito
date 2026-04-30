@@ -64,7 +64,7 @@ export async function getAnnouncementAudience() {
              FROM participants p
              JOIN users u ON u.id = p.user_id
              WHERE p.tournament_id = $1
-               AND p.status = 'approved'
+               AND p.status = 'in'
                AND u.role = 'player'
              ORDER BY u.username ASC`,
             [currentTournament.id]
@@ -113,7 +113,7 @@ export async function resolveAnnouncementRecipients(target, recipientIds = []) {
              FROM participants p
              JOIN users u ON u.id = p.user_id
              WHERE p.tournament_id = $1
-               AND p.status = 'approved'
+               AND p.status = 'in'
                AND u.role = 'player'
                AND COALESCE(u.status, 'active') != 'banned'
              ORDER BY u.username ASC`,

@@ -81,7 +81,7 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
                  if (tournament.status === 'scheduled' || (tournament.status === 'active' && currentRound === 1)) {
                      const allParts = await pool.query(
                          `SELECT user_id FROM participants 
-                          WHERE tournament_id = $1 AND status = 'approved' 
+                          WHERE tournament_id = $1 AND status = 'in' 
                           ORDER BY joined_at ASC`,
                          [tournament.id]
                      );
@@ -182,13 +182,13 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
 
         // Add to participants (default status approved for MVP)
         await pool.query(
-            "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'approved', $3)",
+            "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'in', $3)",
             [id, req.user.id, session_preference || null]
         );
 
-        // Increment permanent tournament count in users table
+        // Increment permanent tournament count in users table and set status to active
         await pool.query(
-            "UPDATE users SET tournament_joined = tournament_joined + 1 WHERE id = $1",
+            "UPDATE users SET tournament_joined = tournament_joined + 1, status = 'active' WHERE id = $1 AND status != 'banned'",
             [req.user.id]
         );
 
@@ -223,10 +223,10 @@ router.get("/:id/participants", async (req, res) => {
 // Approve/Reject Participant (Admin)
 router.put("/:id/participants/:userId", authenticateToken, authorizeAdmin, async (req, res) => {
     const { id, userId } = req.params;
-    const { status } = req.body; // 'approved' or 'rejected'
+    const { status } = req.body; // 'in' or 'out'
 
-    if (!['approved', 'rejected'].includes(status)) {
-        return res.status(400).json({ error: "Invalid status" });
+    if (!['in', 'out'].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Use 'in' or 'out'." });
     }
 
     try {

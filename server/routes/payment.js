@@ -62,13 +62,13 @@ router.post("/initialize", authenticateToken, async (req, res) => {
         if (process.env.PAYMENT_BYPASS === 'true') {
             // Dev mode: skip payment, join directly
             await pool.query(
-                "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'approved', $3)",
+                "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'in', $3)",
                 [tournament_id, userId, session_preference || null]
             );
 
-            // Increment permanent tournament count in users table
+            // Increment permanent tournament count in users table and set status to active
             await pool.query(
-                "UPDATE users SET tournament_joined = tournament_joined + 1 WHERE id = $1",
+                "UPDATE users SET tournament_joined = tournament_joined + 1, status = 'active' WHERE id = $1 AND status != 'banned'",
                 [userId]
             );
 
@@ -175,13 +175,13 @@ router.post("/verify", authenticateToken, async (req, res) => {
 
             // 4. Join the tournament
             await pool.query(
-                "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'approved', $3)",
+                "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'in', $3)",
                 [payment.tournament_id, userId, session_preference || null]
             );
 
-            // Increment permanent tournament count in users table
+            // Increment permanent tournament count in users table and set status to active
             await pool.query(
-                "UPDATE users SET tournament_joined = tournament_joined + 1 WHERE id = $1",
+                "UPDATE users SET tournament_joined = tournament_joined + 1, status = 'active' WHERE id = $1 AND status != 'banned'",
                 [userId]
             );
 
