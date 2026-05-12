@@ -5,7 +5,7 @@ Welcome to **INCØGNITØ** — the ultimate competitive platform for the Nigeria
 
 ### 1. Getting Started
 To join the competition, you first need to create your profile:
-*   **Alias:** Your public in-game name (choose something legendary!).
+*   **Email:** Your primary account identifier and login method.
 *   **Institution:** Select your Nigerian university from the list.
 *   **WhatsApp:** Used for direct contact if there are match issues.
 *   **Referrals:** If a friend invited you, enter their code during signup to help them earn rewards.
@@ -14,11 +14,12 @@ To join the competition, you first need to create your profile:
 
 ### 2. Joining a Tournament
 Once you're logged in, check your **Dashboard** for active tournaments.
-1.  **Choose Your Session:** Pick your preferred playing time:
+1.  **Enter your Alias:** Choose your public in-game name. This alias must be **globally unique**—if someone else on the platform is already using it, you will need to choose another! You can, however, use your own alias in future tournaments.
+2.  **Choose Your Session:** Pick your preferred playing time:
     *   ☀️ **Morning:** 10:30 AM – 1:30 PM
     *   🌤️ **Afternoon:** 2:00 PM – 5:00 PM
     *   🌙 **Evening:** 5:30 PM – 8:30 PM
-2.  **Payment:** Review the entry fee and pay securely via **Flutterwave**. Once confirmed, you'll see a "You're In!" badge on your dashboard.
+3.  **Payment:** Review the entry fee and pay securely via **Flutterwave**. Once confirmed, you'll see a "You're In!" badge on your dashboard.
 
 ---
 
