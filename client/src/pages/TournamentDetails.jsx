@@ -119,7 +119,7 @@ const TournamentDetails = () => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 {pendingParticipants.map(p => (
                                     <div key={p.id} className="glass-card" style={{ padding: '1rem' }}>
-                                        <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>{p.username}</div>
+                                        <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>{p.display_name || p.email}</div>
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                             <button onClick={() => handleApprove(p.user_id, 'in')} className="btn" style={{ background: '#4ade80', color: 'black', padding: '5px 10px', fontSize: '0.8rem' }}>Accept</button>
                                             <button onClick={() => handleApprove(p.user_id, 'out')} className="btn" style={{ background: '#ef4444', color: 'white', padding: '5px 10px', fontSize: '0.8rem' }}>Reject</button>
@@ -133,7 +133,7 @@ const TournamentDetails = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {approvedParticipants.map(p => (
                             <div key={p.id} style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                                {p.username}
+                                {p.display_name || p.email}
                             </div>
                         ))}
                         {approvedParticipants.length === 0 && <p style={{ opacity: 0.5 }}>No active participants.</p>}

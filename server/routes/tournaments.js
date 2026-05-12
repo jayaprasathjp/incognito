@@ -42,9 +42,15 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
 
         // Winner Info
         if (tournament.status === 'completed' && tournament.winner_id) {
-            const winnerRes = await pool.query("SELECT username FROM users WHERE id = $1", [tournament.winner_id]);
+            const winnerRes = await pool.query(
+                `SELECT COALESCE(p.alias, u.email) as display_name 
+                 FROM users u 
+                 LEFT JOIN participants p ON u.id = p.user_id AND p.tournament_id = $2
+                 WHERE u.id = $1`, 
+                 [tournament.winner_id, tournament.id]
+            );
             if (winnerRes.rows.length > 0) {
-                tournament.winner_username = winnerRes.rows[0].username;
+                tournament.winner_display_name = winnerRes.rows[0].display_name;
             }
         }
 
@@ -63,10 +69,11 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
                  // We look for the user's match in the current round so they can see BYEs or completed matches.
                  const matchRes = await pool.query(
                     `SELECT m.*, 
-                            op.username as opponent_name, 
+                            COALESCE(op_part.alias, op.email) as opponent_name, 
                             op.id as opponent_id
                      FROM matches m
                      LEFT JOIN users op ON (CASE WHEN m.player1_id = $2 THEN m.player2_id ELSE m.player1_id END) = op.id
+                     LEFT JOIN participants op_part ON op.id = op_part.user_id AND op_part.tournament_id = m.tournament_id
                      WHERE m.tournament_id = $1 
                      AND (m.player1_id = $2 OR m.player2_id = $2)
                      AND m.round = $3
@@ -153,9 +160,20 @@ router.post("/", authenticateToken, authorizeAdmin, async (req, res) => {
 // Join Tournament (Player)
 router.post("/:id/join", authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { session_preference } = req.body;
-    console.log(`[DEBUG] Join request received for tournament ID: ${id} from user ${req.user.id}, session: ${session_preference}`);
+    const { session_preference, alias } = req.body;
+    console.log(`[DEBUG] Join request received for tournament ID: ${id} from user ${req.user.id}, session: ${session_preference}, alias: ${alias}`);
     try {
+        // Validate alias
+        if (!alias || !alias.trim()) {
+            return res.status(400).json({ error: "Alias is required to join a tournament" });
+        }
+        if (!/^[a-zA-Z0-9]+$/.test(alias.trim())) {
+            return res.status(400).json({ error: "Alias must be alphanumeric. No spaces or special characters allowed." });
+        }
+        if (alias.trim().length < 3 || alias.trim().length > 20) {
+            return res.status(400).json({ error: "Alias must be between 3 and 20 characters." });
+        }
+
         // Check if tournament is open
         const tournamentCheck = await pool.query("SELECT * FROM tournaments WHERE id = $1", [id]);
         if (tournamentCheck.rows.length === 0) return res.status(404).json({ error: "Tournament not found" });
@@ -180,10 +198,19 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
             }
         }
 
-        // Add to participants (default status approved for MVP)
+        // Check alias uniqueness within this tournament
+        const aliasCheck = await pool.query(
+            "SELECT id FROM participants WHERE tournament_id = $1 AND LOWER(alias) = LOWER($2)",
+            [id, alias.trim()]
+        );
+        if (aliasCheck.rows.length > 0) {
+            return res.status(400).json({ error: "This alias is already taken in this tournament. Please choose another." });
+        }
+
+        // Add to participants with alias
         await pool.query(
-            "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'in', $3)",
-            [id, req.user.id, session_preference || null]
+            "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias) VALUES ($1, $2, 'in', $3, $4)",
+            [id, req.user.id, session_preference || null, alias.trim()]
         );
 
         // Increment permanent tournament count in users table and set status to active
@@ -207,7 +234,7 @@ router.get("/:id/participants", async (req, res) => {
     const { id } = req.params;
     try {
         const result = await pool.query(
-            `SELECT p.*, u.username 
+            `SELECT p.*, COALESCE(p.alias, u.email) AS username 
              FROM participants p 
              JOIN users u ON p.user_id = u.id 
              WHERE p.tournament_id = $1`,

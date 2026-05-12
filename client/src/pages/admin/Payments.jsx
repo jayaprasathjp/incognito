@@ -167,7 +167,7 @@ const Payments = () => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
                         <input 
                             type="text"
-                            placeholder="Search alias or reference..."
+                            placeholder="Search email or reference..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm group-hover:border-slate-300"
@@ -246,7 +246,7 @@ const Payments = () => {
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex items-center gap-3">
                                                 <div>
-                                                    <div className="font-bold text-slate-900 leading-tight">{p.username || 'Unknown Player'}</div>
+                                                    <div className="font-bold text-slate-900 leading-tight">{p.email || 'Unknown Player'}</div>
                                                     <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
                                                         <span className="font-mono">{p.reference?.substring(0, 15)}...</span>
                                                     </div>
@@ -289,10 +289,10 @@ const Payments = () => {
                                             <td className="p-4 pl-6">
                                                 <div className="flex items-center gap-3">
                                                     <div className="h-9 w-9 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold text-sm shadow-inner shrink-0 border border-slate-200/50">
-                                                        {p.username?.charAt(0).toUpperCase() || '?'}
+                                                        {(p.email || '?').charAt(0).toUpperCase()}
                                                     </div>
                                                     <div>
-                                                        <div className="font-bold text-slate-900">{p.username || 'Unknown'}</div>
+                                                        <div className="font-bold text-slate-900">{p.email || 'Unknown'}</div>
                                                         <div className="text-[10px] text-slate-400">ID: {p.id} | Tourney: {p.tournament_id}</div>
                                                     </div>
                                                 </div>

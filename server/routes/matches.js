@@ -232,11 +232,13 @@ router.get("/my-matches", authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT m.*, 
-             p1.username as player1_name, 
-             p2.username as player2_name,
+             COALESCE(part1.alias, p1.email) as player1_name, 
+             COALESCE(part2.alias, p2.email) as player2_name,
              t.title as tournament_title,
              t.status as tournament_status
              FROM matches m
+             LEFT JOIN participants part1 ON m.player1_id = part1.user_id AND m.tournament_id = part1.tournament_id
+             LEFT JOIN participants part2 ON m.player2_id = part2.user_id AND m.tournament_id = part2.tournament_id
              LEFT JOIN users p1 ON m.player1_id = p1.id
              LEFT JOIN users p2 ON m.player2_id = p2.id
              JOIN tournaments t ON m.tournament_id = t.id
@@ -265,9 +267,11 @@ router.get("/:id/disputes", authenticateToken, async (req, res) => {
         }
 
         const dRes = await pool.query(
-            `SELECT d.*, u.username AS submitted_by_name
+            `SELECT d.*, COALESCE(p.alias, u.email) AS submitted_by_name
              FROM disputes d
              JOIN users u ON d.submitted_by = u.id
+             JOIN matches m ON d.match_id = m.id
+             LEFT JOIN participants p ON p.user_id = u.id AND p.tournament_id = m.tournament_id
              WHERE d.match_id = $1
              ORDER BY d.created_at DESC`,
             [id]
@@ -521,12 +525,14 @@ router.get("/:id", authenticateToken, async (req, res) => {
 
         const result = await pool.query(
             `SELECT m.*, 
-             p1.username as player1_name, 
-             p2.username as player2_name,
+             COALESCE(part1.alias, p1.email) as player1_name, 
+             COALESCE(part2.alias, p2.email) as player2_name,
              t.title as tournament_title,
              t.status as tournament_status,
              r.date as match_date
              FROM matches m
+             LEFT JOIN participants part1 ON m.player1_id = part1.user_id AND m.tournament_id = part1.tournament_id
+             LEFT JOIN participants part2 ON m.player2_id = part2.user_id AND m.tournament_id = part2.tournament_id
              LEFT JOIN users p1 ON m.player1_id = p1.id
              LEFT JOIN users p2 ON m.player2_id = p2.id
              JOIN tournaments t ON m.tournament_id = t.id
@@ -547,9 +553,11 @@ router.get("/:id", authenticateToken, async (req, res) => {
         match.isHome = isP1;
 
         const disputesRes = await pool.query(
-            `SELECT d.*, u.username AS submitted_by_name
+            `SELECT d.*, COALESCE(p.alias, u.email) AS submitted_by_name
              FROM disputes d
              JOIN users u ON d.submitted_by = u.id
+             JOIN matches m ON d.match_id = m.id
+             LEFT JOIN participants p ON p.user_id = u.id AND p.tournament_id = m.tournament_id
              WHERE d.match_id = $1
              ORDER BY d.created_at DESC`,
             [id]

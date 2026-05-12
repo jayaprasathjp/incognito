@@ -104,7 +104,7 @@ const ReferralTracks = () => {
                         <Trophy size={10} className="hidden md:block"/> Top
                     </p>
                     <p className="text-xs md:text-base font-bold text-amber-900 truncate">
-                        {topReferrer ? topReferrer.name.split(' ')[0] : '-'}
+                        {topReferrer && topReferrer.name ? topReferrer.name.split(' ')[0] : '-'}
                     </p>
                 </div>
             </div>
@@ -240,7 +240,7 @@ const ReferralTracks = () => {
                             <div>
                                 <h3 className="text-base md:text-lg font-black text-slate-900 flex items-center gap-2">
                                     <User className="text-indigo-500" size={18} />
-                                    {selectedReferrer.name}'s Referrals
+                                    {selectedReferrer.name || 'Unknown'}'s Referrals
                                 </h3>
                                 <p className="text-[10px] md:text-xs font-medium text-slate-500 mt-0.5">
                                     {selectedReferrer.registeredCount} invited • {selectedReferrer.activeCount} active

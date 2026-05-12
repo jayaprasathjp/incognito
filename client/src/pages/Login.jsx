@@ -7,7 +7,7 @@ import appIcon from '../assets/app-icon.png';
 import SEO from '../components/SEO';
 
 const Login = () => {
-    const [identifier, setIdentifier] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
@@ -20,7 +20,7 @@ const Login = () => {
         setLoading(true);
         setErrors({});
         try {
-            const data = await api.post('/auth/login', { identifier, password });
+            const data = await api.post('/auth/login', { email, password });
             if (data.token) {
                 login(data.token, data.user);
                 navigate(data.user.role === 'admin' ? '/admin/dashboard' : '/dashboard');
@@ -69,17 +69,17 @@ const Login = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="flex flex-col gap-1">
-                        <label className="text-sm text-slate-600">Email or Alias</label>
+                        <label className="text-sm text-slate-600">Email</label>
                         <div className="flex flex-col gap-1">
                             <input 
-                                type="text" 
-                                placeholder="Email or Alias" 
-                                value={identifier} 
-                                onChange={(e) => setIdentifier(e.target.value)} 
+                                type="email" 
+                                placeholder="Email" 
+                                value={email} 
+                                onChange={(e) => setEmail(e.target.value)} 
                                 required 
-                                className={`w-full p-4 bg-slate-50 border rounded-xl outline-none focus:bg-white transition-all text-slate-800 placeholder:text-slate-400 ${errors.identifier ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-slate-400'}`}
+                                className={`w-full p-4 bg-slate-50 border rounded-xl outline-none focus:bg-white transition-all text-slate-800 placeholder:text-slate-400 ${errors.email ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-slate-400'}`}
                             />
-                            {errors.identifier && <span className="text-xs text-red-500 ml-1">{errors.identifier}</span>}
+                            {errors.email && <span className="text-xs text-red-500 ml-1">{errors.email}</span>}
                         </div>
                     </div>
                     <div className="flex flex-col gap-1">

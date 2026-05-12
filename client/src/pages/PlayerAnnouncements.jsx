@@ -134,13 +134,13 @@ const PlayerAnnouncements = () => {
                                                 )}
                                             </div>
                                             <div className="text-[10px] sm:text-xs text-slate-500 shrink-0 text-right">
-                                                <span className="hidden sm:inline">By {announcement.created_by_username || 'Admin'} • </span>
+                                                <span className="hidden sm:inline">By {announcement.created_by_email || 'Admin'} • </span>
                                                 {new Date(announcement.created_at).toLocaleDateString()}
                                             </div>
                                         </div>
                                         <p className="text-xs sm:text-base leading-relaxed text-slate-800 whitespace-pre-wrap">{announcement.message}</p>
                                         <div className="sm:hidden text-[9px] text-slate-400 mt-1 uppercase font-bold tracking-tighter">
-                                            By {announcement.created_by_username || 'Admin'} • {new Date(announcement.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            By {announcement.created_by_email || 'Admin'} • {new Date(announcement.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </div>
                                     </div>
                                 </div>

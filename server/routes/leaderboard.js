@@ -14,9 +14,9 @@ router.get("/", async (req, res) => {
 
         const tournament = tourneyRes.rows[0];
 
-        // Fetch participants FOR THIS TOURNAMENT ONLY
+        // Fetch participants FOR THIS TOURNAMENT ONLY — use tournament alias
         const playersResult = await pool.query(`
-            SELECT u.id, u.username, u.institution 
+            SELECT u.id, COALESCE(p.alias, u.email) AS display_name, u.institution 
             FROM participants p
             JOIN users u ON p.user_id = u.id
             WHERE p.tournament_id = $1
@@ -35,7 +35,7 @@ router.get("/", async (req, res) => {
         playersResult.rows.forEach(p => {
             standings[p.id] = {
                 id: p.id,
-                alias: p.username,
+                alias: p.display_name,
                 institution: p.institution || 'N/A',
                 pts: 0,
                 gs: 0, // Goals Scored

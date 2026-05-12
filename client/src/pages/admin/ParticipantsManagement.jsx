@@ -113,10 +113,32 @@ const ParticipantsManagement = () => {
                                 </div>
                             </div>
                             <div className="space-y-4">
+                                {/* Tournament Alias */}
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Alias</label>
-                                    <div className="text-sm font-bold text-slate-900 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">{profile.username}</div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Tournament Alias</label>
+                                    <div className="text-sm font-bold text-slate-900 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 font-mono">
+                                        {profile.tournament_alias ? (
+                                            <span className="flex items-center gap-2">
+                                                <span>🎭</span>
+                                                {profile.tournament_alias}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-400 italic text-xs">No alias set</span>
+                                        )}
+                                    </div>
                                 </div>
+                                {/* Session Preference */}
+                                {profile.session_preference && (
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Session Preference</label>
+                                        <div className="text-sm font-bold text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 capitalize">
+                                            {profile.session_preference === 'morning' && '☀️ '}
+                                            {profile.session_preference === 'afternoon' && '🌤️ '}
+                                            {profile.session_preference === 'evening' && '🌙 '}
+                                            {profile.session_preference}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="overflow-hidden sm:col-span-2">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Email</label>
@@ -326,11 +348,11 @@ const ParticipantsManagement = () => {
                     <table className="w-full text-left">
                         <thead className="bg-slate-50/80 border-b border-slate-200">
                             <tr>
-                                <th className="p-4 pl-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Participant</th>
+                                <th className="p-4 pl-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Alias</th>
                                 <th className="hidden sm:table-cell p-4 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Email</th>
                                 <th className="hidden sm:table-cell p-4 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Joined</th>
                                 <th className="p-4 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Status</th>
-                                <th className="p-4 pr-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px] text-right">Actions</th>
+                                <th className="p-4 pr-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px] text-right">View</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -339,7 +361,7 @@ const ParticipantsManagement = () => {
                                     <td colSpan="5" className="p-10 text-center text-slate-400 font-medium">No participants found matching criteria.</td>
                                 </tr>
                             ) : currentParticipants.map((participant) => (
-                                <tr key={participant.id} className="hover:bg-slate-50/80 transition-colors group">
+                                <tr key={participant.id} className="hover:bg-slate-50/80 transition-colors group p-2">
                                     <td className="p-2 pl-2">
                                         <div>
                                             <div className="font-bold text-slate-900">{participant.username}</div>
