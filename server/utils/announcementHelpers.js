@@ -48,7 +48,7 @@ export async function getAnnouncementAudience() {
 
     const [allPlayersResult, currentTournament] = await Promise.all([
         pool.query(
-            `SELECT id, username, email, status
+            `SELECT id, COALESCE((SELECT alias FROM participants WHERE user_id = users.id ORDER BY joined_at DESC LIMIT 1), users.email) AS username, email, status
              FROM users
              WHERE role = 'player'
              ORDER BY username ASC`
@@ -60,13 +60,13 @@ export async function getAnnouncementAudience() {
 
     if (currentTournament) {
         const tournamentPlayersResult = await pool.query(
-            `SELECT u.id, u.username, u.email, u.status, p.joined_at
+            `SELECT u.id, COALESCE(p.alias, u.email) AS username, u.email, u.status, p.joined_at
              FROM participants p
              JOIN users u ON u.id = p.user_id
              WHERE p.tournament_id = $1
                AND p.status = 'in'
                AND u.role = 'player'
-             ORDER BY u.username ASC`,
+             ORDER BY username ASC`,
             [currentTournament.id]
         );
 
@@ -87,7 +87,7 @@ export async function resolveAnnouncementRecipients(target, recipientIds = []) {
 
     if (normalizedTarget === "all") {
         const result = await pool.query(
-            `SELECT id, username, email
+            `SELECT id, COALESCE((SELECT alias FROM participants WHERE user_id = users.id ORDER BY joined_at DESC LIMIT 1), users.email) AS username, email
              FROM users
              WHERE role = 'player'
                AND COALESCE(status, 'active') != 'banned'
@@ -109,14 +109,14 @@ export async function resolveAnnouncementRecipients(target, recipientIds = []) {
         }
 
         const result = await pool.query(
-            `SELECT DISTINCT u.id, u.username, u.email
+            `SELECT DISTINCT u.id, COALESCE(p.alias, u.email) AS username, u.email
              FROM participants p
              JOIN users u ON u.id = p.user_id
              WHERE p.tournament_id = $1
                AND p.status = 'in'
                AND u.role = 'player'
                AND COALESCE(u.status, 'active') != 'banned'
-             ORDER BY u.username ASC`,
+             ORDER BY username ASC`,
             [currentTournament.id]
         );
 
@@ -137,7 +137,7 @@ export async function resolveAnnouncementRecipients(target, recipientIds = []) {
         }
 
         const result = await pool.query(
-            `SELECT id, username, email
+            `SELECT id, COALESCE((SELECT alias FROM participants WHERE user_id = users.id ORDER BY joined_at DESC LIMIT 1), users.email) AS username, email
              FROM users
              WHERE role = 'player'
                AND id = ANY($1::int[])

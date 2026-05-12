@@ -2,9 +2,21 @@
 export const SOCKET_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://incognito-ebvk.onrender.com' : 'http://localhost:5000');
 const API_URL = SOCKET_URL + "/api";
 
-const handleResponse = async (res) => {
+const handleResponse = async (res, endpoint) => {
     const data = await res.json();
     if (!res.ok) {
+        // Global handler for invalid/expired tokens (401 Unauthorized or 403 Forbidden)
+        // Ensure we don't trigger this for login failures or guest users (no token)
+        if ((res.status === 401 || res.status === 403) && localStorage.getItem('token') && endpoint !== '/auth/login') {
+            console.warn("Auth: Invalid or expired token detected, logging out...");
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+                window.location.href = '/login';
+                return;
+            }
+        }
+
         // Create an error object with the response data
         const error = new Error(data.error || 'Request failed');
         error.response = { data };
@@ -26,7 +38,7 @@ export const api = {
                 ...(extraHeaders || {}),
             },
         });
-        return handleResponse(res);
+        return handleResponse(res, endpoint);
     },
     post: async (endpoint, data) => {
         const token = localStorage.getItem('token');
@@ -38,7 +50,7 @@ export const api = {
             },
             body: JSON.stringify(data)
         });
-        return handleResponse(res);
+        return handleResponse(res, endpoint);
     },
     put: async (endpoint, data) => {
         const token = localStorage.getItem('token');
@@ -50,7 +62,7 @@ export const api = {
             },
             body: JSON.stringify(data)
         });
-        return handleResponse(res);
+        return handleResponse(res, endpoint);
     },
     delete: async (endpoint, init = {}) => {
         const token = localStorage.getItem('token');
@@ -64,7 +76,7 @@ export const api = {
                 ...(extraHeaders || {}),
             },
         });
-        return handleResponse(res);
+        return handleResponse(res, endpoint);
     },
     upload: async (endpoint, formData) => {
         const token = localStorage.getItem('token');
@@ -75,7 +87,7 @@ export const api = {
             },
             body: formData
         });
-        return handleResponse(res);
+        return handleResponse(res, endpoint);
     }
 };
 

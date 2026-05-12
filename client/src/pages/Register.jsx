@@ -10,7 +10,6 @@ import SEO from '../components/SEO';
 const Register = () => {
 
     const [formData, setFormData] = useState({
-        alias: '',
         institution: '',
         whatsapp: '',
         email: '',
@@ -75,10 +74,6 @@ const Register = () => {
             newErrors.agreed = 'You must agree to the tournament rules.';
         }
 
-        if (!/^[a-zA-Z0-9]+$/.test(formData.alias)) {
-            newErrors.alias = 'Alias must be alphanumeric. No spaces or special characters allowed.';
-        }
-
         if (formData.password !== formData.confirmPassword) {
             newErrors.confirmPassword = 'Passwords do not match';
         }
@@ -96,7 +91,6 @@ const Register = () => {
 
         try {
             const payload = {
-                username: formData.alias, // Map alias to username
                 email: formData.email,
                 password: formData.password,
                 institution: formData.institution,
@@ -107,7 +101,7 @@ const Register = () => {
             const data = await api.post('/auth/register', payload);
             
             if (data.id) {
-                // Auto login after register
+                // Auto login after register using email
                  const loginData = await api.post('/auth/login', { 
                     email: formData.email, 
                     password: formData.password 
@@ -164,23 +158,6 @@ const Register = () => {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Alias */}
-                    <div className="flex flex-col gap-1">
-                        <label className="text-sm text-slate-600">Enter your alias</label>
-                        <div className="flex flex-col gap-1">
-                            <input 
-                                type="text" 
-                                name="alias"
-                                placeholder="Your alias" 
-                                value={formData.alias} 
-                                onChange={handleChange} 
-                                required 
-                                className={`w-full p-3 bg-white border rounded-lg outline-none transition-all text-slate-800 placeholder:text-slate-400 ${errors.alias ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-slate-500'}`}
-                            />
-                            {errors.alias && <span className="text-xs text-red-500 ml-1">{errors.alias}</span>}
-                        </div>
-                    </div>
-
                     {/* Institution - Searchable Dropdown */}
                     <div className="flex flex-col gap-1 relative" ref={dropdownRef}>
                         <label className="text-sm text-slate-600">Select your institution</label>

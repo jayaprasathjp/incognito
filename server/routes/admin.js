@@ -110,11 +110,11 @@ router.post("/payments/:id/mark-paid", async (req, res) => {
 router.get("/players", async (req, res) => {
     try {
         const { search } = req.query;
-        let query = "SELECT id, username, email, role, status, created_at FROM users WHERE role = 'player'";
+        let query = "SELECT id, email, role, status, created_at FROM users WHERE role = 'player'";
         let params = [];
         
         if (search) {
-            query += " AND (username ILIKE $1 OR email ILIKE $1)";
+            query += " AND (email ILIKE $1)";
             params.push(`%${search}%`);
         }
         
@@ -129,7 +129,7 @@ router.get("/players", async (req, res) => {
 router.get("/players/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const user = await pool.query("SELECT id, username, email, role, status, institution, whatsapp_number, referral_code FROM users WHERE id = $1", [id]);
+        const user = await pool.query("SELECT id, email, role, status, institution, whatsapp_number, referral_code FROM users WHERE id = $1", [id]);
         if (user.rows.length === 0) return res.status(404).json({ error: "Player not found" });
 
         const bank = await pool.query("SELECT * FROM bank_details WHERE user_id = $1", [id]);
@@ -168,10 +168,9 @@ router.get("/referrals", async (req, res) => {
             SELECT 
                 r.id,
                 r.created_at,
-                u1.username as referrer_name,
-                u1.id as restillferrer_id,
-                u2.username as referred_name,
-                u2.email as referred_email,
+                u1.email as referrer_name,
+                u1.id as referrer_id,
+                u2.email as referred_name,
                 u2.id as referred_user_id,
                 u2.tournament_joined as tournaments_joined
             FROM referrals r
@@ -196,7 +195,9 @@ router.get("/participants", async (req, res) => {
         const tournamentId = tResult.rows[0].id;
 
         let query = `
-            SELECT u.id, u.username, u.email, u.status AS user_status, p.status, p.joined_at AS created_at
+            SELECT u.id, u.email, u.status AS user_status, p.status, p.joined_at AS created_at,
+                   COALESCE(p.alias, u.email) AS username,
+                   p.alias AS tournament_alias, p.session_preference
             FROM users u
             JOIN participants p ON u.id = p.user_id
             WHERE p.tournament_id = $1
@@ -204,7 +205,7 @@ router.get("/participants", async (req, res) => {
         let params = [tournamentId];
         
         if (search) {
-            query += " AND (u.username ILIKE $2 OR u.email ILIKE $2)";
+            query += " AND (p.alias ILIKE $2 OR u.email ILIKE $2)";
             params.push(`%${search}%`);
         }
         
@@ -225,8 +226,16 @@ router.get("/participants/:id", async (req, res) => {
         if (tResult.rows.length === 0) return res.status(404).json({ error: "No active tournament" });
         const tournamentId = tResult.rows[0].id;
 
-        const user = await pool.query("SELECT id, username, email, role, status, institution, whatsapp_number FROM users WHERE id = $1", [id]);
+        const user = await pool.query("SELECT id, email, role, status, institution, whatsapp_number FROM users WHERE id = $1", [id]);
         if (user.rows.length === 0) return res.status(404).json({ error: "Player not found" });
+
+        // Get tournament-specific alias
+        const partResult = await pool.query(
+            "SELECT alias, session_preference FROM participants WHERE tournament_id = $1 AND user_id = $2",
+            [tournamentId, id]
+        );
+        const tournamentAlias = partResult.rows[0]?.alias || null;
+        const sessionPreference = partResult.rows[0]?.session_preference || null;
 
         const matches = await pool.query(
             "SELECT id, round, status, match_code, updated_at as created_at, winner_id, score_player1, score_player2, " +
@@ -248,7 +257,7 @@ router.get("/participants/:id", async (req, res) => {
         );
 
         res.json({
-            profile: user.rows[0],
+            profile: { ...user.rows[0], tournament_alias: tournamentAlias, session_preference: sessionPreference },
             recentMatches: matches.rows || [],
             disputes: disputes.rows || [],
             recentPayments: payments.rows || []
@@ -269,7 +278,7 @@ router.post("/players/:id/ban", async (req, res) => {
         // If already banned, maybe unban? Let's just implement explicit ban for now as requested.
         
         const update = await pool.query(
-            "UPDATE users SET status = 'banned' WHERE id = $1 RETURNING id, username, status",
+            "UPDATE users SET status = 'banned' WHERE id = $1 RETURNING id, email, status",
             [id]
         );
         
@@ -636,10 +645,14 @@ router.get("/matches", async (req, res) => {
         }
 
         let query = `
-            SELECT m.*, p1.username as p1_name, p2.username as p2_name 
+            SELECT m.*, 
+                   COALESCE(part1.alias, p1.email) as p1_name, 
+                   COALESCE(part2.alias, p2.email) as p2_name 
             FROM matches m
             LEFT JOIN users p1 ON m.player1_id = p1.id
             LEFT JOIN users p2 ON m.player2_id = p2.id
+            LEFT JOIN participants part1 ON m.player1_id = part1.user_id AND m.tournament_id = part1.tournament_id
+            LEFT JOIN participants part2 ON m.player2_id = part2.user_id AND m.tournament_id = part2.tournament_id
             WHERE m.tournament_id = $1
         `;
         let countQuery = `SELECT COUNT(*) FROM matches m WHERE m.tournament_id = $1`;
@@ -746,14 +759,16 @@ router.get("/disputes", async (req, res) => {
         const result = await pool.query(`
             SELECT d.*,
                    m.match_code, m.player1_id, m.player2_id, m.status AS match_status,
-                   u1.username AS submitted_by_name,
-                   u2.username AS opponent_name
+                   COALESCE(p1.alias, u1.email) AS submitted_by_name,
+                   COALESCE(p2.alias, u2.email) AS opponent_name
             FROM disputes d
             JOIN matches m ON d.match_id = m.id
             JOIN users u1 ON d.submitted_by = u1.id
             LEFT JOIN users u2 ON (
                 CASE WHEN m.player1_id = d.submitted_by THEN m.player2_id ELSE m.player1_id END
             ) = u2.id
+            LEFT JOIN participants p1 ON u1.id = p1.user_id AND m.tournament_id = p1.tournament_id
+            LEFT JOIN participants p2 ON u2.id = p2.user_id AND m.tournament_id = p2.tournament_id
             ORDER BY
                 CASE WHEN d.status IN ('pending','awaiting_admin') THEN 0 ELSE 1 END ASC,
                 d.created_at DESC
@@ -898,12 +913,13 @@ router.get("/player-disputes/:userId", async (req, res) => {
         const result = await pool.query(
             `SELECT d.id, d.match_id, d.status, d.resolved_outcome, d.reason_category,
                     d.reason, d.created_at, d.dispute_kind,
-                    u.username AS opponent_name
+                    COALESCE(p.alias, u.email) AS opponent_name
              FROM disputes d
              JOIN matches m ON d.match_id = m.id
              LEFT JOIN users u ON (
                  CASE WHEN m.player1_id = d.submitted_by THEN m.player2_id ELSE m.player1_id END
              ) = u.id
+             LEFT JOIN participants p ON u.id = p.user_id AND m.tournament_id = p.tournament_id
              WHERE d.submitted_by = $1
              ORDER BY d.created_at DESC`,
             [userId]
@@ -937,7 +953,7 @@ router.get("/payments", async (req, res) => {
             params.push(status);
         }
         if (search) {
-            whereClauses.push(`(u.username ILIKE $${pIdx} OR p.reference ILIKE $${pIdx} OR p.flw_transaction_id ILIKE $${pIdx})`);
+            whereClauses.push(`(u.email ILIKE $${pIdx} OR p.reference ILIKE $${pIdx} OR p.flw_transaction_id ILIKE $${pIdx})`);
             params.push(`%${search}%`);
             pIdx++;
         }
@@ -959,7 +975,7 @@ router.get("/payments", async (req, res) => {
         // 2. Fetch paginated payments
         const listParams = [...params, parseInt(limit), offset];
         const listResult = await pool.query(`
-            SELECT p.*, u.username, u.email 
+            SELECT p.*, u.email 
             FROM payments p
             JOIN users u ON p.user_id = u.id
             ${whereString}
@@ -1005,7 +1021,7 @@ router.get("/announcements", async (req, res) => {
                     a.created_at,
                     a.tournament_id,
                     t.title AS tournament_title,
-                    creator.username AS created_by_username,
+                    creator.email AS created_by_email,
                     COALESCE(array_length(a.target_user_ids, 1), 0) AS recipient_count,
                     (
                         SELECT COUNT(*)::int
@@ -1016,7 +1032,7 @@ router.get("/announcements", async (req, res) => {
              LEFT JOIN tournaments t ON t.id = a.tournament_id
              LEFT JOIN users creator ON creator.id = a.created_by
                WHERE a.deleted_at IS NULL
-             GROUP BY a.id, t.title, creator.username
+             GROUP BY a.id, t.title, creator.email
              ORDER BY a.created_at DESC
              LIMIT 25`
         );
@@ -1074,7 +1090,7 @@ router.post("/announcements", async (req, res) => {
                 tournament_id: announcement.tournament_id,
                 tournament_title: tournament?.title || null,
                 created_at: announcement.created_at,
-                created_by_username: req.user.username || 'Admin',
+                created_by_email: req.user.email || 'Admin',
                 read_at: null,
             };
 

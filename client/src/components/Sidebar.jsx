@@ -9,6 +9,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     const { logout, user, token, unreadAnnouncements } = useAuth();
     const location = useLocation();
     const [registrationEnded, setRegistrationEnded] = useState(false);
+    const [isParticipant, setIsParticipant] = useState(false);
 
     useEffect(() => {
         if (!user || !token) return;
@@ -18,19 +19,22 @@ const Sidebar = ({ isOpen, onClose }) => {
                 const regEnd = data?.tournament?.registration_end;
                 if (regEnd && new Date() > new Date(regEnd)) {
                     setRegistrationEnded(true);
+                } else {
+                    setRegistrationEnded(false);
                 }
+                setIsParticipant(!!data?.participation);
             } catch (e) {
                 // silently fail
             }
         };
         checkTournament();
-    }, [user, token]);
+    }, [user, token, isOpen]);
 
     const isActive = (path) => location.pathname === path;
 
     const playerLinks = [
         { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-        { to: '/matches', label: 'My Matches', icon: <Swords size={18} /> },
+        ...(isParticipant ? [{ to: '/matches', label: 'My Matches', icon: <Swords size={18} /> }] : []),
         ...(registrationEnded ? [{ to: '/leaderboard', label: 'Leaderboard', icon: <Trophy size={18} /> }] : []),
         { to: '/announcements', label: 'Announcements', icon: <Megaphone size={18} />, badge: unreadAnnouncements },
         { to: '/rules', label: 'Rules', icon: <ScrollText size={18} /> },

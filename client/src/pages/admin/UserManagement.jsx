@@ -115,14 +115,10 @@ const UserManagement = () => {
                                 </div>
                             </div>
                             <div className="space-y-4">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Alias</label>
-                                    <div className="text-sm font-bold text-slate-900 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">{profile.username}</div>
-                                </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="overflow-hidden sm:col-span-2">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Email</label>
-                                        <div className="text-sm font-medium text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 truncate" title={profile.email}>{profile.email}</div>
+                                        <div className="text-xs font-medium text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 truncate" title={profile.email}>{profile.email}</div>
                                     </div>
                                     <div className="overflow-hidden">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Phone Number</label>
@@ -243,7 +239,7 @@ const UserManagement = () => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
                         <input 
                             type="text" 
-                            placeholder="Search alias or email..." 
+                            placeholder="Search email..." 
                             className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 md:min-w-[280px]"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -282,8 +278,7 @@ const UserManagement = () => {
                     <table className="w-full text-left">
                         <thead className="bg-slate-50/80 border-b border-slate-200">
                             <tr>
-                                <th className="p-4 pl-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">User</th>
-                                <th className="hidden sm:table-cell p-4 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Email</th>
+                                <th className="p-4 pl-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">User Email</th>
                                 <th className="hidden sm:table-cell p-4 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Joined</th>
                                 <th className="p-4 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Status</th>
                                 <th className="p-4 pr-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px] text-right">Actions</th>
@@ -292,25 +287,22 @@ const UserManagement = () => {
                         <tbody className="divide-y divide-slate-100">
                             {currentPlayers.length === 0 && !loading ? (
                                 <tr>
-                                    <td colSpan="5" className="p-10 text-center text-slate-400 font-medium">No users found matching criteria.</td>
+                                    <td colSpan="4" className="p-10 text-center text-slate-400 font-medium">No users found matching criteria.</td>
                                 </tr>
                             ) : currentPlayers.map((player) => (
                                 <tr key={player.id} className="hover:bg-slate-50/80 transition-colors group">
-                                    <td className="p-2 pl-2">
+                                    <td className="p-4 pl-6">
                                         <div>
-                                            <div className="font-bold text-slate-900">{player.username}</div>
+                                            <div className="text-sm font-bold text-slate-900">{player.email}</div>
                                             <div className="text-[10px] text-slate-400 font-mono">ID: {player.id}</div>
                                         </div>
                                     </td>
-                                    <td className="hidden sm:table-cell p-2">
-                                        <div className="text-sm text-slate-500">{player.email}</div>
-                                    </td>
-                                    <td className="hidden sm:table-cell p-2">
+                                    <td className="hidden sm:table-cell p-4">
                                         <div className="text-[11px] text-slate-500 font-medium whitespace-nowrap">
                                             {player.created_at ? new Date(player.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
                                         </div>
                                     </td>
-                                    <td className="p-2">
+                                    <td className="p-4">
                                         <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-black tracking-widest inline-flex items-center gap-1.5 ${
                                             player.status === 'banned' ? 'bg-red-100/50 text-red-700 ring-1 ring-red-500/20' : 
                                             player.status === 'inactive' ? 'bg-slate-100/50 text-slate-600 ring-1 ring-slate-500/20' :
@@ -319,7 +311,7 @@ const UserManagement = () => {
                                             {player.status === 'banned' ? 'Banned' : player.status === 'inactive' ? 'Inactive' : 'Active'}
                                         </span>
                                     </td>
-                                    <td className="p-2 pr-2 text-right">
+                                    <td className="p-4 pr-6 text-right">
                                         <button 
                                             onClick={() => handleViewPlayer(player.id)}
                                             className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95 inline-flex"

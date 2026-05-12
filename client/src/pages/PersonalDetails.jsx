@@ -13,7 +13,6 @@ const PersonalDetails = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [formData, setFormData] = useState({
-        username: '',
         email: '',
         whatsapp_number: '',
         institution: '',
@@ -28,7 +27,6 @@ const PersonalDetails = () => {
         try {
             const data = await api.get('/user/profile');
             setFormData({
-                username: data.username || '',
                 email: data.email || '',
                 whatsapp_number: data.whatsapp_number || '',
                 institution: data.institution || '',
@@ -73,25 +71,6 @@ const PersonalDetails = () => {
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                         <div className="space-y-5">
                             
-                            {/* Alias Field - Disabled */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                                    Alias (Username)
-                                </label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                        <User size={18} />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        name="username"
-                                        value={formData.username}
-                                        disabled
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 cursor-not-allowed font-medium focus:outline-none"
-                                    />
-                                </div>
-                            </div>
-
                             {/* Email Field */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">

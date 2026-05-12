@@ -62,14 +62,14 @@ const AdminLogin = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="flex flex-col gap-1">
-                        <label className="text-sm font-medium text-slate-600 ml-1">Email or Alias</label>
+                        <label className="text-sm font-medium text-slate-600 ml-1">Email Address</label>
                         <div className="flex flex-col gap-1">
                             <div className="relative">
                                 <User className={`absolute left-4 top-1/2 -translate-y-1/2 ${errors.identifier ? 'text-red-400' : 'text-slate-400'}`} size={20} />
                                 <input
-                                    type="text"
+                                    type="email"
                                     className={`w-full pl-12 pr-4 py-3 bg-white border rounded-xl text-slate-900 focus:outline-none transition-colors shadow-sm ${errors.identifier ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'}`}
-                                    placeholder="Enter your credentials"
+                                    placeholder="admin@playincognito.ng"
                                     value={formData.identifier}
                                     onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
                                     required
