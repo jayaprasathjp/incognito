@@ -293,7 +293,7 @@ const UserManagement = () => {
                                 <tr key={player.id} className="hover:bg-slate-50/80 transition-colors group">
                                     <td className="p-4 pl-6">
                                         <div>
-                                            <div className="text-sm font-bold text-slate-900">{player.email}</div>
+                                            <div className="text-xs font-bold text-slate-900">{player.email}</div>
                                             <div className="text-[10px] text-slate-400 font-mono">ID: {player.id}</div>
                                         </div>
                                     </td>
