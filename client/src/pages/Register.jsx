@@ -33,7 +33,7 @@ const Register = () => {
 
     const filteredUniversities = nigerianUniversities.filter(uni =>
         uni.toLowerCase().includes(institutionSearch.toLowerCase())
-    ).slice(0, 20); // Show max 20 results for performance
+    ); // Show max 20 results for performance
 
     useEffect(() => {
         const handleClickOutside = (e) => {

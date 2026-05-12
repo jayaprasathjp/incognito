@@ -198,13 +198,13 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
             }
         }
 
-        // Check alias uniqueness within this tournament
+        // Check global alias uniqueness: Ensure no other user is using this alias
         const aliasCheck = await pool.query(
-            "SELECT id FROM participants WHERE tournament_id = $1 AND LOWER(alias) = LOWER($2)",
-            [id, alias.trim()]
+            "SELECT id FROM participants WHERE LOWER(alias) = LOWER($1) AND user_id != $2",
+            [alias.trim(), req.user.id]
         );
         if (aliasCheck.rows.length > 0) {
-            return res.status(400).json({ error: "This alias is already taken in this tournament. Please choose another." });
+            return res.status(400).json({ error: "This alias is already used by another player. Please choose a different one." });
         }
 
         // Add to participants with alias

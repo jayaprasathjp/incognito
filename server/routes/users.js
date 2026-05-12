@@ -135,7 +135,7 @@ router.get("/announcements/unread-count", authenticateToken, async (req, res) =>
                             FROM participants p
                             WHERE p.tournament_id = a.tournament_id
                               AND p.user_id = $1
-                              AND p.status = 'approved'
+                              AND p.status = 'in'
                         )
                     )
                     OR (
@@ -191,7 +191,7 @@ router.get("/announcements", authenticateToken, async (req, res) => {
                                 FROM participants p
                                 WHERE p.tournament_id = a.tournament_id
                                   AND p.user_id = $1
-                                  AND p.status = 'approved'
+                                  AND p.status = 'in'
                             )
                         )
                         OR (
@@ -217,7 +217,7 @@ router.get("/announcements", authenticateToken, async (req, res) => {
                                 FROM participants p
                                 WHERE p.tournament_id = a.tournament_id
                                   AND p.user_id = $1
-                                  AND p.status = 'approved'
+                                  AND p.status = 'in'
                             )
                         )
                         OR (
@@ -265,7 +265,7 @@ router.post("/announcements/read-all", authenticateToken, async (req, res) => {
                             FROM participants p
                             WHERE p.tournament_id = a.tournament_id
                               AND p.user_id = $1
-                              AND p.status = 'approved'
+                              AND p.status = 'in'
                         )
                     )
                     OR (

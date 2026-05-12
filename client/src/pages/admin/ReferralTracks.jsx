@@ -104,7 +104,7 @@ const ReferralTracks = () => {
                         <Trophy size={10} className="hidden md:block"/> Top
                     </p>
                     <p className="text-xs md:text-base font-bold text-amber-900 truncate">
-                        {topReferrer && topReferrer.name ? topReferrer.name.split(' ')[0] : '-'}
+                        {topReferrer && topReferrer.name ? String(topReferrer.name).split('@')[0] : '-'}
                     </p>
                 </div>
             </div>
