@@ -65,6 +65,11 @@ const PlayerDashboard = () => {
                 api.get('/user/bank-details').catch(() => ({}))
             ]);
             setTournamentData(data);
+            if (data?.participation) {
+                localStorage.setItem('isParticipant', 'true');
+            } else {
+                localStorage.setItem('isParticipant', 'false');
+            }
             setHasBankDetails(!!bankData?.account_number);
         } catch (error) {
             console.error("Failed to fetch dashboard data", error);
