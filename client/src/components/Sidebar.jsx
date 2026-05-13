@@ -35,7 +35,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     const playerLinks = [
         { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
         ...(isParticipant ? [{ to: '/matches', label: 'My Matches', icon: <Swords size={18} /> }] : []),
-        ...(registrationEnded ? [{ to: '/leaderboard', label: 'Leaderboard', icon: <Trophy size={18} /> }] : []),
+        { to: '/leaderboard', label: 'Leaderboard', icon: <Trophy size={18} /> },
         { to: '/announcements', label: 'Announcements', icon: <Megaphone size={18} />, badge: unreadAnnouncements },
         { to: '/rules', label: 'Rules', icon: <ScrollText size={18} /> },
         { to: '/roadmap', label: 'Roadmap', icon: <Bell size={18} /> },
