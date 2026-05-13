@@ -193,8 +193,8 @@ const PlayerDashboard = () => {
             setAliasError('Alias is required.');
             return;
         }
-        if (!/^[a-zA-Z0-9]+$/.test(trimmed)) {
-            setAliasError('Alias must be alphanumeric. No spaces or special characters.');
+        if (!/^[A-Z0-9]+$/.test(trimmed)) {
+            setAliasError('Alias must be uppercase alphanumeric. No spaces or special characters.');
             return;
         }
         if (trimmed.length < 3 || trimmed.length > 20) {
@@ -281,7 +281,7 @@ const PlayerDashboard = () => {
                                      <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-transparent to-amber-500/10"></div>
                                      <p className="text-xs text-amber-500 font-bold uppercase tracking-wider mb-1">Total Prize Pool</p>
                                      <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500">
-                                        ₦{(tournamentData.tournament.prize_pool || tournamentData.tournament.prizePool || 0).toLocaleString()}
+                                        ₦{(Number(tournamentData.tournament.prize_pool) || Number(tournamentData.tournament.prizePool) || 90000).toLocaleString()}
                                      </p>
                                 </div>
 
@@ -345,6 +345,10 @@ const PlayerDashboard = () => {
                         
                         <h3 className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">Current Tournament</h3>
                         <p className="text-2xl font-black text-slate-900 mb-1">{tournamentData.tournament.title}</p>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full font-bold text-xs mb-3 border border-green-100">
+                            <span>🏆 Prize Pool:</span>
+                            <span className="font-extrabold">₦{(Number(tournamentData.tournament.prize_pool) || Number(tournamentData.tournament.prizePool) || 90000).toLocaleString()}</span>
+                        </div>
                         
                         <div className="flex items-center justify-center gap-2 mb-6">
                             <p className={`text-sm font-bold uppercase tracking-wider ${
@@ -612,14 +616,14 @@ const PlayerDashboard = () => {
                                     <input
                                         type="text"
                                         value={tournamentAlias}
-                                        onChange={(e) => { setTournamentAlias(e.target.value); setAliasError(''); }}
-                                        placeholder="e.g. unknown123"
+                                        onChange={(e) => { setTournamentAlias(e.target.value.toUpperCase()); setAliasError(''); }}
+                                        placeholder="e.g. UNKNOWN123"
                                         maxLength={20}
                                         className={`w-full p-3 border-2 rounded-xl outline-none transition-all text-slate-800 placeholder:text-slate-400 font-semibold ${
                                             aliasError ? 'border-red-400 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-white'
                                         }`}
                                     />
-                                    <p className="text-[11px] text-slate-400 mt-1.5 ml-1">3–20 characters, alphanumeric only. This alias is only for this tournament.</p>
+                                    <p className="text-[11px] text-slate-400 mt-1.5 ml-1">3–20 characters, uppercase alphanumeric only. This alias is only for this tournament.</p>
                                     {aliasError && <p className="text-xs text-red-500 mt-1 ml-1">{aliasError}</p>}
                                 </div>
 

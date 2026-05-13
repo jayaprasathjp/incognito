@@ -26,8 +26,8 @@ router.post("/initialize", authenticateToken, async (req, res) => {
         if (!alias || !alias.trim()) {
             return res.status(400).json({ error: "Alias is required to join a tournament" });
         }
-        if (!/^[a-zA-Z0-9]+$/.test(alias.trim())) {
-            return res.status(400).json({ error: "Alias must be alphanumeric. No spaces or special characters allowed." });
+        if (!/^[A-Z0-9]+$/.test(alias.trim())) {
+            return res.status(400).json({ error: "Alias must be uppercase alphanumeric. No spaces or special characters allowed." });
         }
         if (alias.trim().length < 3 || alias.trim().length > 20) {
             return res.status(400).json({ error: "Alias must be between 3 and 20 characters." });
