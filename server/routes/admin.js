@@ -692,6 +692,38 @@ router.post("/tournaments/control", async (req, res) => {
           .status(400)
           .json({ error: genErr.message || "Failed to generate fixtures" });
       }
+    } else if (action === "reset") {
+      // Clean up tournament data (participants, matches, disputes, rounds)
+      // but keep the tournament record for history.
+      // Does NOT create a new tournament — the admin will do that via the create form.
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        // Delete disputes tied to this tournament's matches
+        await client.query(
+          "DELETE FROM disputes WHERE match_id IN (SELECT id FROM matches WHERE tournament_id = $1)",
+          [id]
+        );
+
+        // Delete matches
+        await client.query("DELETE FROM matches WHERE tournament_id = $1", [id]);
+
+        // Delete rounds schedule
+        await client.query("DELETE FROM rounds WHERE tournament_id = $1", [id]);
+
+        // Delete participants
+        await client.query("DELETE FROM participants WHERE tournament_id = $1", [id]);
+
+        await client.query("COMMIT");
+        res.json({ message: "Tournament data cleared. Ready for new tournament." });
+      } catch (resetErr) {
+        await client.query("ROLLBACK");
+        console.error("Reset error:", resetErr);
+        res.status(500).json({ error: "Failed to reset tournament data" });
+      } finally {
+        client.release();
+      }
     } else {
       console.log("Invalid action received:", action, req.body);
       res.status(400).json({
@@ -744,7 +776,7 @@ router.post("/tournaments/cycle", async (req, res) => {
     const nextNum = parseInt(countRes.rows[0].count) + 1;
 
     const newTourney = await client.query(
-      "INSERT INTO tournaments (title, status) VALUES ($1, 'open') RETURNING *",
+      "INSERT INTO tournaments (title, status, prize_pool) VALUES ($1, 'open', 90000) RETURNING *",
       [`Tournament #${nextNum}`],
     );
 

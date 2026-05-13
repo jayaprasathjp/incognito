@@ -145,8 +145,8 @@ router.post("/", authenticateToken, authorizeAdmin, async (req, res) => {
 
         const result = await pool.query(
             `INSERT INTO tournaments 
-            (title, status, registration_start, registration_end, capacity, entry_fee, created_at) 
-            VALUES ($1, 'open', $2, $3, $4, $5, NOW()) 
+            (title, status, registration_start, registration_end, capacity, entry_fee, prize_pool, created_at) 
+            VALUES ($1, 'open', $2, $3, $4, $5, 90000, NOW()) 
             RETURNING *`,
             [title, registration_start, registration_end, cap, fee]
         );
@@ -167,8 +167,8 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
         if (!alias || !alias.trim()) {
             return res.status(400).json({ error: "Alias is required to join a tournament" });
         }
-        if (!/^[a-zA-Z0-9]+$/.test(alias.trim())) {
-            return res.status(400).json({ error: "Alias must be alphanumeric. No spaces or special characters allowed." });
+        if (!/^[A-Z0-9]+$/.test(alias.trim())) {
+            return res.status(400).json({ error: "Alias must be uppercase alphanumeric. No spaces or special characters allowed." });
         }
         if (alias.trim().length < 3 || alias.trim().length > 20) {
             return res.status(400).json({ error: "Alias must be between 3 and 20 characters." });
