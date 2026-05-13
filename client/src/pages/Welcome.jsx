@@ -35,8 +35,8 @@ const Welcome = () => {
                     
 
                     
-                    // Button should be enabled if admin started it OR if registration time passed
-                    const startedByStatus = ['active', 'scheduled', 'paused', 'completed'].includes(status);
+                    // Button should be enabled if tournament is open or started
+                    const startedByStatus = ['open', 'active', 'scheduled', 'paused', 'completed'].includes(status);
                     const startedByDate = regEnd && new Date() > new Date(regEnd);
                     
                     if (startedByStatus || startedByDate) {
