@@ -270,8 +270,9 @@ const Payments = () => {
             >
               <option value="">All Status</option>
               <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
               <option value="pending">Pending</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
         </div>
@@ -340,7 +341,7 @@ const Payments = () => {
 
                     <div className="flex justify-between items-center border-t border-slate-50">
                       <span
-                        className={`px-2 py-0.5 rounded-md text-[9px] uppercase font-black tracking-widest ${p.status === "completed" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : p.status === "failed" ? "bg-red-50 text-red-600 border border-red-100" : "bg-amber-50 text-amber-600 border border-amber-100"}`}
+                        className={`px-2 py-0.5 rounded-md text-[9px] uppercase font-black tracking-widest ${p.status === "completed" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : p.status === "failed" ? "bg-red-50 text-red-600 border border-red-100" : p.status === "cancelled" ? "bg-slate-100 text-slate-500 border border-slate-200" : "bg-amber-50 text-amber-600 border border-amber-100"}`}
                       >
                         {p.status}
                       </span>
@@ -421,10 +422,12 @@ const Payments = () => {
                       </td>
                       <td className="p-4">
                         <span
-                          className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-black tracking-widest inline-flex items-center gap-1.5 ${p.status === "completed" ? "bg-emerald-100/50 text-emerald-700 ring-1 ring-emerald-500/20" : p.status === "failed" ? "bg-red-100/50 text-red-700 ring-1 ring-red-500/20" : "bg-amber-100/50 text-amber-700 ring-1 ring-amber-500/20"}`}
+                          className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-black tracking-widest inline-flex items-center gap-1.5 ${p.status === "completed" ? "bg-emerald-100/50 text-emerald-700 ring-1 ring-emerald-500/20" : p.status === "failed" ? "bg-red-100/50 text-red-700 ring-1 ring-red-500/20" : p.status === "cancelled" ? "bg-slate-100 text-slate-500 ring-1 ring-slate-300/40" : "bg-amber-100/50 text-amber-700 ring-1 ring-amber-500/20"}`}
                         >
                           {p.status === "completed" ? (
                             <CheckCircle size={12} />
+                          ) : p.status === "cancelled" ? (
+                            <X size={12} />
                           ) : (
                             <Clock size={12} />
                           )}

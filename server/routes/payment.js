@@ -229,4 +229,26 @@ router.post("/verify", authenticateToken, async (req, res) => {
     }
 });
 
+// Update payment status to 'cancelled' or 'failed' — called when user closes/cancels or payment fails
+router.post("/update-status", authenticateToken, async (req, res) => {
+    const { tx_ref, status } = req.body;
+    const userId = req.user.id;
+
+    const allowed = ['cancelled', 'failed'];
+    if (!allowed.includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+    }
+
+    try {
+        await pool.query(
+            "UPDATE payments SET status = $1 WHERE reference = $2 AND user_id = $3 AND status = 'pending'",
+            [status, tx_ref, userId]
+        );
+        res.json({ status: "ok" });
+    } catch (error) {
+        console.error("Payment status update error:", error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
 export default router;

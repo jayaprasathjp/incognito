@@ -32,7 +32,7 @@ const AdminDashboard = () => {
 
     const statCards = [
         { label: "Total Participants", value: stats.tournament?.participants || 0, icon: <Users className="text-blue-600" />, bg: "bg-blue-50", border: "border-blue-100" },
-        { label: `Matches (Round ${stats.tournament?.currentRound || 1})`, value: stats.tournament?.roundMatches || 0, icon: <Swords className="text-purple-600" />, bg: "bg-purple-50", border: "border-purple-100" },
+        { label: (stats.tournament?.status === 'scheduled' || stats.tournament?.status === 'open') ? "Matches (Scheduled)" : `Matches (Round ${stats.tournament?.currentRound || 1})`, value: stats.tournament?.roundMatches || 0, icon: <Swords className="text-purple-600" />, bg: "bg-purple-50", border: "border-purple-100" },
         { label: "Prize Pool", value: `₦${stats.prizePool?.toLocaleString() || 0}`, icon: <Trophy className="text-yellow-600" />, bg: "bg-yellow-50", border: "border-yellow-100" },
         { label: "Pending Issues", value: (stats.pendingIssues?.disputes || 0), icon: <AlertTriangle className="text-red-600" />, bg: "bg-red-50", border: "border-red-100" },
     ];

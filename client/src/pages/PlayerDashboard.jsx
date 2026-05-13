@@ -168,13 +168,24 @@ const PlayerDashboard = () => {
                             alert('Payment received but verification failed. Please contact support.');
                         }
                     } else {
-                        alert('Payment was not completed.');
+                        // Flutterwave returns 'failed' (card declined etc.) or 'cancelled' (user cancelled in-modal)
+                        const terminalStatus = response.status === 'failed' ? 'failed' : 'cancelled';
+                        try {
+                            await api.post('/payment/update-status', { tx_ref: initData.config.tx_ref, status: terminalStatus });
+                        } catch (_) { /* silent */ }
+                        const msg = response.status === 'failed' ? 'Payment failed. Please try again.' : 'Payment was cancelled.';
+                        alert(msg);
                     }
                     setJoinLoading(false);
                 },
-                onclose: () => {
+                onclose: async () => {
+                    // User closed the Flutterwave modal without completing payment
+                    try {
+                        await api.post('/payment/update-status', { tx_ref: initData.config.tx_ref, status: 'cancelled' });
+                    } catch (_) { /* silent */ }
                     setJoinLoading(false);
                 },
+
             });
 
         } catch (e) {

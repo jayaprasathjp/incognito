@@ -8,7 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/api";
 
 const audienceLabelMap = {
-  all: "All players",
+  all: "All users",
   current_tournament: "Current tournament players",
   individuals: "Selected players",
 };
