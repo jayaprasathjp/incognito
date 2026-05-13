@@ -105,6 +105,15 @@ const BankDetails = () => {
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bank Name</h3>
                             <p className="text-base font-medium text-slate-900 capitalize">{savedData.bank_name}</p>
                         </div>
+                        <div className="pt-2">
+                            <button 
+                                type="button" 
+                                onClick={handleEdit}
+                                className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95 text-sm uppercase tracking-wide"
+                            >
+                                Edit Details
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     // Edit Mode (Form)
