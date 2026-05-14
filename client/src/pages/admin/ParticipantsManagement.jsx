@@ -219,52 +219,53 @@ const ParticipantsManagement = () => {
                 <table className="w-full text-left">
                   <thead>
                     <tr>
-                      <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">
-                        Date
-                      </th>
-                      <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">
-                        Round
-                      </th>
-                      <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">
-                        Status
-                      </th>
-                      <th className="p-2 font-semibold text-slate-400 uppercase text-[10px] hidden sm:table-cell">
-                        Score
-                      </th>
+                      <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">Round</th>
+                      <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">Opponent</th>
+                      <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">Status</th>
+                      <th className="p-2 font-semibold text-slate-400 uppercase text-[10px] hidden sm:table-cell">Score</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {recentMatches.map((match) => (
-                      <tr
-                        key={match.id}
-                        className="text-sm hover:bg-slate-50"
-                      >
-                        <td className="p-2 text-xs text-slate-500">
-                          {new Date(match.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="p-2 font-medium text-slate-700">
-                          {match.round}
-                        </td>
-                        <td className="p-2">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                              match.status === "completed"
-                                ? "bg-emerald-50 text-emerald-600"
-                                : match.status === "disputed"
-                                  ? "bg-amber-50 text-amber-600"
-                                  : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {match.status}
-                          </span>
-                        </td>
-                        <td className="p-2 font-mono text-xs text-slate-600 hidden sm:table-cell">
-                          {match.score_player1 !== null
-                            ? `${match.score_player1} - ${match.score_player2}`
-                            : "N/A"}
-                        </td>
-                      </tr>
-                    ))}
+                    {recentMatches.map((match) => {
+                      const won = match.winner_id && match.is_winner;
+                      const lost = match.winner_id && !match.is_winner;
+                      return (
+                        <tr key={match.id} className="text-sm hover:bg-slate-50">
+                          <td className="p-2 font-bold text-slate-700 text-xs">R{match.round}</td>
+                          <td className="p-2">
+                            {match.opponent_alias ? (
+                              <span className="font-mono font-bold text-slate-800 text-xs">
+                                {match.opponent_alias}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-slate-100 text-slate-400">BYE</span>
+                            )}
+                          </td>
+                          <td className="p-2">
+                            <div className="flex flex-col gap-1">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase w-fit ${
+                                match.status === "completed"
+                                  ? "bg-emerald-50 text-emerald-600"
+                                  : match.status === "pending_review"
+                                    ? "bg-amber-50 text-amber-600"
+                                    : match.status === "cancelled"
+                                      ? "bg-red-50 text-red-500"
+                                      : "bg-slate-100 text-slate-600"
+                              }`}>
+                                {match.status}
+                              </span>
+                              {won && <span className="text-[10px] font-black text-emerald-600 uppercase">✓ Won</span>}
+                              {lost && <span className="text-[10px] font-black text-red-500 uppercase">✗ Lost</span>}
+                            </div>
+                          </td>
+                          <td className="p-2 font-mono text-xs text-slate-600 hidden sm:table-cell">
+                            {match.score_player1 !== null
+                              ? `${match.score_player1} – ${match.score_player2}`
+                              : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
