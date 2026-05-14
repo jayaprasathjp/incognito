@@ -89,8 +89,9 @@ httpServer.listen(PORT, () => {
 
 // ── Dispute Expiry Cron (every 15 minutes) ───────────────────────────────────
 async function runDisputeExpiry() {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query("BEGIN");
     const res = await client.query(
       `SELECT DISTINCT match_id FROM disputes
@@ -107,14 +108,19 @@ async function runDisputeExpiry() {
     }
     await client.query("COMMIT");
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (client) {
+      try { await client.query("ROLLBACK"); } catch (e) {}
+    }
     console.error("[Dispute Cron] Error:", err.message);
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
 
 // Run once on startup, then every 15 minutes
-runDisputeExpiry();
-setInterval(runDisputeExpiry, 15 * 60 * 1000);
+runDisputeExpiry().catch(err => console.error("[Dispute Cron Startup Error]:", err.message));
+setInterval(() => {
+  runDisputeExpiry().catch(err => console.error("[Dispute Cron Interval Error]:", err.message));
+}, 15 * 60 * 1000);
+
 

@@ -58,7 +58,7 @@ const AdminDashboard = () => {
 
             {/* Tournament Status (Now full width and on top) */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-900">
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-900">
                     <Trophy className="text-yellow-500" size={20} />
                     Tournament Status
                 </h2>
@@ -75,8 +75,8 @@ const AdminDashboard = () => {
                     ) : (
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="flex-1">
-                                <h3 className="text-lg font-black text-slate-900 mb-2">{stats.tournament?.title || 'No Tournament'}</h3>
-                                <div className="flex items-center gap-4">
+                                <h3 className="text-lg font-black text-slate-900 mb-2 text-center">{stats.tournament?.title || 'No Tournament'}</h3>
+                                <div className="flex items-center justify-center gap-4">
                                     <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                                         stats.tournament?.status === 'active' ? 'bg-green-100 text-green-700' : 
                                         stats.tournament?.status === 'open' ? 'bg-blue-100 text-blue-700' : 

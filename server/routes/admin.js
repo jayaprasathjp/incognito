@@ -277,10 +277,22 @@ router.get("/participants/:id", async (req, res) => {
     const sessionPreference = partResult.rows[0]?.session_preference || null;
 
     const matches = await pool.query(
-      "SELECT id, round, status, match_code, updated_at as created_at, winner_id, score_player1, score_player2, " +
-        "CASE WHEN player1_id = $1 THEN 'Player 1' ELSE 'Player 2' END as position, " +
-        "CASE WHEN winner_id = $1 THEN true ELSE false END as is_winner " +
-        "FROM matches WHERE tournament_id = $2 AND (player1_id = $1 OR player2_id = $1) ORDER BY updated_at DESC",
+      `SELECT m.id, m.round, m.status, m.match_code, m.updated_at as created_at,
+              m.winner_id, m.score_player1, m.score_player2,
+              CASE WHEN m.player1_id = $1 THEN 'Player 1' ELSE 'Player 2' END as position,
+              CASE WHEN m.winner_id = $1 THEN true ELSE false END as is_winner,
+              CASE WHEN m.player1_id = $1 THEN m.player2_id ELSE m.player1_id END as opponent_id,
+              CASE WHEN m.player1_id = $1
+                   THEN COALESCE(opp2.alias, u2.email)
+                   ELSE COALESCE(opp1.alias, u1.email)
+              END as opponent_alias
+       FROM matches m
+       LEFT JOIN users u1 ON m.player1_id = u1.id
+       LEFT JOIN users u2 ON m.player2_id = u2.id
+       LEFT JOIN participants opp1 ON m.player1_id = opp1.user_id AND m.tournament_id = opp1.tournament_id
+       LEFT JOIN participants opp2 ON m.player2_id = opp2.user_id AND m.tournament_id = opp2.tournament_id
+       WHERE m.tournament_id = $2 AND (m.player1_id = $1 OR m.player2_id = $1)
+       ORDER BY m.updated_at DESC`,
       [id, tournamentId],
     );
 
@@ -816,7 +828,7 @@ router.get("/rounds/current", async (req, res) => {
 // === MATCHES & DISPUTES ===
 router.get("/matches", async (req, res) => {
   try {
-    const { round, page = 1, limit = 15 } = req.query;
+    const { round, page = 1, limit = 15, search, status } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     // Get the current tournament ID first
@@ -840,13 +852,35 @@ router.get("/matches", async (req, res) => {
             LEFT JOIN participants part2 ON m.player2_id = part2.user_id AND m.tournament_id = part2.tournament_id
             WHERE m.tournament_id = $1
         `;
-    let countQuery = `SELECT COUNT(*) FROM matches m WHERE m.tournament_id = $1`;
+    let countQuery = `
+            SELECT COUNT(*) FROM matches m
+            LEFT JOIN users p1 ON m.player1_id = p1.id
+            LEFT JOIN users p2 ON m.player2_id = p2.id
+            LEFT JOIN participants part1 ON m.player1_id = part1.user_id AND m.tournament_id = part1.tournament_id
+            LEFT JOIN participants part2 ON m.player2_id = part2.user_id AND m.tournament_id = part2.tournament_id
+            WHERE m.tournament_id = $1
+        `;
     let params = [tournamentId];
 
     if (round) {
-      query += ` AND m.round = $2`;
-      countQuery += ` AND m.round = $2`;
       params.push(round);
+      query += ` AND m.round = $${params.length}`;
+      countQuery += ` AND m.round = $${params.length}`;
+    }
+
+    if (status) {
+      params.push(status);
+      query += ` AND m.status = $${params.length}`;
+      countQuery += ` AND m.status = $${params.length}`;
+    }
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`);
+      const idx = params.length;
+      // Also match bye matches (player2_id IS NULL) when user searches "bye"
+      const byeClause = `OR ('bye' ILIKE $${idx} AND m.player2_id IS NULL)`;
+      query += ` AND (COALESCE(part1.alias, p1.email) ILIKE $${idx} OR COALESCE(part2.alias, p2.email) ILIKE $${idx} ${byeClause})`;
+      countQuery += ` AND (COALESCE(part1.alias, p1.email) ILIKE $${idx} OR COALESCE(part2.alias, p2.email) ILIKE $${idx} ${byeClause})`;
     }
 
     const countResult = await pool.query(countQuery, params);
