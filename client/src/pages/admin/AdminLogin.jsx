@@ -69,7 +69,7 @@ const AdminLogin = () => {
                                 <input
                                     type="email"
                                     className={`w-full pl-12 pr-4 py-3 bg-white border rounded-xl text-slate-900 focus:outline-none transition-colors shadow-sm ${errors.identifier ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'}`}
-                                    placeholder="admin@playincognito.ng"
+                                    placeholder="Email"
                                     value={formData.identifier}
                                     onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
                                     required
