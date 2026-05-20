@@ -583,12 +583,24 @@ const Disputes = () => {
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <label className="text-xs font-bold text-slate-500 block mb-1">Score (Home)</label>
-                                            <input type="number" min="0" value={adminS1} onChange={e => setAdminS1(e.target.value)}
+                                            <input type="number" min="0" value={adminS1}
+                                                onKeyDown={(e) => {
+                                                    if (["e", "E", "+", "-", "."].includes(e.key)) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                onChange={e => setAdminS1(e.target.value.replace(/\D/g, ''))}
                                                 className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white" />
                                         </div>
                                         <div>
                                             <label className="text-xs font-bold text-slate-500 block mb-1">Score (Away)</label>
-                                            <input type="number" min="0" value={adminS2} onChange={e => setAdminS2(e.target.value)}
+                                            <input type="number" min="0" value={adminS2}
+                                                onKeyDown={(e) => {
+                                                    if (["e", "E", "+", "-", "."].includes(e.key)) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                onChange={e => setAdminS2(e.target.value.replace(/\D/g, ''))}
                                                 className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white" />
                                         </div>
                                     </div>

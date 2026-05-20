@@ -256,8 +256,44 @@ const PlayerDashboard = () => {
                     </div>
                 )}
 
+                {/* Eliminated Banner — shown when player has been knocked out */}
+                {!loading && tournamentData?.participation?.status === 'out' && (
+                    <div className="w-full max-w-sm mb-8 relative group animate-completion-card">
+                        {/* Soft ambient backdrop */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500 rounded-3xl blur-xl opacity-10 group-hover:opacity-20 transition-opacity duration-700 animate-glow-flow" />
+                        
+                        <div className="relative p-8 bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl text-center overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500 animate-glow-flow" />
+                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500 rounded-full blur-[80px] opacity-15" />
+                            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-amber-500 rounded-full blur-[80px] opacity-10" />
+                            
+                            <div className="relative z-10">
+                                <div className="text-5xl mb-4 animate-[pulse_2s_ease-in-out_infinite]">🎮</div>
+                                <h3 className="text-xs text-rose-400 font-black uppercase tracking-[0.3em] mb-2 drop-shadow-md">
+                                    Status: Eliminated
+                                </h3>
+                                <p className="text-2xl font-black text-white mb-2 uppercase tracking-tight">
+                                    Journey Completed
+                                </p>
+                                <p className="text-sm text-slate-400 font-medium mb-6">
+                                    You have been eliminated from <span className="text-slate-200 font-bold">{tournamentData.tournament?.title}</span>. Well played!
+                                </p>
+
+                                <div className="bg-white/5 backdrop-blur-md rounded-2xl px-5 py-4 border border-white/10 mb-6">
+                                    <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Your Tournament Alias</p>
+                                    <p className="text-lg font-black text-white font-mono">{tournamentData.participation.alias || 'N/A'}</p>
+                                </div>
+
+                                <p className="text-xs text-slate-400 leading-relaxed">
+                                    Thank you for competing! You can follow the rest of the bracket matches and see the final standings on the leaderboard.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Current Match Card via ActiveMatchCard */}
-                {!loading && tournamentData?.currentMatch && (tournamentData?.tournament?.status === 'active' || tournamentData?.tournament?.status === 'scheduled') && (
+                {!loading && tournamentData?.participation?.status !== 'out' && tournamentData?.currentMatch && (tournamentData?.tournament?.status === 'active' || tournamentData?.tournament?.status === 'scheduled') && (
                     <ActiveMatchCard 
                         matchId={tournamentData.currentMatch.id} 
                         round={tournamentData.currentMatch.round} 
@@ -345,8 +381,9 @@ const PlayerDashboard = () => {
                 )}
                 
                 {/* Tournament Status Card */}
-                {/* Show if: (Not Completed) AND ( (No Match) OR (Match exists but Tourney NOT Active) ) */}
-                {!loading && tournamentData?.tournament && tournamentData?.tournament?.status !== 'completed' && 
+                {/* Show if: (Not Completed) AND (Not Eliminated) AND ( (No Match) OR (Match exists but Tourney NOT Active) ) */}
+                {!loading && tournamentData?.tournament && tournamentData?.tournament?.status !== 'completed' &&
+                    tournamentData?.participation?.status !== 'out' &&
                     (!tournamentData?.currentMatch || tournamentData?.tournament?.status !== 'active') && (
                     <div className={`w-full max-w-sm mb-8 p-6 text-center rounded-2xl border shadow-xl relative overflow-hidden transition-all duration-300 transform hover:scale-[1.02] ${
                         tournamentData?.tournament?.status === 'active' ? 'bg-white border-green-200 shadow-green-100' :
