@@ -976,6 +976,65 @@ router.post("/matches/:id/rematch", async (req, res) => {
   }
 });
 
+// Mark match as No-Show (both players absent — admin action)
+router.post("/matches/:id/no-show", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const matchRes = await client.query(
+        "SELECT * FROM matches WHERE id = $1 FOR UPDATE",
+        [id],
+      );
+      if (matchRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Match not found" });
+      }
+      const match = matchRes.rows[0];
+
+      if (match.status !== "scheduled") {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ error: `Match is not scheduled (current status: ${match.status})` });
+      }
+
+      // Cancel the match — both players are absent
+      await client.query(
+        `UPDATE matches SET status = 'cancelled', match_code = 'DOUBLE_DQ', winner_id = NULL WHERE id = $1`,
+        [id],
+      );
+
+      // Eliminate both players from the tournament
+      await client.query(
+        "UPDATE participants SET status = 'out' WHERE user_id IN ($1, $2) AND tournament_id = $3",
+        [match.player1_id, match.player2_id, match.tournament_id],
+      );
+
+      await checkIfTournamentFinished(id, client);
+      await client.query("COMMIT");
+
+      if (req.app.locals.io) {
+        req.app.locals.io.to(`match_${id}`).emit("match_updated");
+      }
+
+      res.json({ message: "Match marked as no-show. Both players eliminated." });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+
 router.get("/disputes", async (req, res) => {
   try {
     const result = await pool.query(`

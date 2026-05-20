@@ -38,8 +38,7 @@ const MatchDisputes = () => {
     // Match Handlers
     const handleOverride = async (e) => {
         e.preventDefault();
-        // Extract override data from form (simple implementation for now)
-        const winnerId = selectedMatch.player1_id; // Mock: defaulting to P1 for MVP UI
+        const winnerId = selectedMatch.player1_id;
         const s1 = 3; 
         const s2 = 0;
         
@@ -54,6 +53,22 @@ const MatchDisputes = () => {
             }
         } catch (err) {
             toast.error("Failed to override");
+        }
+    };
+
+    const handleNoShow = async () => {
+        if (!window.confirm(`Mark Match #${selectedMatch.id} as No-Show? Both players will be eliminated.`)) return;
+        try {
+            const data = await api.post(`/admin/matches/${selectedMatch.id}/no-show`, {});
+            if (data.message) {
+                toast.success("Match marked as no-show. Both players eliminated.");
+                setSelectedMatch(null);
+                fetchData();
+            } else {
+                toast.error(data.error || "Failed to mark no-show");
+            }
+        } catch (err) {
+            toast.error("Failed to mark no-show");
         }
     };
 
@@ -190,9 +205,24 @@ const MatchDisputes = () => {
                             Winner: <span className="text-green-600 font-bold">{selectedMatch.winner_id ? (selectedMatch.winner_id === selectedMatch.player1_id ? selectedMatch.p1_name : selectedMatch.p2_name) : 'Pending'}</span>
                         </div>
 
+                        <div className="mb-4 p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-500 text-center">
+                            Status: <span className="font-bold uppercase text-slate-700">{selectedMatch.status}</span>
+                            {selectedMatch.round && <> &nbsp;·&nbsp; Round <span className="font-bold">{selectedMatch.round}</span></>}
+                        </div>
+
                         <button onClick={handleOverride} className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors mb-2 border border-red-100">
                             Override Result (Set P1 Win)
                         </button>
+
+                        {selectedMatch.status === 'scheduled' && (
+                            <button
+                                onClick={handleNoShow}
+                                className="w-full py-3 bg-orange-50 text-orange-700 rounded-xl font-bold hover:bg-orange-100 transition-colors mb-2 border border-orange-200 flex items-center justify-center gap-2"
+                            >
+                                <span>⚠️</span> Mark No-Show (Double DQ)
+                            </button>
+                        )}
+
                         <button onClick={() => setSelectedMatch(null)} className="w-full py-3 bg-slate-100 rounded-xl text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors">
                             Close
                         </button>

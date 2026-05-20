@@ -49,7 +49,7 @@ const Leaderboard = () => {
         return institutionStr.substring(0, 4).toUpperCase();
     };
 
-    const isPreGame = leaderboardData.every(p => p.pts === 0 && p.gc === 0 && p.gs === 0);
+    const isPreGame = leaderboardData.every(p => p.pts === 0 && p.ga === 0 && p.gf === 0);
     const hasChampion = tournamentData?.status === 'completed' && tournamentData?.winner_id;
     const champion = hasChampion ? leaderboardData.find(p => p.id === tournamentData.winner_id) : null;
     const standardRoster = hasChampion ? leaderboardData.filter(p => p.id !== tournamentData.winner_id) : leaderboardData;
@@ -138,7 +138,7 @@ const Leaderboard = () => {
                                                     )}
                                                 </div>
                                                 <div className="text-amber-500/80 font-bold text-sm tracking-widest uppercase mt-1">
-                                                    {champion.pts} PTS • {champion.gs} GS • {champion.gc} GC
+                                                    {champion.pts} PTS • {champion.gf} GF • {champion.ga} GA • GD {champion.gd >= 0 ? '+' : ''}{champion.gd}
                                                 </div>
                                             </div>
                                         </div>
@@ -207,8 +207,9 @@ const Leaderboard = () => {
                                             <th className="p-2 sm:p-5 text-center w-12 sm:w-20">Rank</th>
                                             <th className="p-2 sm:p-5">Alias</th>
                                             <th className="p-2 sm:p-5 text-center w-14 sm:w-24">PTS</th>
-                                            <th className="p-2 sm:p-5 text-center w-14 sm:w-24">GS</th>
-                                            <th className="p-2 sm:p-5 text-center w-14 sm:w-24">GC</th>
+                                            <th className="p-2 sm:p-5 text-center w-14 sm:w-24">GD</th>
+                                            <th className="p-2 sm:p-5 text-center w-14 sm:w-24">GF</th>
+                                            <th className="p-2 sm:p-5 text-center w-14 sm:w-24">GA</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -267,18 +268,26 @@ const Leaderboard = () => {
                                                         </span>
                                                     </td>
                                                     <td className="p-2 sm:p-5 text-center">
-                                                        <span className="font-bold text-xs sm:text-base text-slate-400">{player.gs}</span>
+                                                        <span className={`font-bold text-xs sm:text-base ${
+                                                            isPreGame ? 'text-slate-300' :
+                                                            player.gd > 0 ? 'text-emerald-600' :
+                                                            player.gd < 0 ? 'text-rose-500' :
+                                                            'text-slate-400'
+                                                        }`}>
+                                                            {isPreGame ? '-' : (player.gd >= 0 ? `+${player.gd}` : player.gd)}
+                                                        </span>
                                                     </td>
                                                     <td className="p-2 sm:p-5 text-center">
-                                                        <span className="font-bold text-xs sm:text-base text-slate-400">
-                                                            {player.gc}
-                                                        </span>
+                                                        <span className="font-bold text-xs sm:text-base text-slate-400">{player.gf}</span>
+                                                    </td>
+                                                    <td className="p-2 sm:p-5 text-center">
+                                                        <span className="font-bold text-xs sm:text-base text-slate-400">{player.ga}</span>
                                                     </td>
                                                 </tr>
                                             );
                                         }) : (
                                             <tr>
-                                                <td colSpan="5" className="p-8 text-center text-slate-400">
+                                                <td colSpan="6" className="p-8 text-center text-slate-400">
                                                     No players found matching "{searchQuery}"
                                                 </td>
                                             </tr>

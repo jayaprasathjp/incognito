@@ -38,8 +38,8 @@ router.get("/", async (req, res) => {
                 alias: p.display_name,
                 institution: p.institution || 'N/A',
                 pts: 0,
-                gs: 0, // Goals Scored
-                gc: 0  // Goals Conceded
+                gf: 0, // Goals For (Scored)
+                ga: 0  // Goals Against (Conceded)
             };
         });
 
@@ -49,13 +49,13 @@ router.get("/", async (req, res) => {
             const p2 = standings[m.player2_id];
 
             if (p1 && p2) {
-                // Goals Scored
-                p1.gs += (m.score_player1 || 0);
-                p2.gs += (m.score_player2 || 0);
+                // Goals For
+                p1.gf += (m.score_player1 || 0);
+                p2.gf += (m.score_player2 || 0);
 
-                // Goals Conceded
-                p1.gc += (m.score_player2 || 0);
-                p2.gc += (m.score_player1 || 0);
+                // Goals Against
+                p1.ga += (m.score_player2 || 0);
+                p2.ga += (m.score_player1 || 0);
 
                 // Points: 3 for a win; disqualifications / no winner award 0 here
                 if (m.winner_id === m.player1_id) {
@@ -66,14 +66,15 @@ router.get("/", async (req, res) => {
             }
         });
 
-        // Convert to Array and Sort: Pts DESC -> GS DESC -> GC ASC -> Alias Alphabetical
-        const leaderboard = Object.values(standings).sort((a, b) => {
-            if (b.pts !== a.pts) return b.pts - a.pts;  // Highest points first
-            if (b.gs !== a.gs) return b.gs - a.gs;      // Then highest goals scored
-            if (a.gc !== b.gc) return a.gc - b.gc;      // Then LOWEST goals conceded FIRST (therefore a - b)
-            // Alphabetical fallback (essential for pre-game or matched standings)
-            return a.alias.localeCompare(b.alias);
-        });
+        // Compute Goal Difference and Sort: PTS DESC -> GD DESC -> GF DESC -> Alias ASC
+        const leaderboard = Object.values(standings)
+            .map(p => ({ ...p, gd: p.gf - p.ga }))
+            .sort((a, b) => {
+                if (b.pts !== a.pts) return b.pts - a.pts;   // Highest points first
+                if (b.gd  !== a.gd)  return b.gd  - a.gd;   // Then highest goal difference
+                if (b.gf  !== a.gf)  return b.gf  - a.gf;   // Then highest goals for
+                return a.alias.localeCompare(b.alias);        // Alphabetical fallback
+            });
 
         // Add Position Index
         leaderboard.forEach((p, index) => p.position = index + 1);
