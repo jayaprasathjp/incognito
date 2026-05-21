@@ -951,15 +951,23 @@ router.post("/matches/:id/rematch", async (req, res) => {
                     checked_in_at = NULL,
                     p1_checked_in = false,
                     p2_checked_in = false
-                 WHERE id = $1 RETURNING tournament_id`,
+                 WHERE id = $1 RETURNING tournament_id, player1_id, player2_id`,
         [id],
       );
 
       if (updateRes.rows.length > 0) {
+        const { tournament_id, player1_id, player2_id } = updateRes.rows[0];
+
+        // Reset both players status back to 'in' in participants
+        await client.query(
+          "UPDATE participants SET status = 'in' WHERE user_id IN ($1, $2) AND tournament_id = $3",
+          [player1_id, player2_id, tournament_id]
+        );
+
         // If tournament was paused due to no winner, reactivate it!
         await client.query(
           "UPDATE tournaments SET status = 'active' WHERE id = $1 AND status = 'paused'",
-          [updateRes.rows[0].tournament_id],
+          [tournament_id],
         );
       }
       await client.query("COMMIT");
@@ -1040,6 +1048,8 @@ router.get("/disputes", async (req, res) => {
     const result = await pool.query(`
             SELECT d.*,
                    m.match_code, m.player1_id, m.player2_id, m.status AS match_status,
+                   m.p1_score, m.p1_opp_score, m.p1_proof,
+                   m.p2_score, m.p2_opp_score, m.p2_proof,
                    COALESCE(p1.alias, u1.email) AS submitted_by_name,
                    COALESCE(p2.alias, u2.email) AS opponent_name
             FROM disputes d
@@ -1054,7 +1064,26 @@ router.get("/disputes", async (req, res) => {
                 CASE WHEN d.status IN ('pending','awaiting_admin') THEN 0 ELSE 1 END ASC,
                 d.created_at DESC
         `);
-    res.json(result.rows);
+    
+    const rows = result.rows.map(row => {
+      if (row.dispute_kind === 'score_conflict') {
+        const isP1Submitter = row.submitted_by === row.player1_id;
+        
+        row.submitter_score_for = isP1Submitter ? row.p1_score : row.p2_score;
+        row.submitter_score_against = isP1Submitter ? row.p1_opp_score : row.p2_opp_score;
+        const subProof = isP1Submitter ? row.p1_proof : row.p2_proof;
+        row.submitter_screenshots = subProof ? [subProof] : [];
+        
+        row.opponent_action = 'submitted';
+        row.opponent_score_for = isP1Submitter ? row.p2_score : row.p1_score;
+        row.opponent_score_against = isP1Submitter ? row.p2_opp_score : row.p1_opp_score;
+        const oppProof = isP1Submitter ? row.p2_proof : row.p1_proof;
+        row.opponent_screenshots = oppProof ? [oppProof] : [];
+      }
+      return row;
+    });
+
+    res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -1515,23 +1544,20 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
     `[FIXTURES] Starting generation for tournament ${tournamentId}, round ${roundNumber} (type: ${typeof roundNumber})`,
   );
 
-  // 1. Pre-checks (no transaction needed)
-  const roundRes = await pool.query(
-    "SELECT * FROM rounds WHERE tournament_id = $1 AND round_number = $2",
-    [tournamentId, roundNumber],
-  );
-  if (roundRes.rows.length === 0)
-    throw new Error(`Round ${roundNumber} not found`);
-  if (roundRes.rows[0].fixtures_generated)
-    throw new Error(`Fixtures already generated for Round ${roundNumber}`);
-
-  // 2. Lock the round immediately to prevent double-generation
-  await pool.query(
-    "UPDATE rounds SET fixtures_generated = true WHERE tournament_id = $1 AND round_number = $2",
-    [tournamentId, roundNumber],
-  );
-
+  const client = await pool.connect();
   try {
+    await client.query("BEGIN");
+
+    // 1. Pre-checks and locking
+    const roundRes = await client.query(
+      "SELECT * FROM rounds WHERE tournament_id = $1 AND round_number = $2 FOR UPDATE",
+      [tournamentId, roundNumber],
+    );
+    if (roundRes.rows.length === 0)
+      throw new Error(`Round ${roundNumber} not found`);
+    if (roundRes.rows[0].fixtures_generated)
+      throw new Error(`Fixtures already generated for Round ${roundNumber}`);
+
     // 3. Build all match data in memory
     const byeMatchPlayerIds = [];
     const schedMatchData = []; // { p1Id, p2Id, matchCode, matchTime }
@@ -1539,7 +1565,7 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
     if (roundNumber === 1) {
       console.log(`[FIXTURES] >>> Entering ROUND 1 branch (power-of-2 BYEs)`);
       // ═══ ROUND 1: Power-of-2 BYEs + Session-Based Matching ═══
-      const pRes = await pool.query(
+      const pRes = await client.query(
         `SELECT p.user_id as id, p.session_preference, p.joined_at 
                  FROM participants p 
                  WHERE p.tournament_id = $1 AND p.status = 'in' 
@@ -1614,31 +1640,111 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
       }
     } else {
       // ═══ ROUND 2+: Winners from previous round ═══
-      const winnersRes = await pool.query(
+      const winnersRes = await client.query(
         `SELECT m.winner_id as id, COALESCE(p.session_preference, 'morning') as session_preference
                  FROM matches m
-                 LEFT JOIN participants p ON m.winner_id = p.user_id AND p.tournament_id = $1
-                 WHERE m.tournament_id = $1 AND m.round = $2 AND m.winner_id IS NOT NULL`,
+                 JOIN participants p ON m.winner_id = p.user_id AND p.tournament_id = $1
+                 WHERE m.tournament_id = $1 AND m.round = $2 AND m.winner_id IS NOT NULL AND p.status = 'in'`,
         [tournamentId, roundNumber - 1],
       );
-      const allPlayers = winnersRes.rows;
+      let allPlayers = winnersRes.rows;
       if (allPlayers.length === 0)
-        throw new Error(`No winners found from Round ${roundNumber - 1}`);
-      if (allPlayers.length < 2) throw new Error("Not enough players");
+        throw new Error(`No active winners found from Round ${roundNumber - 1}`);
+      if (allPlayers.length < 2) throw new Error("Not enough players remaining in the tournament");
 
+      // 1. Fetch expected capacity for the current round
+      const currentRoundConfRes = await client.query(
+        "SELECT players FROM rounds WHERE tournament_id = $1 AND round_number = $2",
+        [tournamentId, roundNumber]
+      );
+      const expectedCapacity = currentRoundConfRes.rows.length > 0 ? Number(currentRoundConfRes.rows[0].players) : nextPowerOf2(allPlayers.length);
+
+      // 2. Check if more than half are eliminated (A < ExpectedCapacity / 2)
+      if (allPlayers.length < expectedCapacity / 2) {
+        console.log(`[FIXTURES] More than half eliminated (${allPlayers.length}/${expectedCapacity}). Triggering Round Jump.`);
+        
+        const targetCapacity = nextPowerOf2(allPlayers.length);
+        
+        // Find the round that fits this capacity
+        const remainingRoundsRes = await client.query(
+          "SELECT round_number, players FROM rounds WHERE tournament_id = $1 AND round_number >= $2 ORDER BY round_number ASC",
+          [tournamentId, roundNumber]
+        );
+        
+        let targetRoundNumber = roundNumber;
+        for (const r of remainingRoundsRes.rows) {
+          if (Number(r.players) <= targetCapacity) {
+            targetRoundNumber = Number(r.round_number);
+            break;
+          }
+        }
+        
+        if (targetRoundNumber > roundNumber) {
+          console.log(`[FIXTURES] Jumping from Round ${roundNumber} to Round ${targetRoundNumber}`);
+          
+          // A. Relabel completed matches from the previous round so they serve as input to targetRoundNumber
+          await client.query(
+            "UPDATE matches SET round = $1 WHERE tournament_id = $2 AND round = $3",
+            [targetRoundNumber - 1, tournamentId, roundNumber - 1]
+          );
+          
+          // B. Mark skipped rounds as generated and append ' (Skipped)' to their names without deleting
+          await client.query(
+            `UPDATE rounds 
+             SET fixtures_generated = true, 
+                 name = CASE WHEN name LIKE '% (Skipped)' THEN name ELSE name || ' (Skipped)' END
+             WHERE tournament_id = $1 AND round_number >= $2 AND round_number < $3`,
+            [tournamentId, roundNumber, targetRoundNumber]
+          );
+          
+          // C. Update variables for current run
+          roundNumber = targetRoundNumber;
+        }
+      }
+
+      // Re-fetch expected capacity in case round number changed due to jump
+      const finalRoundConfRes = await client.query(
+        "SELECT players FROM rounds WHERE tournament_id = $1 AND round_number = $2",
+        [tournamentId, roundNumber]
+      );
+      const capacity = finalRoundConfRes.rows.length > 0 ? Number(finalRoundConfRes.rows[0].players) : nextPowerOf2(allPlayers.length);
+
+      // 3. Apply Power-of-2 BYE logic for Round 2+
+      const totalActivePlayers = allPlayers.length;
+      const byeCount = capacity - totalActivePlayers;
+      const playingCount = totalActivePlayers - byeCount;
+
+      console.log(
+        `[FIXTURES R${roundNumber}+] Active: ${totalActivePlayers}, Capacity: ${capacity}, BYEs: ${byeCount}, Playing: ${playingCount}`
+      );
+
+      // Award BYEs
+      const shuffledPlayers = shuffle([...allPlayers]);
+      for (let i = 0; i < byeCount; i++) {
+        byeMatchPlayerIds.push(shuffledPlayers[i].id);
+      }
+      const playingPlayers = shuffledPlayers.slice(byeCount);
+
+      // 4. Pair remaining players by session preference
       const sessionGroups = { morning: [], afternoon: [], evening: [] };
-      for (const p of allPlayers)
-        (sessionGroups[p.session_preference] || sessionGroups.morning).push(p);
+      for (const player of playingPlayers) {
+        const s = player.session_preference || "morning";
+        (sessionGroups[s] || sessionGroups.morning).push(player);
+      }
 
       const leftoverPlayers = [];
       const rawMatches = [];
       for (const session of ["morning", "afternoon", "evening"]) {
         const group = shuffle(sessionGroups[session]);
-        for (let i = 0; i < group.length - 1; i += 2)
+        for (let i = 0; i < group.length - 1; i += 2) {
           rawMatches.push({ p1: group[i], p2: group[i + 1], session });
-        if (group.length % 2 !== 0)
+        }
+        if (group.length % 2 !== 0) {
           leftoverPlayers.push(group[group.length - 1]);
+        }
       }
+
+      // Cross-session leftovers pairing (playingCount is guaranteed even, so leftovers must be even and pair perfectly!)
       shuffle(leftoverPlayers);
       for (let i = 0; i < leftoverPlayers.length - 1; i += 2) {
         rawMatches.push({
@@ -1647,13 +1753,11 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
           session: leftoverPlayers[i].session_preference || "morning",
         });
       }
-      if (leftoverPlayers.length % 2 !== 0)
-        byeMatchPlayerIds.push(leftoverPlayers[leftoverPlayers.length - 1].id);
 
+      // Assign time slots to pairings
       const counters = { morning: 0, afternoon: 0, evening: 0 };
       for (const m of rawMatches) {
-        const slots =
-          SESSION_TIME_SLOTS[m.session] || SESSION_TIME_SLOTS.morning;
+        const slots = SESSION_TIME_SLOTS[m.session] || SESSION_TIME_SLOTS.morning;
         const matchTime = slots[counters[m.session] % slots.length];
         counters[m.session]++;
         schedMatchData.push({
@@ -1665,7 +1769,7 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
       }
     }
 
-    // 4. BULK INSERT — no wrapping transaction, just batch queries
+    // 4. BULK INSERT
     let matchesCreated = 0;
     const BATCH = 200;
 
@@ -1682,7 +1786,7 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
         params.push(tournamentId, roundNumber, pid);
         idx += 3;
       }
-      await pool.query(
+      await client.query(
         `INSERT INTO matches (tournament_id, round, player1_id, winner_id, status, match_code, match_time) VALUES ${values.join(", ")}`,
         params,
       );
@@ -1710,7 +1814,7 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
         );
         idx += 6;
       }
-      await pool.query(
+      await client.query(
         `INSERT INTO matches (tournament_id, round, player1_id, player2_id, status, match_code, match_time) VALUES ${values.join(", ")}`,
         params,
       );
@@ -1719,6 +1823,14 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
     console.log(
       `[FIXTURES] ${schedMatchData.length} scheduled matches inserted`,
     );
+
+    // Lock the actual target round we successfully generated fixtures for
+    await client.query(
+      "UPDATE rounds SET fixtures_generated = true WHERE tournament_id = $1 AND round_number = $2",
+      [tournamentId, roundNumber],
+    );
+
+    await client.query("COMMIT");
     console.log(
       `[FIXTURES] Total: ${matchesCreated} matches for tournament ${tournamentId}, round ${roundNumber}`,
     );
@@ -1728,17 +1840,11 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
       scheduled: schedMatchData.length,
     };
   } catch (e) {
-    // Rollback: unlock the round and clean up any partial inserts
-    console.error(`[FIXTURES] Error, rolling back:`, e.message);
-    await pool.query(
-      "DELETE FROM matches WHERE tournament_id = $1 AND round = $2",
-      [tournamentId, roundNumber],
-    );
-    await pool.query(
-      "UPDATE rounds SET fixtures_generated = false WHERE tournament_id = $1 AND round_number = $2",
-      [tournamentId, roundNumber],
-    );
+    console.error(`[FIXTURES] Error, rolling back transaction:`, e.message);
+    await client.query("ROLLBACK");
     throw e;
+  } finally {
+    client.release();
   }
 }
 

@@ -665,11 +665,22 @@ router.post("/:id/check-walkover", authenticateToken, async (req, res) => {
             } else if (!match.player1_ready && match.player2_ready) {
                 winnerId = match.player2_id;
             } else if (!match.player1_ready && !match.player2_ready) {
-                // both lose/cancel - we set status to cancelled
-                await client.query("UPDATE matches SET status = 'cancelled' WHERE id = $1", [id]);
+                // both lose/cancel - we set status to cancelled and disqualify both players
+                await client.query(
+                    `UPDATE matches SET status = 'cancelled', match_code = 'DOUBLE_DQ' WHERE id = $1`,
+                    [id]
+                );
+
+                // Mark both absent players as eliminated ('out')
+                await client.query(
+                    "UPDATE participants SET status = 'out' WHERE user_id IN ($1, $2) AND tournament_id = $3",
+                    [match.player1_id, match.player2_id, match.tournament_id]
+                );
+
+                await checkIfTournamentFinished(id, client);
                 await client.query('COMMIT');
                 emitMatchUpdate(req, id);
-                return res.json({ message: "Match cancelled. Neither player checked in." });
+                return res.json({ message: "Match cancelled. Neither player checked in. Both disqualified.", reason: "double_dq" });
             } else {
                 throw new Error("Both players are ready. Play the match.");
             }
