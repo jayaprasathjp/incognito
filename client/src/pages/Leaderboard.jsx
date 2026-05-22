@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import appIcon from '../assets/app-icon.png';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
@@ -10,6 +10,8 @@ import SEO from '../components/SEO';
 
 const Leaderboard = () => {
     const { user } = useAuth();
+    const location = useLocation();
+    const isAdmin = location.pathname.startsWith('/admin');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [leaderboardData, setLeaderboardData] = useState([]);
     const [tournamentData, setTournamentData] = useState(null);
@@ -70,23 +72,27 @@ const Leaderboard = () => {
     const paginatedRoster = filteredRoster.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans relative overflow-hidden">
-            <SEO
-                title="Leaderboard"
-                description="Track the official INCØGNITØ leaderboard, tournament rankings, points, goals scored, and campus esports standings."
-            />
-            {/* Ambient Background Elements */}
-            <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/20 blur-[120px] pointer-events-none"></div>
-            <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/20 blur-[120px] pointer-events-none"></div>
+        <div className={isAdmin ? "w-full text-slate-900 font-sans relative" : "min-h-screen bg-slate-50 text-slate-900 font-sans relative overflow-hidden"}>
+            {!isAdmin && (
+                <>
+                    <SEO
+                        title="Leaderboard"
+                        description="Track the official INCØGNITØ leaderboard, tournament rankings, points, goals scored, and campus esports standings."
+                    />
+                    {/* Ambient Background Elements */}
+                    <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/20 blur-[120px] pointer-events-none"></div>
+                    <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/20 blur-[120px] pointer-events-none"></div>
 
-             {/* Header */}
-             <div className="flex items-center justify-center p-4 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm relative z-20">
-                <img src={appIcon} alt="Logo" className="absolute left-4 w-8 h-8 object-contain" />
-                <span className="font-bold text-lg tracking-wider text-slate-800">INCØGNITØ</span>
-                <MenuButton onClick={() => setIsMenuOpen(true)} />
-            </div>
+                     {/* Header */}
+                     <div className="flex items-center justify-center p-4 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm relative z-20">
+                        <img src={appIcon} alt="Logo" className="absolute left-4 w-8 h-8 object-contain" />
+                        <span className="font-bold text-lg tracking-wider text-slate-800">INCØGNITØ</span>
+                        <MenuButton onClick={() => setIsMenuOpen(true)} />
+                    </div>
 
-            <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+                    <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+                </>
+            )}
 
             <div className="max-w-4xl mx-auto px-4 py-5 relative z-10">
                 

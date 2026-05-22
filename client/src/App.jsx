@@ -75,6 +75,7 @@ function App() {
                 <Route path="users" element={<UserManagement />} />
                 <Route path="tournament" element={<TournamentControl />} />
                 <Route path="matches" element={<Matches />} />
+                <Route path="leaderboard" element={<Leaderboard />} />
                 <Route path="disputes" element={<Disputes />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="announcements" element={<Announcements />} />

@@ -1,7 +1,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken, authorizeAdmin } from "../middleware/auth.js";
-import { checkIfTournamentFinished } from "../utils/tournamentHelpers.js";
+import { checkIfTournamentFinished, autoResolveExpiredMatches } from "../utils/tournamentHelpers.js";
 import {
   ensureAnnouncementTables,
   getAnnouncementAudience,
@@ -17,12 +17,24 @@ router.use(authenticateToken, authorizeAdmin);
 router.get("/stats", async (req, res) => {
   try {
     // 1. Get Latest Tournament
-    const tResult = await pool.query(
+    let tResult = await pool.query(
       "SELECT * FROM tournaments ORDER BY created_at DESC LIMIT 1",
     );
-    const tournament = tResult.rows[0] || null;
+    let tournament = tResult.rows[0] || null;
+
+    if (tournament && tournament.status === 'active') {
+      await autoResolveExpiredMatches(tournament.id);
+      // Re-fetch since the sweeper might have advanced rounds or completed the tournament
+      tResult = await pool.query(
+        "SELECT * FROM tournaments WHERE id = $1",
+        [tournament.id]
+      );
+      tournament = tResult.rows[0] || null;
+    }
 
     let participantsCount = 0;
+    let activeParticipantsCount = 0;
+    let eliminatedParticipantsCount = 0;
     let currentRoundMatchCount = 0;
     let currentRound = 1;
     let tournamentTitle = "No Tournament";
@@ -32,12 +44,19 @@ router.get("/stats", async (req, res) => {
       tournamentTitle = tournament.title;
       tournamentStatus = tournament.status;
 
-      // Participants in this tournament
+      // Participants in this tournament (total, in, and out counts)
       const pRes = await pool.query(
-        "SELECT COUNT(*) FROM participants WHERE tournament_id = $1",
+        `SELECT 
+           COUNT(*) as total,
+           COUNT(*) FILTER (WHERE status = 'in') as active_count,
+           COUNT(*) FILTER (WHERE status = 'out') as out_count
+         FROM participants 
+         WHERE tournament_id = $1`,
         [tournament.id],
       );
-      participantsCount = parseInt(pRes.rows[0].count);
+      participantsCount = parseInt(pRes.rows[0].total) || 0;
+      activeParticipantsCount = parseInt(pRes.rows[0].active_count) || 0;
+      eliminatedParticipantsCount = parseInt(pRes.rows[0].out_count) || 0;
 
       // Current Round
       if (["active", "paused", "completed"].includes(tournament.status)) {
@@ -57,8 +76,11 @@ router.get("/stats", async (req, res) => {
     }
 
     // System stats (optional, but let's keep alerts/prize pool)
-    const pendingDisputes = await pool.query(
-      "SELECT COUNT(*) FROM disputes WHERE status = 'pending'",
+    const disputesCountRes = await pool.query(
+      `SELECT 
+         COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
+         COUNT(*) FILTER (WHERE status = 'awaiting_admin') AS awaiting_admin_count
+       FROM disputes`
     );
     // Prize pool is now taken from the existing tournament record
     const prizePool = tournament ? parseInt(tournament.prize_pool) || 0 : 0;
@@ -67,9 +89,9 @@ router.get("/stats", async (req, res) => {
     const recentDisputes = await pool.query(`
             SELECT 'dispute' as type, id, created_at, status 
             FROM disputes 
-            WHERE status = 'pending' 
+            WHERE status IN ('pending', 'awaiting_admin') 
             ORDER BY created_at ASC 
-            LIMIT 3
+            LIMIT 5
         `);
 
     const recentPayouts = await pool.query(`
@@ -86,19 +108,17 @@ router.get("/stats", async (req, res) => {
         status: tournamentStatus,
         currentRound: currentRound,
         participants: participantsCount,
+        activeParticipants: activeParticipantsCount,
+        eliminatedParticipants: eliminatedParticipantsCount,
         roundMatches: currentRoundMatchCount,
         registration_start: tournament?.registration_start || null,
         registration_end: tournament?.registration_end || null,
       },
       prizePool,
       pendingIssues: {
-        disputes: parseInt(pendingDisputes.rows[0].count),
-        payouts: parseInt(recentPayouts.rows.length), // Fix: was using pendingPayouts which is undefined in original code too? checked above.
-        // Wait, original code had `pendingPayouts` usage but didn't define it properly in the query?
-        // Ah, looking at original code: `const pendingDisputes...`. `const prizePool...`.
-        // It accessed `pendingPayouts.rows[0].count` but where was `pendingPayouts` defined?
-        // It wasn't defined in the snippet I saw! It likely crashed or was just wrong in my view?
-        // I will fix it here.
+        disputes: parseInt(disputesCountRes.rows[0].pending_count),
+        awaitingAdmin: parseInt(disputesCountRes.rows[0].awaiting_admin_count),
+        payouts: parseInt(recentPayouts.rows.length),
       },
       alerts: [...recentDisputes.rows, ...recentPayouts.rows].sort(
         (a, b) => new Date(a.created_at) - new Date(b.created_at),
@@ -438,8 +458,60 @@ router.get("/tournaments/control", async (req, res) => {
             : "",
         })),
       };
+
+      // Calculate active player count and dynamic rounds (e.g., skips / jumps)
+      const activePlayersRes = await pool.query(
+        "SELECT COUNT(*) FROM participants WHERE tournament_id = $1 AND status = 'in'",
+        [tournament.id]
+      );
+      const activePlayersCount = parseInt(activePlayersRes.rows[0].count) || 0;
+      tournament.active_players_count = activePlayersCount;
+
+      let activeRound = null;
+      let nextTargetRound = null;
+      let nextUngeneratedRound = null;
+
+      const formattedRounds = tournament.rounds_config.rounds;
+
+      // Find first ungenerated round
+      nextUngeneratedRound = formattedRounds.find(r => !r.fixtures_generated) || null;
+
+      if (nextUngeneratedRound) {
+        const expectedCapacity = Number(nextUngeneratedRound.players);
+        if (activePlayersCount < expectedCapacity / 2) {
+          const targetCapacity = nextPowerOf2(activePlayersCount);
+          const remainingRounds = formattedRounds.filter(r => r.round_number >= nextUngeneratedRound.round_number);
+          nextTargetRound = remainingRounds.find(r => Number(r.players) <= targetCapacity) || nextUngeneratedRound;
+        } else {
+          nextTargetRound = nextUngeneratedRound;
+        }
+      }
+
+      // Find active round (highest round_number with fixtures_generated = true and not skipped)
+      activeRound = [...formattedRounds]
+        .reverse()
+        .find(r => r.fixtures_generated && !r.name.includes("(Skipped)")) || null;
+
+      let isActiveRoundOngoing = false;
+      if (activeRound) {
+        const unresolvedRes = await pool.query(
+          "SELECT COUNT(*) FROM matches WHERE tournament_id = $1 AND round = $2 AND status IN ('scheduled', 'active', 'disputed')",
+          [tournament.id, activeRound.round_number]
+        );
+        isActiveRoundOngoing = parseInt(unresolvedRes.rows[0].count) > 0;
+      }
+
+      tournament.active_round = activeRound;
+      tournament.is_active_round_ongoing = isActiveRoundOngoing;
+      tournament.next_target_round = nextTargetRound;
+      tournament.next_ungenerated_round = nextUngeneratedRound;
     } else {
       tournament.rounds_config = null;
+      tournament.active_players_count = 0;
+      tournament.active_round = null;
+      tournament.is_active_round_ongoing = false;
+      tournament.next_target_round = null;
+      tournament.next_ungenerated_round = null;
     }
 
     res.json(tournament);
@@ -833,12 +905,17 @@ router.get("/matches", async (req, res) => {
 
     // Get the current tournament ID first
     const tResult = await pool.query(
-      "SELECT id FROM tournaments ORDER BY created_at DESC LIMIT 1",
+      "SELECT id, status FROM tournaments ORDER BY created_at DESC LIMIT 1",
     );
-    const tournamentId = tResult.rows[0]?.id;
+    const tournament = tResult.rows[0];
+    const tournamentId = tournament?.id;
 
     if (!tournamentId) {
       return res.json({ matches: [], total: 0, page: 1, limit: 15 });
+    }
+
+    if (tournament && tournament.status === 'active') {
+      await autoResolveExpiredMatches(tournamentId);
     }
 
     let query = `

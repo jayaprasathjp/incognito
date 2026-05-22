@@ -4,7 +4,7 @@ import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import { pool } from "../db.js";
 import { authenticateToken } from "../middleware/auth.js";
-import { checkIfTournamentFinished } from "../utils/tournamentHelpers.js";
+import { checkIfTournamentFinished, autoResolveExpiredMatches } from "../utils/tournamentHelpers.js";
 import {
     expirePlayerDisputes,
     hasOpenPlayerDispute,
@@ -230,6 +230,12 @@ router.get("/testxyz", (req, res) => res.json({ message: "Server updated" }));
 // Get Player's Matches
 router.get("/my-matches", authenticateToken, async (req, res) => {
     try {
+        // Auto-sweep active tournament checkins first
+        const activeTourneyRes = await pool.query("SELECT id FROM tournaments WHERE status = 'active' ORDER BY created_at DESC LIMIT 1");
+        if (activeTourneyRes.rows.length > 0) {
+            await autoResolveExpiredMatches(activeTourneyRes.rows[0].id);
+        }
+
         const result = await pool.query(
             `SELECT m.*, 
              COALESCE(part1.alias, p1.email) as player1_name, 
@@ -340,18 +346,54 @@ router.post("/:id/disputes", authenticateToken, async (req, res) => {
 
 
 
-            const submitShots = Array.isArray(screenshots)
+            const isP1 = match.player1_id === req.user.id;
+
+            let submitShots = Array.isArray(screenshots)
                 ? screenshots.filter((u) => typeof u === "string" && u.trim())
                 : [];
-            const sf = Number.isFinite(parseInt(score_for, 10)) ? parseInt(score_for, 10) : null;
-            const sa = Number.isFinite(parseInt(score_against, 10)) ? parseInt(score_against, 10) : null;
+            let sf = (score_for !== undefined && score_for !== null && score_for !== "") ? parseInt(score_for, 10) : null;
+            let sa = (score_against !== undefined && score_against !== null && score_against !== "") ? parseInt(score_against, 10) : null;
+
+            // Fallback for submitter score & proof
+            if (!Number.isFinite(sf)) {
+                sf = isP1 ? match.p1_score : match.p2_score;
+            }
+            if (!Number.isFinite(sa)) {
+                sa = isP1 ? match.p1_opp_score : match.p2_opp_score;
+            }
+            if (submitShots.length === 0) {
+                const subProof = isP1 ? match.p1_proof : match.p2_proof;
+                if (subProof) {
+                    submitShots = [subProof];
+                }
+            }
+
+            // Fallback for opponent score & proof (if they already submitted)
+            let oppShots = [];
+            let osf = null;
+            let osa = null;
+
+            const oppScoreForVal = isP1 ? match.p2_score : match.p1_score;
+            const oppScoreAgainstVal = isP1 ? match.p2_opp_score : match.p1_opp_score;
+            const oppProofVal = isP1 ? match.p2_proof : match.p1_proof;
+
+            if (oppScoreForVal !== null && oppScoreForVal !== undefined) {
+                osf = oppScoreForVal;
+            }
+            if (oppScoreAgainstVal !== null && oppScoreAgainstVal !== undefined) {
+                osa = oppScoreAgainstVal;
+            }
+            if (oppProofVal) {
+                oppShots = [oppProofVal];
+            }
 
             const ins = await client.query(
                 `INSERT INTO disputes (
                     match_id, submitted_by, reason, evidence_url, status,
                     dispute_kind, respond_by,
-                    reason_category, submitter_score_for, submitter_score_against, submitter_screenshots
-                ) VALUES ($1, $2, $3, $4, 'pending', 'player_claim', NOW() + INTERVAL '1 hour', $5, $6, $7, $8::jsonb)
+                    reason_category, submitter_score_for, submitter_score_against, submitter_screenshots,
+                    opponent_score_for, opponent_score_against, opponent_screenshots
+                ) VALUES ($1, $2, $3, $4, 'pending', 'player_claim', NOW() + INTERVAL '1 hour', $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb)
                 RETURNING *`,
                 [
                     id,
@@ -362,6 +404,9 @@ router.post("/:id/disputes", authenticateToken, async (req, res) => {
                     sf,
                     sa,
                     JSON.stringify(submitShots),
+                    osf,
+                    osa,
+                    JSON.stringify(oppShots),
                 ]
             );
 
@@ -510,6 +555,12 @@ router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, r
 router.get("/:id", authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Auto-sweep active tournament checkins first
+        const mRes = await pool.query("SELECT tournament_id FROM matches WHERE id = $1", [id]);
+        if (mRes.rows.length > 0) {
+            await autoResolveExpiredMatches(mRes.rows[0].tournament_id);
+        }
 
         const ex = await pool.connect();
         try {

@@ -12,7 +12,8 @@ import {
     Megaphone,
     Gavel,
     X,
-    Share2
+    Share2,
+    Award
 } from "lucide-react";
 
 const AdminSidebar = ({ isOpen, onClose }) => {
@@ -37,6 +38,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         { path: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
         { path: "/admin/tournament", label: "Tournament", icon: <Trophy size={20} /> },
         { path: "/admin/matches", label: "Matches", icon: <Swords size={20} /> },
+        { path: "/admin/leaderboard", label: "Leaderboard", icon: <Award size={20} /> },
         { path: "/admin/participants", label: "Participants", icon: <Users size={20} /> },
         { path: "/admin/users", label: "Manage Users", icon: <Users size={20} /> },
         { path: "/admin/disputes", label: "Disputes", icon: <Gavel size={20} /> },
