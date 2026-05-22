@@ -1158,24 +1158,33 @@ router.post("/disputes/:id/resolve", async (req, res) => {
         );
         await checkIfTournamentFinished(matchId, client);
       } else if (action === "dispute_rejected") {
-        // Dispute dismissed — match returns to scheduled so players can continue
+        // Double Disqualification — cancel match and disqualify both players
         await client.query(
-          `UPDATE matches SET
-                        status = 'scheduled',
-                        p1_score = NULL, p2_score = NULL, p1_opp_score = NULL, p2_opp_score = NULL,
-                        p1_proof = NULL, p2_proof = NULL,
-                        winner_id = NULL,
-                        score_player1 = NULL, score_player2 = NULL,
-                        submitted_by = NULL
-                     WHERE id = $1`,
+          `UPDATE matches 
+           SET status = 'cancelled', 
+               winner_id = NULL, 
+               match_code = 'DISPUTE_DOUBLE_DQ' 
+           WHERE id = $1`,
           [matchId],
         );
+
+        // Mark both players as 'out'
         await client.query(
-          `UPDATE disputes SET status = 'resolved', resolved_outcome = 'dispute_rejected',
-                         admin_notes = $2, admin_reason = $3
-                     WHERE id = $1`,
+          "UPDATE participants SET status = 'out' WHERE user_id IN ($1, $2) AND tournament_id = $3",
+          [d.match_p1, d.match_p2, d.tournament_id],
+        );
+
+        await client.query(
+          `UPDATE disputes 
+           SET status = 'resolved', 
+               resolved_outcome = 'double_dq',
+               admin_notes = $2, 
+               admin_reason = $3
+           WHERE id = $1`,
           [id, admin_notes || null, admin_reason || null],
         );
+
+        await checkIfTournamentFinished(matchId, client);
       } else if (action === "match_replay_scheduled") {
         const time = String(rematch_time || "").trim();
         if (!/^\d{2}:\d{2}$/.test(time)) {
