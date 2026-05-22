@@ -1,6 +1,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken, optionalAuthenticateToken, authorizeAdmin } from "../middleware/auth.js";
+import { autoResolveExpiredMatches } from "../utils/tournamentHelpers.js";
 
 const router = express.Router();
 
@@ -11,6 +12,11 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
         if (result.rows.length === 0) return res.json({ tournament: null });
         
         const tournament = result.rows[0];
+
+        // Auto-sweep expired check-ins first if active
+        if (tournament.status === 'active') {
+            await autoResolveExpiredMatches(tournament.id);
+        }
         
         // Current Round
         let currentRound = 0;

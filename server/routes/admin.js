@@ -1,7 +1,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken, authorizeAdmin } from "../middleware/auth.js";
-import { checkIfTournamentFinished } from "../utils/tournamentHelpers.js";
+import { checkIfTournamentFinished, autoResolveExpiredMatches } from "../utils/tournamentHelpers.js";
 import {
   ensureAnnouncementTables,
   getAnnouncementAudience,
@@ -17,10 +17,20 @@ router.use(authenticateToken, authorizeAdmin);
 router.get("/stats", async (req, res) => {
   try {
     // 1. Get Latest Tournament
-    const tResult = await pool.query(
+    let tResult = await pool.query(
       "SELECT * FROM tournaments ORDER BY created_at DESC LIMIT 1",
     );
-    const tournament = tResult.rows[0] || null;
+    let tournament = tResult.rows[0] || null;
+
+    if (tournament && tournament.status === 'active') {
+      await autoResolveExpiredMatches(tournament.id);
+      // Re-fetch since the sweeper might have advanced rounds or completed the tournament
+      tResult = await pool.query(
+        "SELECT * FROM tournaments WHERE id = $1",
+        [tournament.id]
+      );
+      tournament = tResult.rows[0] || null;
+    }
 
     let participantsCount = 0;
     let currentRoundMatchCount = 0;
@@ -833,12 +843,17 @@ router.get("/matches", async (req, res) => {
 
     // Get the current tournament ID first
     const tResult = await pool.query(
-      "SELECT id FROM tournaments ORDER BY created_at DESC LIMIT 1",
+      "SELECT id, status FROM tournaments ORDER BY created_at DESC LIMIT 1",
     );
-    const tournamentId = tResult.rows[0]?.id;
+    const tournament = tResult.rows[0];
+    const tournamentId = tournament?.id;
 
     if (!tournamentId) {
       return res.json({ matches: [], total: 0, page: 1, limit: 15 });
+    }
+
+    if (tournament && tournament.status === 'active') {
+      await autoResolveExpiredMatches(tournamentId);
     }
 
     let query = `

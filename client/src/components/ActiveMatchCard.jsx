@@ -996,8 +996,21 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                 )}
 
                 {matchState === 'cancelled' && (
-                    <div className="bg-slate-100 text-slate-600 p-4 rounded-xl border border-slate-200">
-                        <p className="font-bold">Match Cancelled</p>
+                    <div className="bg-red-50 text-red-700 p-5 rounded-xl border border-red-100 shadow-sm">
+                        <p className="font-bold text-base mb-1">Match Cancelled</p>
+                        {match?.match_code === 'DOUBLE_DQ' ? (
+                            <p className="text-xs text-red-600 font-medium">
+                                Both players failed to check in (I'm Ready) on time and have been disqualified from the tournament.
+                            </p>
+                        ) : match?.match_code === 'DISPUTE_DOUBLE_DQ' ? (
+                            <p className="text-xs text-red-600 font-medium">
+                                Both players were disqualified from the tournament due to a dispute decision.
+                            </p>
+                        ) : (
+                            <p className="text-xs text-red-600 font-medium">
+                                This match was cancelled.
+                            </p>
+                        )}
                     </div>
                 )}
 

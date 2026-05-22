@@ -68,13 +68,44 @@ export async function ensureScoreConflictDispute(client, matchId, submittedByUse
     );
     if (existing.rows.length > 0) return;
 
+    // Fetch match details to retrieve both players' score claims and proofs
+    const matchRes = await client.query(
+        `SELECT player1_id, player2_id, p1_score, p1_opp_score, p1_proof, p2_score, p2_opp_score, p2_proof FROM matches WHERE id = $1`,
+        [matchId]
+    );
+    
+    if (matchRes.rows.length === 0) return;
+    const match = matchRes.rows[0];
+
+    const isP1Submitter = submittedByUserId === match.player1_id;
+
+    const subScoreFor = isP1Submitter ? match.p1_score : match.p2_score;
+    const subScoreAgainst = isP1Submitter ? match.p1_opp_score : match.p2_opp_score;
+    const subProof = isP1Submitter ? match.p1_proof : match.p2_proof;
+    const subScreenshots = subProof ? [subProof] : [];
+
+    const oppScoreFor = isP1Submitter ? match.p2_score : match.p1_score;
+    const oppScoreAgainst = isP1Submitter ? match.p2_opp_score : match.p1_opp_score;
+    const oppProof = isP1Submitter ? match.p2_proof : match.p1_proof;
+    const oppScreenshots = oppProof ? [oppProof] : [];
+
     await client.query(
-        `INSERT INTO disputes (match_id, submitted_by, reason, status, dispute_kind, evidence_url)
-         VALUES ($1, $2, $3, 'pending', 'score_conflict', NULL)`,
+        `INSERT INTO disputes (
+            match_id, submitted_by, reason, status, dispute_kind, evidence_url,
+            submitter_score_for, submitter_score_against, submitter_screenshots,
+            opponent_score_for, opponent_score_against, opponent_screenshots
+         )
+         VALUES ($1, $2, $3, 'pending', 'score_conflict', NULL, $4, $5, $6::jsonb, $7, $8, $9::jsonb)`,
         [
             matchId,
             submittedByUserId,
             "Both players claimed a win with conflicting scores. Admin must review proofs and decide.",
+            subScoreFor,
+            subScoreAgainst,
+            JSON.stringify(subScreenshots),
+            oppScoreFor,
+            oppScoreAgainst,
+            JSON.stringify(oppScreenshots),
         ]
     );
 }
