@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Gavel, CheckCircle, RefreshCw, XCircle, ChevronDown, ChevronUp, Search, ArrowUpDown, Clock, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
@@ -130,10 +131,24 @@ const CountdownBadge = ({ respondBy }) => {
 /* ── Main component ── */
 const Disputes = () => {
     const { token } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const initialStatus = searchParams.get("status") || "unresolved";
     const [disputes, setDisputes] = useState([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
-    const [filterStatus, setFilterStatus] = useState("unresolved");
+    const [filterStatus, setFilterStatus] = useState(initialStatus);
+
+    useEffect(() => {
+        const statusParam = searchParams.get("status");
+        if (statusParam && statusParam !== filterStatus) {
+            setFilterStatus(statusParam);
+        }
+    }, [searchParams]);
+
+    const handleFilterStatusChange = (status) => {
+        setFilterStatus(status);
+        setSearchParams({ status });
+    };
     const [sortOrder, setSortOrder] = useState("desc");
     const [selected, setSelected] = useState(null);
     const [expanded, setExpanded] = useState(null);
@@ -297,7 +312,7 @@ const Disputes = () => {
                 </div>
                 <div className="flex items-center gap-1.5 overflow-x-auto p-2 scrollbar-hide no-scrollbar">
                     {FILTER_TABS.map(f => (
-                        <button key={f.key} onClick={() => setFilterStatus(f.key)}
+                        <button key={f.key} onClick={() => handleFilterStatusChange(f.key)}
                             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all min-w-max
                                 ${filterStatus === f.key ? f.color + " ring-2 ring-offset-1 ring-current" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
                             {f.label}

@@ -31,10 +31,36 @@ const AdminDashboard = () => {
     if (!stats) return <div className="text-center mt-20 text-slate-500">Failed to load dashboard</div>;
 
     const statCards = [
-        { label: "Total Participants", value: stats.tournament?.participants || 0, icon: <Users className="text-blue-600" />, bg: "bg-blue-50", border: "border-blue-100" },
+        { 
+            label: "Total Participants", 
+            value: stats.tournament?.participants || 0, 
+            subValue: stats.tournament?.activeParticipants !== undefined ? (
+                <div className="text-[10px] md:text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">
+                    <span className="text-emerald-600">{stats.tournament.activeParticipants} In</span>
+                    <span className="mx-1 text-slate-300">/</span>
+                    <span className="text-rose-500">{stats.tournament.eliminatedParticipants} Out</span>
+                </div>
+            ) : null,
+            icon: <Users className="text-blue-600" />, 
+            bg: "bg-blue-50", 
+            border: "border-blue-100" 
+        },
         { label: (stats.tournament?.status === 'scheduled' || stats.tournament?.status === 'open') ? "Matches (Scheduled)" : `Matches (Round ${stats.tournament?.currentRound || 1})`, value: stats.tournament?.roundMatches || 0, icon: <Swords className="text-purple-600" />, bg: "bg-purple-50", border: "border-purple-100" },
         { label: "Prize Pool", value: `₦${stats.prizePool?.toLocaleString() || 0}`, icon: <Trophy className="text-yellow-600" />, bg: "bg-yellow-50", border: "border-yellow-100" },
-        { label: "Pending Issues", value: (stats.pendingIssues?.disputes || 0), icon: <AlertTriangle className="text-red-600" />, bg: "bg-red-50", border: "border-red-100" },
+        { 
+            label: "Pending Issues", 
+            value: (stats.pendingIssues?.disputes || 0) + (stats.pendingIssues?.awaitingAdmin || 0), 
+            subValue: stats.pendingIssues?.awaitingAdmin !== undefined ? (
+                <div className="text-[10px] md:text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">
+                    <span className="text-orange-600">{stats.pendingIssues.disputes} Unresolved</span>
+                    <span className="mx-1 text-slate-300">/</span>
+                    <span className="text-amber-600">{stats.pendingIssues.awaitingAdmin} Review</span>
+                </div>
+            ) : null,
+            icon: <AlertTriangle className="text-red-600" />, 
+            bg: "bg-red-50", 
+            border: "border-red-100" 
+        },
     ];
 
     return (
@@ -49,7 +75,10 @@ const AdminDashboard = () => {
                             <div className="p-2 md:p-3 bg-white rounded-xl shadow-sm">
                                 {card.icon}
                             </div>
-                            <span className="text-xl md:text-3xl font-bold text-slate-900">{card.value}</span>
+                            <div className="text-right">
+                                <span className="text-xl md:text-3xl font-bold text-slate-900">{card.value}</span>
+                                {card.subValue}
+                            </div>
                         </div>
                         <p className="text-xs md:text-base text-slate-600 font-medium">{card.label}</p>
                     </div>
@@ -117,22 +146,44 @@ const AdminDashboard = () => {
                 </h2>
                 
                 <div className="space-y-4">
-                    {stats.pendingIssues?.disputes > 0 ? (
-                        <Link 
-                            to="/admin/disputes" 
-                            className="flex items-center justify-between p-4 rounded-xl border bg-red-50 border-red-100 hover:bg-red-100 transition-colors group"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                                <span className="font-bold text-red-700">
-                                    {stats.pendingIssues.disputes} Unresolved {stats.pendingIssues.disputes === 1 ? 'Dispute' : 'Disputes'}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2 text-red-600 font-bold text-xs uppercase tracking-widest">
-                                View All
-                                <ChevronRight className="group-hover:translate-x-1 transition-transform" size={16} />
-                            </div>
-                        </Link>
+                    {(stats.pendingIssues?.disputes > 0 || stats.pendingIssues?.awaitingAdmin > 0) ? (
+                        <>
+                            {stats.pendingIssues?.disputes > 0 && (
+                                <Link 
+                                    to="/admin/disputes?status=unresolved" 
+                                    className="flex items-center justify-between p-4 rounded-xl border bg-orange-50 border-orange-100 hover:bg-orange-100 transition-colors group"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                                        <span className="font-bold text-orange-700">
+                                            {stats.pendingIssues.disputes} Unresolved {stats.pendingIssues.disputes === 1 ? 'Dispute' : 'Disputes'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-orange-600 font-bold text-xs uppercase tracking-widest">
+                                        Review
+                                        <ChevronRight className="group-hover:translate-x-1 transition-transform" size={16} />
+                                    </div>
+                                </Link>
+                            )}
+
+                            {stats.pendingIssues?.awaitingAdmin > 0 && (
+                                <Link 
+                                    to="/admin/disputes?status=awaiting_admin" 
+                                    className="flex items-center justify-between p-4 rounded-xl border bg-amber-50 border-amber-100 hover:bg-amber-100 transition-colors group"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                                        <span className="font-bold text-amber-800">
+                                            {stats.pendingIssues.awaitingAdmin} Admin Review {stats.pendingIssues.awaitingAdmin === 1 ? 'Dispute' : 'Disputes'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-amber-700 font-bold text-xs uppercase tracking-widest">
+                                        Resolve
+                                        <ChevronRight className="group-hover:translate-x-1 transition-transform" size={16} />
+                                    </div>
+                                </Link>
+                            )}
+                        </>
                     ) : (
                         <div className="p-4 bg-slate-50 rounded-xl text-slate-500 text-sm text-center font-medium border border-dashed border-slate-200">
                             No pending alerts. All caught up!

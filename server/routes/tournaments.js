@@ -5,6 +5,12 @@ import { autoResolveExpiredMatches } from "../utils/tournamentHelpers.js";
 
 const router = express.Router();
 
+function nextPowerOf2(n) {
+    let p = 1;
+    while (p < n) p *= 2;
+    return p;
+}
+
 // Get Current/Latest Tournament & User Status
 router.get("/current", optionalAuthenticateToken, async (req, res) => {
     try {
@@ -38,6 +44,7 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
                 description: "Official Tournament Schedule",
                 rounds: roundsQueryRes.rows.map(r => ({
                     ...r,
+                    fixtures_generated: r.fixtures_generated || false,
                     date: r.date ? (() => {
                         const d = new Date(r.date);
                         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -45,6 +52,53 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
                 }))
             };
         }
+
+        // Calculate active round, targets, and active players count
+        let activePlayersCount = 0;
+        let activeRound = null;
+        let nextTargetRound = null;
+        let nextUngeneratedRound = null;
+        let isActiveRoundOngoing = false;
+
+        if (rounds_config && rounds_config.rounds) {
+            const activePlayersRes = await pool.query(
+                "SELECT COUNT(*) FROM participants WHERE tournament_id = $1 AND status = 'in'",
+                [tournament.id]
+            );
+            activePlayersCount = parseInt(activePlayersRes.rows[0].count) || 0;
+
+            const formattedRounds = rounds_config.rounds;
+            nextUngeneratedRound = formattedRounds.find(r => !r.fixtures_generated) || null;
+
+            if (nextUngeneratedRound) {
+                const expectedCapacity = Number(nextUngeneratedRound.players);
+                if (activePlayersCount < expectedCapacity / 2) {
+                    const targetCapacity = nextPowerOf2(activePlayersCount);
+                    const remainingRounds = formattedRounds.filter(r => r.round_number >= nextUngeneratedRound.round_number);
+                    nextTargetRound = remainingRounds.find(r => Number(r.players) <= targetCapacity) || nextUngeneratedRound;
+                } else {
+                    nextTargetRound = nextUngeneratedRound;
+                }
+            }
+
+            activeRound = [...formattedRounds]
+                .reverse()
+                .find(r => r.fixtures_generated && !r.name.includes("(Skipped)")) || null;
+
+            if (activeRound) {
+                const unresolvedRes = await pool.query(
+                    "SELECT COUNT(*) FROM matches WHERE tournament_id = $1 AND round = $2 AND status IN ('scheduled', 'active', 'disputed')",
+                    [tournament.id, activeRound.round_number]
+                );
+                isActiveRoundOngoing = parseInt(unresolvedRes.rows[0].count) > 0;
+            }
+        }
+
+        tournament.active_players_count = activePlayersCount;
+        tournament.active_round = activeRound;
+        tournament.is_active_round_ongoing = isActiveRoundOngoing;
+        tournament.next_target_round = nextTargetRound;
+        tournament.next_ungenerated_round = nextUngeneratedRound;
 
         // Winner Info
         if (tournament.status === 'completed' && tournament.winner_id) {
