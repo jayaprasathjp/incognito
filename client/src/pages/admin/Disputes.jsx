@@ -55,7 +55,7 @@ const CATEGORY_LABEL = {
 
 const ACTIONS = [
     { key: "winner_updated",       label: "Winner Updated",  sub: "Manually set the winner & scores",      icon: <CheckCircle size={18} />, ring: "ring-green-500", bg: "bg-green-50 border-green-200 text-green-800" },
-    { key: "dispute_rejected",     label: "Reject Dispute",  sub: "Dismiss — match returns to scheduled",  icon: <XCircle size={18} />,     ring: "ring-red-500",   bg: "bg-red-50 border-red-200 text-red-800" },
+    { key: "dispute_rejected",     label: "Double Disqualification",  sub: "Disqualify both players & cancel match",  icon: <XCircle size={18} />,     ring: "ring-red-500",   bg: "bg-red-50 border-red-200 text-red-800" },
     { key: "match_replay_scheduled", label: "Match Replay",  sub: "Fresh rematch at a new time today",     icon: <RefreshCw size={18} />,   ring: "ring-blue-500",  bg: "bg-blue-50 border-blue-200 text-blue-800" },
 ];
 
@@ -634,7 +634,7 @@ const Disputes = () => {
                                         onChange={e => setAdminReason(e.target.value)}
                                         className="w-full p-2.5 border border-red-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
                                     />
-                                    <p className="text-xs text-red-600">Both submitted scores are cleared. Match returns to scheduled.</p>
+                                    <p className="text-xs text-red-600">Both players are disqualified and the match is cancelled.</p>
                                 </div>
                             )}
 

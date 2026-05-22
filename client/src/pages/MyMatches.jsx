@@ -145,7 +145,7 @@ const MyMatches = () => {
                                             <>
                                                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status</div>
                                                 <div className="text-base font-bold text-slate-700">
-                                                    {match.status === 'scheduled' ? 'Pending' : 'Review'}
+                                                    {match.status === 'scheduled' ? 'Pending' : match.status === 'cancelled' ? 'Cancelled' : 'Review'}
                                                 </div>
                                             </>
                                         )}
