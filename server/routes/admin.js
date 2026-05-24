@@ -443,20 +443,66 @@ router.get("/tournaments/control", async (req, res) => {
         roundsRes.rows = updatedRoundsRes.rows;
       }
 
+      // Fetch actual created match counts and outcomes per round from matches table, excluding BYE matches
+      const roundStatsRes = await pool.query(
+        `SELECT 
+           round AS round_number,
+           COUNT(CASE WHEN match_code != 'BYE' THEN 1 END) AS actual_match_count,
+           COUNT(CASE WHEN status = 'completed' AND winner_id IS NOT NULL AND match_code != 'BYE' THEN 1 END) AS winners_count,
+           SUM(CASE 
+             WHEN match_code IN ('DOUBLE_DQ', 'DISPUTE_DOUBLE_DQ') THEN 2
+             WHEN match_code IN ('HOME_NO_CODE', 'TIMEOUT_WIN', 'WALKOVER') THEN 1
+             ELSE 0 
+           END) AS dq_count,
+           SUM(CASE 
+             WHEN status = 'completed' AND match_code NOT IN ('TIMEOUT_WIN', 'WALKOVER', 'HOME_NO_CODE', 'BYE') THEN 1
+             ELSE 0 
+           END) AS lost_count,
+           COUNT(CASE WHEN match_code = 'BYE' THEN 1 END) AS byes_count
+         FROM matches
+         WHERE tournament_id = $1
+         GROUP BY round`,
+        [tournament.id]
+      );
+      const roundStatsMap = {};
+      for (const row of roundStatsRes.rows) {
+        roundStatsMap[row.round_number] = {
+          actual_match_count: parseInt(row.actual_match_count) || 0,
+          winners_count: parseInt(row.winners_count) || 0,
+          dq_count: parseInt(row.dq_count) || 0,
+          lost_count: parseInt(row.lost_count) || 0,
+          byes_count: parseInt(row.byes_count) || 0
+        };
+      }
+
       // Reconstruct rounds_config object for frontend compatibility
       tournament.rounds_config = {
         type: "Custom Schedule",
         description: "Schedule loaded from database",
-        rounds: roundsRes.rows.map((r) => ({
-          ...r,
-          fixtures_generated: r.fixtures_generated || false,
-          date: r.date
-            ? (() => {
-                const d = new Date(r.date);
-                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-              })()
-            : "",
-        })),
+        rounds: roundsRes.rows.map((r) => {
+          const stats = roundStatsMap[r.round_number] || {
+            actual_match_count: 0,
+            winners_count: 0,
+            dq_count: 0,
+            lost_count: 0,
+            byes_count: 0
+          };
+          return {
+            ...r,
+            fixtures_generated: r.fixtures_generated || false,
+            actual_match_count: stats.actual_match_count,
+            winners_count: stats.winners_count,
+            dq_count: stats.dq_count,
+            lost_count: stats.lost_count,
+            byes_count: stats.byes_count,
+            date: r.date
+              ? (() => {
+                  const d = new Date(r.date);
+                  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                })()
+              : "",
+          };
+        }),
       };
 
       // Calculate active player count and dynamic rounds (e.g., skips / jumps)

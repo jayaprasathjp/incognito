@@ -14,6 +14,7 @@ const Roadmap = () => {
   const [tournamentTitle, setTournamentTitle] = useState("Tournament Roadmap");
   const [activeRound, setActiveRound] = useState(null);
   const [isActiveRoundOngoing, setIsActiveRoundOngoing] = useState(false);
+  const [nextRound, setNextRound] = useState(null);
 
   const formatEventDate = (dateString) => {
     if (!dateString) return "TBA";
@@ -36,6 +37,7 @@ const Roadmap = () => {
         setTournamentTitle(t.title || "Tournament Roadmap");
         setActiveRound(t.active_round || null);
         setIsActiveRoundOngoing(t.is_active_round_ongoing || false);
+        setNextRound(t.next_target_round || null);
 
         const dynamicEvents = [];
 
@@ -95,11 +97,18 @@ const Roadmap = () => {
 
   // Determine what node is currently skipped (due to bracket jumps)
   const isPhaseSkipped = (item) => {
-    return (
-      item.phaseType === "round" &&
-      item.event &&
-      item.event.includes("(Skipped)")
-    );
+    if (item.phaseType !== "round") return false;
+    if (item.event && item.event.includes("(Skipped)")) return true;
+
+    if (activeRound && nextRound) {
+      const rNum = Number(item.round_num);
+      const aNum = Number(activeRound.round_number);
+      const nNum = Number(nextRound.round_number);
+      if (rNum > aNum && rNum < nNum) {
+        return true;
+      }
+    }
+    return false;
   };
 
   // Helper to check if a date string is today's date in local calendar timezone, handling UTC/string format safely
