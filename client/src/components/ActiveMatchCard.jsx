@@ -110,7 +110,12 @@ const MatchSubmission = ({ match, user, onSuccess }) => {
                         min="0"
                         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={myScore}
-                        onChange={e => setMyScore(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (["e", "E", "+", "-", "."].includes(e.key)) {
+                                e.preventDefault();
+                            }
+                        }}
+                        onChange={e => setMyScore(e.target.value.replace(/\D/g, ''))}
                     />
                 </div>
                 <div>
@@ -121,7 +126,12 @@ const MatchSubmission = ({ match, user, onSuccess }) => {
                         min="0"
                         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={oppScore}
-                        onChange={e => setOppScore(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (["e", "E", "+", "-", "."].includes(e.key)) {
+                                e.preventDefault();
+                            }
+                        }}
+                        onChange={e => setOppScore(e.target.value.replace(/\D/g, ''))}
                     />
                 </div>
             </div>
@@ -214,6 +224,9 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
 
     const submitDispute = async () => {
         if (reason.trim().length < 3) return alert("Enter a reason (at least 3 characters).");
+        if (submitScreenshots.length === 0) {
+            return alert("Uploading at least one game screenshot is mandatory to open a dispute.");
+        }
         setBusy(true);
         try {
             let evidence_url = null;
@@ -307,7 +320,7 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                     <p className="text-xs font-black text-amber-800 uppercase tracking-wider mb-1">Opponent dispute</p>
                     <p className="text-sm text-amber-900 font-medium mb-1">{pending.reason}</p>
                     <p className="text-xs text-amber-700 mb-1">Category: {pending.reason_category || "others"}</p>
-                    <p className="text-[10px] text-amber-700 mb-3">
+                    <p className="text-[10px] text-amber-700 mb-3 break-all">
                         Submitted by {pending.submitted_by_name || "opponent"} — respond within 1 hour.
                     </p>
                     <div className="grid grid-cols-2 gap-2 mb-3">
@@ -317,7 +330,12 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                             placeholder="Your score"
                             className="w-full p-2 rounded-lg border border-amber-200 text-sm"
                             value={responseScoreFor}
-                            onChange={(e) => setResponseScoreFor(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (["e", "E", "+", "-", "."].includes(e.key)) {
+                                    e.preventDefault();
+                                }
+                            }}
+                            onChange={(e) => setResponseScoreFor(e.target.value.replace(/\D/g, ''))}
                         />
                         <input
                             type="number"
@@ -325,7 +343,12 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                             placeholder="Opp score"
                             className="w-full p-2 rounded-lg border border-amber-200 text-sm"
                             value={responseScoreAgainst}
-                            onChange={(e) => setResponseScoreAgainst(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (["e", "E", "+", "-", "."].includes(e.key)) {
+                                    e.preventDefault();
+                                }
+                            }}
+                            onChange={(e) => setResponseScoreAgainst(e.target.value.replace(/\D/g, ''))}
                         />
                     </div>
                     <textarea
@@ -385,7 +408,7 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                         <ul className="space-y-2 max-h-40 overflow-y-auto">
                             {list.map((d) => (
                                 <li key={d.id} className="text-xs border border-slate-100 rounded-lg p-2 bg-white">
-                                    <span className="font-bold text-slate-700">{d.submitted_by_name}</span>
+                                    <span className="font-bold text-slate-700 break-all">{d.submitted_by_name}</span>
                                     <span className="text-slate-400"> · {d.status}</span>
                                     {d.dispute_kind === "score_conflict" && (
                                         <span className="ml-1 text-amber-600 font-bold">admin review</span>
@@ -645,6 +668,8 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
 
     const isPlayer1 = match.player1_id === user?.id;
     const opponentName = isPlayer1 ? match.player2_name || match.opponent_name : match.player1_name || match.opponent_name;
+    const myName = isPlayer1 ? match.player1_name : match.player2_name;
+    const myInitial = (myName || user?.email || 'Y')[0].toUpperCase();
     const amIReady = isPlayer1 ? match.player1_ready : match.player2_ready;
     const isOpponentReady = isPlayer1 ? match.player2_ready : match.player1_ready;
     const canEditRoomCode = match.isHome && (matchState === 'waiting_checkin' || matchState === 'checking_in' || matchState === 'ready_waiting' || (matchState === 'active' && remaining !== null && remaining >= 50 * 60));
@@ -668,23 +693,23 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                     )}
                 </div>
             ) : (
-                <div className="flex justify-between items-center my-6 px-4">
-                    <div className="text-center relative">
+                <div className="flex justify-between items-center my-6 gap-2">
+                    <div className="flex-1 min-w-0 text-center relative">
                         {match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">HOME</div>}
                         {!match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">AWAY</div>}
                         <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
-                            {user?.username?.[0]?.toUpperCase()}
+                            {myInitial}
                         </div>
-                        <p className="font-bold text-sm text-slate-900">You</p>
+                        <p className="font-bold text-sm text-slate-900 truncate px-1">You</p>
                     </div>
-                    <div className="text-slate-300 font-black text-xl">VS</div>
-                    <div className="text-center relative">
+                    <div className="text-slate-300 font-black text-xl shrink-0">VS</div>
+                    <div className="flex-1 min-w-0 text-center relative">
                         {!match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">HOME</div>}
                         {match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">AWAY</div>}
                         <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
                             {match?.match_code === 'BYE' ? '⭐' : (opponentName?.[0]?.toUpperCase() || '?')}
                         </div>
-                        <p className="font-bold text-sm text-slate-900">{match?.match_code === 'BYE' ? 'No Opponent' : (opponentName || 'Waiting')}</p>
+                        <p className="font-bold text-sm text-slate-900 truncate px-1" title={opponentName}>{match?.match_code === 'BYE' ? 'No Opponent' : (opponentName || 'Waiting')}</p>
                     </div>
                 </div>
             )}
@@ -811,29 +836,31 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                                         ) : (
                                             <p className="text-xs text-blue-700">You are the <strong>HOME</strong> player. Create a game room and share the code here.</p>
                                         )}
-                                        <div className="flex gap-2">
+                                        <div className="flex flex-col gap-2">
                                             <input 
                                                 type="text" 
                                                 placeholder="e.g. 192849"
-                                                className="flex-1 p-3 bg-white border border-blue-200 rounded-xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full p-3 bg-white border border-blue-200 rounded-xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                 value={roomCodeInput}
                                                 onChange={e => setRoomCodeInput(e.target.value)}
                                             />
-                                            {isEditingRoomCode && (
+                                            <div className="flex gap-2">
+                                                {isEditingRoomCode && (
+                                                    <button 
+                                                        onClick={() => setIsEditingRoomCode(false)}
+                                                        className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-colors shadow-sm text-sm"
+                                                    >
+                                                        CANCEL
+                                                    </button>
+                                                )}
                                                 <button 
-                                                    onClick={() => setIsEditingRoomCode(false)}
-                                                    className="px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-colors shadow-sm"
+                                                    onClick={handleRoomCodeSubmit}
+                                                    disabled={submittingCode}
+                                                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-sm text-sm"
                                                 >
-                                                    CANCEL
+                                                    {submittingCode ? '...' : (isEditingRoomCode ? 'UPDATE' : 'SHARE')}
                                                 </button>
-                                            )}
-                                            <button 
-                                                onClick={handleRoomCodeSubmit}
-                                                disabled={submittingCode}
-                                                className="px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-sm"
-                                            >
-                                                {submittingCode ? '...' : (isEditingRoomCode ? 'UPDATE' : 'SHARE')}
-                                            </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ) : (
@@ -896,7 +923,7 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                         {match.game_room_code && match.hasSubmited && (
                             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
                                 <p className="font-bold text-emerald-800 mb-1">Result Submitted</p>
-                                <p className="text-xs text-emerald-600">Waiting for {opponentName} to submit their result.</p>
+                                <p className="text-xs text-emerald-600 break-all">Waiting for {opponentName} to submit their result.</p>
                             </div>
                         )}
                     </div>
@@ -952,7 +979,7 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                                     <p className="text-[10px] text-slate-500 font-bold uppercase">Opp</p>
                                 </div>
                             </div>
-                            <p className="text-xs text-slate-500 font-medium">
+                            <p className="text-xs text-slate-500 font-medium break-all">
                                 Winner: <span className="font-bold text-slate-800">{winnerName}</span>
                             </p>
                             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{outcomeLabel}</p>
@@ -969,8 +996,21 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                 )}
 
                 {matchState === 'cancelled' && (
-                    <div className="bg-slate-100 text-slate-600 p-4 rounded-xl border border-slate-200">
-                        <p className="font-bold">Match Cancelled</p>
+                    <div className="bg-red-50 text-red-700 p-5 rounded-xl border border-red-100 shadow-sm">
+                        <p className="font-bold text-base mb-1">Match Cancelled</p>
+                        {match?.match_code === 'DOUBLE_DQ' ? (
+                            <p className="text-xs text-red-600 font-medium">
+                                Both players failed to check in (I'm Ready) on time and have been disqualified from the tournament.
+                            </p>
+                        ) : match?.match_code === 'DISPUTE_DOUBLE_DQ' ? (
+                            <p className="text-xs text-red-600 font-medium">
+                                Both players were disqualified from the tournament due to a dispute decision.
+                            </p>
+                        ) : (
+                            <p className="text-xs text-red-600 font-medium">
+                                This match was cancelled.
+                            </p>
+                        )}
                     </div>
                 )}
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { Eye, ChevronLeft, ChevronRight, Filter, RefreshCw, X, Trophy, Image } from "lucide-react";
+import { Eye, ChevronLeft, ChevronRight, Filter, RefreshCw, X, Trophy, Image, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import Loader from "../../components/Loader";
 import { api } from "../../utils/api";
@@ -83,14 +83,18 @@ const MatchRow = memo(function MatchRow({ match: m, onOpen }) {
                 </div>
                 <div className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-100 p-2 rounded-xl sm:bg-transparent sm:border-0 sm:p-0 sm:block">
                     <div className="flex-1 min-w-0">
-                        <div className="font-bold text-slate-900 text-xs sm:text-base truncate">{m.p1_name || "TBD"}</div>
+                        <div className="font-bold text-slate-900 text-xs sm:text-base truncate">
+                            {m.p1_name || <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-400 uppercase tracking-wide">BYE</span>}
+                        </div>
                         <span className="text-[8px] sm:text-[9px] font-black text-indigo-400 uppercase tracking-tighter">Home</span>
                     </div>
                     <div className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-mono font-black text-indigo-600 text-[10px] sm:hidden shrink-0">
                         {m.score_player1 ?? "—"} - {m.score_player2 ?? "—"}
                     </div>
                     <div className="flex-1 min-w-0 text-right">
-                        <div className="font-bold text-slate-900 text-xs sm:text-base truncate">{m.p2_name || "TBD"}</div>
+                        <div className="font-bold text-slate-900 text-xs sm:text-base truncate">
+                            {m.p2_name || <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-400 uppercase tracking-wide">BYE</span>}
+                        </div>
                         <span className="text-[8px] sm:text-[9px] font-black text-rose-400 uppercase tracking-tighter">Away</span>
                     </div>
                 </div>
@@ -129,17 +133,34 @@ const ProofImage = ({ url, label }) => {
     );
 };
 
+const STATUS_OPTIONS = [
+    { value: "", label: "All Statuses" },
+    { value: "scheduled",      label: "Scheduled" },
+    { value: "completed",      label: "Completed" },
+    { value: "pending_review", label: "Under Review" },
+    { value: "cancelled",      label: "Cancelled" },
+];
+
 const Matches = () => {
     const { token } = useAuth();
     const [matches, setMatches] = useState([]);
     const [rounds, setRounds] = useState([]);
     const [selectedRound, setSelectedRound] = useState("");
+    const [statusFilter, setStatusFilter] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const [loading, setLoading] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0 });
 
     const matchesAbortRef = useRef(null);
     const openMatchModal = useCallback((m) => setSelectedMatch(m), []);
+
+    // Debounce search input 400ms
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery), 400);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
 
     const fetchRounds = useCallback(async () => {
         try {
@@ -161,7 +182,9 @@ const Matches = () => {
         setLoading(true);
         try {
             let url = `/admin/matches?page=${page}&limit=${pagination.limit}`;
-            if (selectedRound) url += `&round=${selectedRound}`;
+            if (selectedRound)   url += `&round=${selectedRound}`;
+            if (statusFilter)    url += `&status=${encodeURIComponent(statusFilter)}`;
+            if (debouncedSearch) url += `&search=${encodeURIComponent(debouncedSearch)}`;
             const data = await api.get(url, { signal: controller.signal });
             if (data.matches) {
                 setMatches(data.matches);
@@ -173,14 +196,13 @@ const Matches = () => {
         } finally {
             if (!controller.signal.aborted) setLoading(false);
         }
-    }, [selectedRound, pagination.limit]);
+    }, [selectedRound, statusFilter, debouncedSearch, pagination.limit]);
 
     useEffect(() => { if (token) fetchRounds(); }, [token, fetchRounds]);
     useEffect(() => {
-        if (!selectedRound) return;
         setMatches([]);
         fetchMatches(1);
-    }, [selectedRound, fetchMatches]);
+    }, [selectedRound, statusFilter, debouncedSearch, fetchMatches]);
 
     useEffect(() => {
         if (!selectedMatch) return;
@@ -210,41 +232,113 @@ const Matches = () => {
     return (
         <div className="space-y-6 pb-20 px-0 sm:px-4">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-4 sm:px-0">
-                <div>
-                    <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">Matches</h1>
-                    <p className="text-slate-500 font-medium text-sm sm:text-base">Tournament fixtures & results</p>
+            <div className="flex flex-col gap-3 px-4 sm:px-0">
+
+                {/* Title row — badge inline on mobile too */}
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">Matches</h1>
+                        <p className="text-slate-500 font-medium text-xs sm:text-base">Tournament fixtures &amp; results</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-2xl shrink-0">
+                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Total</span>
+                        <span className="text-sm font-black text-indigo-600 tabular-nums">{pagination.total}</span>
+                    </div>
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    <div className="flex items-center gap-2">
-                        <div className="relative flex-1 group">
-                            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                                <Filter size={16} aria-hidden />
-                            </div>
-                            <select value={selectedRound} onChange={(e) => setSelectedRound(e.target.value)}
-                                className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-slate-700 font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none appearance-none transition-all cursor-pointer shadow-sm hover:border-slate-300 sm:min-w-[200px]">
-                                <option value="">Select Round</option>
-                                {fixtureRounds.map((r) => (
-                                    <option key={r.id} value={r.round_number}>{r.name || `Round ${r.round_number}`}</option>
-                                ))}
-                            </select>
-                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
-                                <ChevronRight size={16} className="rotate-90" aria-hidden />
-                            </div>
+
+                {/* Row 1: Search + Refresh */}
+                <div className="flex items-center gap-2">
+                    <div className="relative flex-1 group">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                            <Search size={15} aria-hidden />
                         </div>
-                        <button type="button" onClick={() => fetchMatches(pagination.page)}
-                            disabled={loading || !selectedRound}
-                            className="p-3.5 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Refresh data">
-                            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+                        <input
+                            type="text"
+                            placeholder="Search by alias…"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 font-medium placeholder:text-slate-400 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm text-sm"
+                        />
+                        {searchQuery && (
+                            <button onClick={() => setSearchQuery("")}
+                                className="absolute inset-y-0 right-2.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors">
+                                <X size={13} />
+                            </button>
+                        )}
+                    </div>
+                    <button type="button" onClick={() => fetchMatches(1)}
+                        disabled={loading}
+                        className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                        title="Refresh">
+                        <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                    </button>
+                </div>
+
+                {/* Row 2: Round + Status dropdowns side by side */}
+                <div className="grid grid-cols-2 gap-2">
+                    {/* Round filter */}
+                    <div className="relative group">
+                        <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none text-slate-400">
+                            <Filter size={13} aria-hidden />
+                        </div>
+                        <select value={selectedRound} onChange={(e) => setSelectedRound(e.target.value)}
+                            className="w-full pl-8 pr-7 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none appearance-none transition-all cursor-pointer shadow-sm text-xs">
+                            <option value="">All Rounds</option>
+                            {fixtureRounds.map((r) => (
+                                <option key={r.id} value={r.round_number}>{r.name || `Round ${r.round_number}`}</option>
+                            ))}
+                        </select>
+                        <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
+                            <ChevronRight size={13} className="rotate-90" aria-hidden />
+                        </div>
+                    </div>
+
+                    {/* Status filter */}
+                    <div className="relative group">
+                        <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none text-slate-400">
+                            <Filter size={13} aria-hidden />
+                        </div>
+                        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+                            className="w-full pl-8 pr-7 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none appearance-none transition-all cursor-pointer shadow-sm text-xs">
+                            {STATUS_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                        </select>
+                        <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
+                            <ChevronRight size={13} className="rotate-90" aria-hidden />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Active filter chips */}
+                {(searchQuery || statusFilter || selectedRound) && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {selectedRound && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-bold border border-indigo-100">
+                                Round {selectedRound}
+                                <button onClick={() => setSelectedRound("")} className="hover:text-indigo-800 ml-0.5"><X size={10} /></button>
+                            </span>
+                        )}
+                        {statusFilter && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-full text-[11px] font-bold border border-amber-100">
+                                {STATUS_OPTIONS.find(o => o.value === statusFilter)?.label}
+                                <button onClick={() => setStatusFilter("")} className="hover:text-amber-800 ml-0.5"><X size={10} /></button>
+                            </span>
+                        )}
+                        {searchQuery && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-[11px] font-bold border border-slate-200">
+                                "{searchQuery}"
+                                <button onClick={() => setSearchQuery("")} className="hover:text-slate-800 ml-0.5"><X size={10} /></button>
+                            </span>
+                        )}
+                        <button onClick={() => { setSelectedRound(""); setStatusFilter(""); setSearchQuery(""); }}
+                            className="text-[10px] text-slate-400 hover:text-slate-600 font-bold underline underline-offset-2 ml-1">
+                            Clear all
                         </button>
                     </div>
-                    <div className="flex items-center justify-between px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-2xl">
-                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mr-3">Matches</span>
-                        <span className="text-sm font-black text-indigo-600 leading-none tabular-nums">{pagination.total}</span>
-                    </div>
-                </div>
+                )}
             </div>
+
 
             {/* Table */}
             <div className="relative bg-white sm:rounded-3xl shadow-sm border-t border-b sm:border border-slate-200 overflow-hidden">
@@ -360,7 +454,7 @@ const Matches = () => {
                                             {selectedMatch.p1_name?.[0] || "?"}
                                         </div>
                                         <div className={`font-bold text-xs truncate px-0.5 ${selectedMatch.winner_id === selectedMatch.player1_id ? "text-emerald-600" : "text-slate-900"}`}>
-                                            {selectedMatch.p1_name || "TBD"}
+                                            {selectedMatch.p1_name || <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-400 uppercase tracking-wide">BYE</span>}
                                             {selectedMatch.winner_id === selectedMatch.player1_id && " 🏆"}
                                         </div>
                                     </div>
@@ -379,10 +473,10 @@ const Matches = () => {
                                     <div className="flex-1 text-center min-w-0 flex flex-col">
                                         <div className="text-[8px] font-black text-rose-400 uppercase tracking-widest mb-1">Away</div>
                                         <div className="w-10 h-10 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center mx-auto mb-2 font-black text-sm uppercase">
-                                            {selectedMatch.p2_name?.[0] || "?"}
+                                            {selectedMatch.p2_name?.[0] || "—"}
                                         </div>
                                         <div className={`font-bold text-xs truncate px-0.5 ${selectedMatch.winner_id === selectedMatch.player2_id ? "text-emerald-600" : "text-slate-900"}`}>
-                                            {selectedMatch.p2_name || "TBD"}
+                                            {selectedMatch.p2_name || <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-400 uppercase tracking-wide">BYE</span>}
                                             {selectedMatch.winner_id === selectedMatch.player2_id && " 🏆"}
                                         </div>
                                     </div>

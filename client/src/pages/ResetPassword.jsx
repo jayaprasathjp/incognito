@@ -10,27 +10,28 @@ const ResetPassword = () => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [message, setMessage] = useState('');
-    const [error, setError] = useState('');
+    const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+        setErrors({});
+
         if (password !== confirmPassword) {
-            setError("Passwords don't match");
+            setErrors({ confirmPassword: "Passwords don't match" });
             return;
         }
 
         if (password.length < 6 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-            setError('Password must be at least 6 characters and contain both letters and numbers');
+            setErrors({ password: 'Password must be at least 6 characters and contain both letters and numbers' });
             return;
         }
 
         setLoading(true);
         setMessage('');
-        setError('');
+        setErrors({});
         
         try {
             const data = await api.post(`/auth/reset-password/${token}`, { password });
@@ -40,7 +41,8 @@ const ResetPassword = () => {
                 navigate('/login');
             }, 3000);
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to reset password. Link may be expired.');
+            const data = err.response?.data;
+            setErrors({ submit: data?.error || 'Failed to reset password. Link may be expired.' });
         } finally {
             setLoading(false);
         }
@@ -48,7 +50,7 @@ const ResetPassword = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 text-slate-900">
-            <div className="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
+            <div className="w-full max-sm bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
                 <div className="text-center mb-8">
                     <img src={appIcon} alt="Logo" className="w-16 h-16 object-contain mx-auto mb-4 drop-shadow-md" />
                     <h2 className="text-2xl font-intro tracking-wider text-slate-800">RESET PASSWORD</h2>
@@ -62,49 +64,61 @@ const ResetPassword = () => {
                     </div>
                 )}
 
-                {error && (
+                {errors.submit && (
                     <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center mb-6 border border-red-100">
-                        {error}
+                        {errors.submit}
                     </div>
                 )}
 
                 {!message && (
                     <form onSubmit={handleSubmit} className="space-y-5">
-                        <div className="relative">
-                            <input 
-                                type={showPassword ? "text" : "password"} 
-                                placeholder="New Password" 
-                                value={password} 
-                                onChange={(e) => setPassword(e.target.value)} 
-                                required 
-                                minLength={6}
-                                className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                            >
-                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-sm text-slate-600 ml-1">New Password</label>
+                            <div className="flex flex-col gap-1">
+                                <div className="relative">
+                                    <input 
+                                        type={showPassword ? "text" : "password"} 
+                                        placeholder="New Password" 
+                                        value={password} 
+                                        onChange={(e) => setPassword(e.target.value)} 
+                                        required 
+                                        minLength={6}
+                                        className={`w-full p-4 pr-12 bg-slate-50 border rounded-xl outline-none focus:bg-white transition-all text-slate-800 placeholder:text-slate-400 ${errors.password ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-slate-400'}`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                    >
+                                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                    </button>
+                                </div>
+                                {errors.password && <span className="text-xs text-red-500 ml-1">{errors.password}</span>}
+                            </div>
                         </div>
-                         <div className="relative">
-                            <input 
-                                type={showConfirmPassword ? "text" : "password"} 
-                                placeholder="Confirm New Password" 
-                                value={confirmPassword} 
-                                onChange={(e) => setConfirmPassword(e.target.value)} 
-                                required 
-                                minLength={6}
-                                className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                            >
-                                {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-sm text-slate-600 ml-1">Confirm New Password</label>
+                            <div className="flex flex-col gap-1">
+                                <div className="relative">
+                                    <input 
+                                        type={showConfirmPassword ? "text" : "password"} 
+                                        placeholder="Confirm New Password" 
+                                        value={confirmPassword} 
+                                        onChange={(e) => setConfirmPassword(e.target.value)} 
+                                        required 
+                                        minLength={6}
+                                        className={`w-full p-4 pr-12 bg-slate-50 border rounded-xl outline-none focus:bg-white transition-all text-slate-800 placeholder:text-slate-400 ${errors.confirmPassword ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-slate-400'}`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                    >
+                                        {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                    </button>
+                                </div>
+                                {errors.confirmPassword && <span className="text-xs text-red-500 ml-1">{errors.confirmPassword}</span>}
+                            </div>
                         </div>
                         
                         <button 
@@ -122,6 +136,7 @@ const ResetPassword = () => {
                     </Link>
                 </div>
             </div>
+
         </div>
     );
 };

@@ -243,9 +243,15 @@ const ActiveMatch = () => {
                             {(matchState === 'pending_review' || matchState === 'cancelled') && (
                                 <div className="text-center">
                                     <h3 className="text-2xl font-bold text-slate-800 mb-2">Match Status: {matchState.toUpperCase()}</h3>
-                                    <p className="text-slate-500">
+                                    <p className="text-slate-500 max-w-md mx-auto">
                                         {matchState === 'pending_review' && "Scores have been submitted and are awaiting admin review."}
-                                        {matchState === 'cancelled' && "This match was cancelled."}
+                                        {matchState === 'cancelled' && (
+                                            match?.match_code === 'DOUBLE_DQ' 
+                                                ? "Both players failed to check in (I'm Ready) on time and were disqualified from the tournament."
+                                                : match?.match_code === 'DISPUTE_DOUBLE_DQ'
+                                                    ? "Both players were disqualified from the tournament due to a dispute decision."
+                                                    : "This match was cancelled."
+                                        )}
                                     </p>
                                     <div className="mt-8">
                                          <button onClick={() => navigate('/matches')} className="text-blue-600 font-medium hover:underline">

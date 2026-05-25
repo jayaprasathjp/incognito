@@ -1,8 +1,15 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken, optionalAuthenticateToken, authorizeAdmin } from "../middleware/auth.js";
+import { autoResolveExpiredMatches } from "../utils/tournamentHelpers.js";
 
 const router = express.Router();
+
+function nextPowerOf2(n) {
+    let p = 1;
+    while (p < n) p *= 2;
+    return p;
+}
 
 // Get Current/Latest Tournament & User Status
 router.get("/current", optionalAuthenticateToken, async (req, res) => {
@@ -11,6 +18,11 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
         if (result.rows.length === 0) return res.json({ tournament: null });
         
         const tournament = result.rows[0];
+
+        // Auto-sweep expired check-ins first if active
+        if (tournament.status === 'active') {
+            await autoResolveExpiredMatches(tournament.id);
+        }
         
         // Current Round
         let currentRound = 0;
@@ -32,6 +44,7 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
                 description: "Official Tournament Schedule",
                 rounds: roundsQueryRes.rows.map(r => ({
                     ...r,
+                    fixtures_generated: r.fixtures_generated || false,
                     date: r.date ? (() => {
                         const d = new Date(r.date);
                         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -40,11 +53,64 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
             };
         }
 
+        // Calculate active round, targets, and active players count
+        let activePlayersCount = 0;
+        let activeRound = null;
+        let nextTargetRound = null;
+        let nextUngeneratedRound = null;
+        let isActiveRoundOngoing = false;
+
+        if (rounds_config && rounds_config.rounds) {
+            const activePlayersRes = await pool.query(
+                "SELECT COUNT(*) FROM participants WHERE tournament_id = $1 AND status = 'in'",
+                [tournament.id]
+            );
+            activePlayersCount = parseInt(activePlayersRes.rows[0].count) || 0;
+
+            const formattedRounds = rounds_config.rounds;
+            nextUngeneratedRound = formattedRounds.find(r => !r.fixtures_generated) || null;
+
+            if (nextUngeneratedRound) {
+                const expectedCapacity = Number(nextUngeneratedRound.players);
+                if (activePlayersCount < expectedCapacity / 2) {
+                    const targetCapacity = nextPowerOf2(activePlayersCount);
+                    const remainingRounds = formattedRounds.filter(r => r.round_number >= nextUngeneratedRound.round_number);
+                    nextTargetRound = remainingRounds.find(r => Number(r.players) <= targetCapacity) || nextUngeneratedRound;
+                } else {
+                    nextTargetRound = nextUngeneratedRound;
+                }
+            }
+
+            activeRound = [...formattedRounds]
+                .reverse()
+                .find(r => r.fixtures_generated && !r.name.includes("(Skipped)")) || null;
+
+            if (activeRound) {
+                const unresolvedRes = await pool.query(
+                    "SELECT COUNT(*) FROM matches WHERE tournament_id = $1 AND round = $2 AND status IN ('scheduled', 'active', 'disputed')",
+                    [tournament.id, activeRound.round_number]
+                );
+                isActiveRoundOngoing = parseInt(unresolvedRes.rows[0].count) > 0;
+            }
+        }
+
+        tournament.active_players_count = activePlayersCount;
+        tournament.active_round = activeRound;
+        tournament.is_active_round_ongoing = isActiveRoundOngoing;
+        tournament.next_target_round = nextTargetRound;
+        tournament.next_ungenerated_round = nextUngeneratedRound;
+
         // Winner Info
         if (tournament.status === 'completed' && tournament.winner_id) {
-            const winnerRes = await pool.query("SELECT username FROM users WHERE id = $1", [tournament.winner_id]);
+            const winnerRes = await pool.query(
+                `SELECT COALESCE(p.alias, u.email) as display_name 
+                 FROM users u 
+                 LEFT JOIN participants p ON u.id = p.user_id AND p.tournament_id = $2
+                 WHERE u.id = $1`, 
+                 [tournament.winner_id, tournament.id]
+            );
             if (winnerRes.rows.length > 0) {
-                tournament.winner_username = winnerRes.rows[0].username;
+                tournament.winner_display_name = winnerRes.rows[0].display_name;
             }
         }
 
@@ -63,10 +129,11 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
                  // We look for the user's match in the current round so they can see BYEs or completed matches.
                  const matchRes = await pool.query(
                     `SELECT m.*, 
-                            op.username as opponent_name, 
+                            COALESCE(op_part.alias, op.email) as opponent_name, 
                             op.id as opponent_id
                      FROM matches m
                      LEFT JOIN users op ON (CASE WHEN m.player1_id = $2 THEN m.player2_id ELSE m.player1_id END) = op.id
+                     LEFT JOIN participants op_part ON op.id = op_part.user_id AND op_part.tournament_id = m.tournament_id
                      WHERE m.tournament_id = $1 
                      AND (m.player1_id = $2 OR m.player2_id = $2)
                      AND m.round = $3
@@ -81,7 +148,7 @@ router.get("/current", optionalAuthenticateToken, async (req, res) => {
                  if (tournament.status === 'scheduled' || (tournament.status === 'active' && currentRound === 1)) {
                      const allParts = await pool.query(
                          `SELECT user_id FROM participants 
-                          WHERE tournament_id = $1 AND status = 'approved' 
+                          WHERE tournament_id = $1 AND status = 'in' 
                           ORDER BY joined_at ASC`,
                          [tournament.id]
                      );
@@ -138,8 +205,8 @@ router.post("/", authenticateToken, authorizeAdmin, async (req, res) => {
 
         const result = await pool.query(
             `INSERT INTO tournaments 
-            (title, status, registration_start, registration_end, capacity, entry_fee, created_at) 
-            VALUES ($1, 'open', $2, $3, $4, $5, NOW()) 
+            (title, status, registration_start, registration_end, capacity, entry_fee, prize_pool, created_at) 
+            VALUES ($1, 'open', $2, $3, $4, $5, 90000, NOW()) 
             RETURNING *`,
             [title, registration_start, registration_end, cap, fee]
         );
@@ -153,9 +220,20 @@ router.post("/", authenticateToken, authorizeAdmin, async (req, res) => {
 // Join Tournament (Player)
 router.post("/:id/join", authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { session_preference } = req.body;
-    console.log(`[DEBUG] Join request received for tournament ID: ${id} from user ${req.user.id}, session: ${session_preference}`);
+    const { session_preference, alias } = req.body;
+    console.log(`[DEBUG] Join request received for tournament ID: ${id} from user ${req.user.id}, session: ${session_preference}, alias: ${alias}`);
     try {
+        // Validate alias
+        if (!alias || !alias.trim()) {
+            return res.status(400).json({ error: "Alias is required to join a tournament" });
+        }
+        if (!/^[A-Z0-9]+$/.test(alias.trim())) {
+            return res.status(400).json({ error: "Alias must be uppercase alphanumeric. No spaces or special characters allowed." });
+        }
+        if (alias.trim().length < 3 || alias.trim().length > 20) {
+            return res.status(400).json({ error: "Alias must be between 3 and 20 characters." });
+        }
+
         // Check if tournament is open
         const tournamentCheck = await pool.query("SELECT * FROM tournaments WHERE id = $1", [id]);
         if (tournamentCheck.rows.length === 0) return res.status(404).json({ error: "Tournament not found" });
@@ -180,10 +258,25 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
             }
         }
 
-        // Add to participants (default status approved for MVP)
+        // Check global alias uniqueness: Ensure no other user is using this alias
+        const aliasCheck = await pool.query(
+            "SELECT id FROM participants WHERE LOWER(alias) = LOWER($1) AND user_id != $2",
+            [alias.trim(), req.user.id]
+        );
+        if (aliasCheck.rows.length > 0) {
+            return res.status(400).json({ error: "This alias is already used by another player. Please choose a different one." });
+        }
+
+        // Add to participants with alias
         await pool.query(
-            "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'approved', $3)",
-            [id, req.user.id, session_preference || null]
+            "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias) VALUES ($1, $2, 'in', $3, $4)",
+            [id, req.user.id, session_preference || null, alias.trim()]
+        );
+
+        // Increment permanent tournament count in users table and set status to active
+        await pool.query(
+            "UPDATE users SET tournament_joined = tournament_joined + 1, status = 'active' WHERE id = $1 AND status != 'banned'",
+            [req.user.id]
         );
 
         res.status(201).json({ message: "Join request sent" });
@@ -201,7 +294,7 @@ router.get("/:id/participants", async (req, res) => {
     const { id } = req.params;
     try {
         const result = await pool.query(
-            `SELECT p.*, u.username 
+            `SELECT p.*, COALESCE(p.alias, u.email) AS username 
              FROM participants p 
              JOIN users u ON p.user_id = u.id 
              WHERE p.tournament_id = $1`,
@@ -217,10 +310,10 @@ router.get("/:id/participants", async (req, res) => {
 // Approve/Reject Participant (Admin)
 router.put("/:id/participants/:userId", authenticateToken, authorizeAdmin, async (req, res) => {
     const { id, userId } = req.params;
-    const { status } = req.body; // 'approved' or 'rejected'
+    const { status } = req.body; // 'in' or 'out'
 
-    if (!['approved', 'rejected'].includes(status)) {
-        return res.status(400).json({ error: "Invalid status" });
+    if (!['in', 'out'].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Use 'in' or 'out'." });
     }
 
     try {

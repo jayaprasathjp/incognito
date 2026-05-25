@@ -10,15 +10,11 @@ const router = express.Router();
 
 // Register
 router.post("/register", async (req, res) => {
+    const { email, password, institution, whatsapp_number, referralCode } = req.body;
     try {
-        const { username, email, password, institution, whatsapp_number, referralCode } = req.body;
         // Basic validation
-        if (!username || !email || !password) {
-            return res.status(400).json({ error: "All fields are required" });
-        }
-
-        if (!/^[a-zA-Z0-9]+$/.test(username)) {
-            return res.status(400).json({ error: "Alias must be alphanumeric. No spaces or special characters allowed." });
+        if (!email || !password) {
+            return res.status(400).json({ error: "Email and password are required" });
         }
 
         if (password.length < 6 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
@@ -28,7 +24,6 @@ router.post("/register", async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         
         // Generate a unique referral code for the new user
-        // Simple strategy: random 8 char string or username + random
         const newReferralCode = Math.random().toString(36).substring(2, 10).toUpperCase();
 
         // Start a transaction to ensure both user creation and referral linking happen or neither
@@ -38,8 +33,8 @@ router.post("/register", async (req, res) => {
 
             // Insert user
             const newUserResult = await client.query(
-                "INSERT INTO users (username, email, password_hash, institution, whatsapp_number, role, referral_code) VALUES ($1, $2, $3, $4, $5, 'player', $6) RETURNING id, username, email, role, referral_code",
-                [username, email, hashedPassword, institution, whatsapp_number, newReferralCode]
+                "INSERT INTO users (email, password_hash, institution, whatsapp_number, role, referral_code, status) VALUES ($1, $2, $3, $4, 'player', $5, 'inactive') RETURNING id, email, role, referral_code, status",
+                [email, hashedPassword, institution || null, whatsapp_number || null, newReferralCode]
             );
             const newUser = newUserResult.rows[0];
 
@@ -56,10 +51,8 @@ router.post("/register", async (req, res) => {
                         [referrerId, newUser.id]
                     );
                 }
-                // If invalid code, we ignore it as it's optional
+                // If invalid code, we ignore it
             }
-
-
 
             await client.query('COMMIT');
             res.status(201).json(newUser);
@@ -71,12 +64,22 @@ router.post("/register", async (req, res) => {
         }
     } catch (error) {
         if (error.code === '23505') { // Unique violation
-            return res.status(400).json({ error: "Username or email already exists" });
+            try {
+                const checkEmail = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+                if (checkEmail.rows.length > 0) {
+                    return res.status(400).json({ error: "This email is already registered", field: "email" });
+                }
+            } catch (checkError) {
+                console.error("Conflict check error:", checkError);
+            }
+            return res.status(400).json({ error: "Email already exists" });
         }
-        console.error(error);
-        res.status(500).json({ error: "Server error" });
+        console.error("Registration error:", error);
+        res.status(500).json({ error: "Server error during registration" });
     }
 });
+
+
 
 // Login
 router.post("/login", async (req, res) => {
@@ -85,10 +88,10 @@ router.post("/login", async (req, res) => {
         // Support both "email" (legacy/standard) and "identifier" (new admin login)
         const loginTerm = identifier || email;
 
-        if (!loginTerm) return res.status(400).json({ error: "Email or username required" });
+        if (!loginTerm) return res.status(400).json({ error: "Email is required" });
 
         const result = await pool.query(
-            "SELECT * FROM users WHERE email = $1 OR username = $1", 
+            "SELECT * FROM users WHERE email = $1", 
             [loginTerm]
         );
         
@@ -109,12 +112,12 @@ router.post("/login", async (req, res) => {
 
         // Generate JWT
         const token = jwt.sign(
-            { id: user.id, username: user.username, role: user.role },
+            { id: user.id, email: user.email, role: user.role },
             process.env.JWT_SECRET || "default_secret",
             { expiresIn: "24h" }
         );
 
-        res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+        res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Server error" });

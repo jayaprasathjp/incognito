@@ -10,7 +10,7 @@ const router = express.Router();
 router.get("/profile", authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
-            "SELECT username, email, whatsapp_number, institution FROM users WHERE id = $1", 
+            "SELECT email, whatsapp_number, institution FROM users WHERE id = $1", 
             [req.user.id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
@@ -28,7 +28,7 @@ router.put("/profile", authenticateToken, async (req, res) => {
         const update = await pool.query(
             `UPDATE users 
              SET email = $1, whatsapp_number = $2, institution = $3 
-             WHERE id = $4 RETURNING username, email, whatsapp_number, institution`,
+             WHERE id = $4 RETURNING email, whatsapp_number, institution`,
             [email, whatsapp_number, institution, req.user.id]
         );
         if (update.rows.length === 0) return res.status(404).json({ error: "User not found" });
@@ -135,7 +135,7 @@ router.get("/announcements/unread-count", authenticateToken, async (req, res) =>
                             FROM participants p
                             WHERE p.tournament_id = a.tournament_id
                               AND p.user_id = $1
-                              AND p.status = 'approved'
+                              AND p.status = 'in'
                         )
                     )
                     OR (
@@ -172,7 +172,7 @@ router.get("/announcements", authenticateToken, async (req, res) => {
                         a.tournament_id,
                         t.title AS tournament_title,
                         r.read_at,
-                        creator.username AS created_by_username
+                        creator.email AS created_by_email
                  FROM announcements a
                  LEFT JOIN announcement_reads r
                     ON r.announcement_id = a.id
@@ -191,7 +191,7 @@ router.get("/announcements", authenticateToken, async (req, res) => {
                                 FROM participants p
                                 WHERE p.tournament_id = a.tournament_id
                                   AND p.user_id = $1
-                                  AND p.status = 'approved'
+                                  AND p.status = 'in'
                             )
                         )
                         OR (
@@ -217,7 +217,7 @@ router.get("/announcements", authenticateToken, async (req, res) => {
                                 FROM participants p
                                 WHERE p.tournament_id = a.tournament_id
                                   AND p.user_id = $1
-                                  AND p.status = 'approved'
+                                  AND p.status = 'in'
                             )
                         )
                         OR (
@@ -265,7 +265,7 @@ router.post("/announcements/read-all", authenticateToken, async (req, res) => {
                             FROM participants p
                             WHERE p.tournament_id = a.tournament_id
                               AND p.user_id = $1
-                              AND p.status = 'approved'
+                              AND p.status = 'in'
                         )
                     )
                     OR (

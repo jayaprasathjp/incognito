@@ -4,7 +4,7 @@ import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import { pool } from "../db.js";
 import { authenticateToken } from "../middleware/auth.js";
-import { checkIfTournamentFinished } from "../utils/tournamentHelpers.js";
+import { checkIfTournamentFinished, autoResolveExpiredMatches } from "../utils/tournamentHelpers.js";
 import {
     expirePlayerDisputes,
     hasOpenPlayerDispute,
@@ -144,12 +144,21 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
                         responseMsg = "Equal scores. Admin must decide.";
                     } else {
                         const winnerId = p1ClaimsP1Score > p1ClaimsP2Score ? match.player1_id : match.player2_id;
+                        const loserId = winnerId === match.player1_id ? match.player2_id : match.player1_id;
+                        
                         await client.query(
                             `UPDATE matches 
                              SET status = 'completed', score_player1 = $1, score_player2 = $2, winner_id = $3
                              WHERE id = $4`,
                             [p1ClaimsP1Score, p1ClaimsP2Score, winnerId, id]
                         );
+
+                        // Set loser status to 'out'
+                        await client.query(
+                            "UPDATE participants SET status = 'out' WHERE user_id = $1 AND tournament_id = $2",
+                            [loserId, match.tournament_id]
+                        );
+
                         await checkIfTournamentFinished(id, client);
                         responseMsg = "Both scores match! Match completed.";
                     }
@@ -221,13 +230,21 @@ router.get("/testxyz", (req, res) => res.json({ message: "Server updated" }));
 // Get Player's Matches
 router.get("/my-matches", authenticateToken, async (req, res) => {
     try {
+        // Auto-sweep active tournament checkins first
+        const activeTourneyRes = await pool.query("SELECT id FROM tournaments WHERE status = 'active' ORDER BY created_at DESC LIMIT 1");
+        if (activeTourneyRes.rows.length > 0) {
+            await autoResolveExpiredMatches(activeTourneyRes.rows[0].id);
+        }
+
         const result = await pool.query(
             `SELECT m.*, 
-             p1.username as player1_name, 
-             p2.username as player2_name,
+             COALESCE(part1.alias, p1.email) as player1_name, 
+             COALESCE(part2.alias, p2.email) as player2_name,
              t.title as tournament_title,
              t.status as tournament_status
              FROM matches m
+             LEFT JOIN participants part1 ON m.player1_id = part1.user_id AND m.tournament_id = part1.tournament_id
+             LEFT JOIN participants part2 ON m.player2_id = part2.user_id AND m.tournament_id = part2.tournament_id
              LEFT JOIN users p1 ON m.player1_id = p1.id
              LEFT JOIN users p2 ON m.player2_id = p2.id
              JOIN tournaments t ON m.tournament_id = t.id
@@ -256,9 +273,11 @@ router.get("/:id/disputes", authenticateToken, async (req, res) => {
         }
 
         const dRes = await pool.query(
-            `SELECT d.*, u.username AS submitted_by_name
+            `SELECT d.*, COALESCE(p.alias, u.email) AS submitted_by_name
              FROM disputes d
              JOIN users u ON d.submitted_by = u.id
+             JOIN matches m ON d.match_id = m.id
+             LEFT JOIN participants p ON p.user_id = u.id AND p.tournament_id = m.tournament_id
              WHERE d.match_id = $1
              ORDER BY d.created_at DESC`,
             [id]
@@ -327,18 +346,54 @@ router.post("/:id/disputes", authenticateToken, async (req, res) => {
 
 
 
-            const submitShots = Array.isArray(screenshots)
+            const isP1 = match.player1_id === req.user.id;
+
+            let submitShots = Array.isArray(screenshots)
                 ? screenshots.filter((u) => typeof u === "string" && u.trim())
                 : [];
-            const sf = Number.isFinite(parseInt(score_for, 10)) ? parseInt(score_for, 10) : null;
-            const sa = Number.isFinite(parseInt(score_against, 10)) ? parseInt(score_against, 10) : null;
+            let sf = (score_for !== undefined && score_for !== null && score_for !== "") ? parseInt(score_for, 10) : null;
+            let sa = (score_against !== undefined && score_against !== null && score_against !== "") ? parseInt(score_against, 10) : null;
+
+            // Fallback for submitter score & proof
+            if (!Number.isFinite(sf)) {
+                sf = isP1 ? match.p1_score : match.p2_score;
+            }
+            if (!Number.isFinite(sa)) {
+                sa = isP1 ? match.p1_opp_score : match.p2_opp_score;
+            }
+            if (submitShots.length === 0) {
+                const subProof = isP1 ? match.p1_proof : match.p2_proof;
+                if (subProof) {
+                    submitShots = [subProof];
+                }
+            }
+
+            // Fallback for opponent score & proof (if they already submitted)
+            let oppShots = [];
+            let osf = null;
+            let osa = null;
+
+            const oppScoreForVal = isP1 ? match.p2_score : match.p1_score;
+            const oppScoreAgainstVal = isP1 ? match.p2_opp_score : match.p1_opp_score;
+            const oppProofVal = isP1 ? match.p2_proof : match.p1_proof;
+
+            if (oppScoreForVal !== null && oppScoreForVal !== undefined) {
+                osf = oppScoreForVal;
+            }
+            if (oppScoreAgainstVal !== null && oppScoreAgainstVal !== undefined) {
+                osa = oppScoreAgainstVal;
+            }
+            if (oppProofVal) {
+                oppShots = [oppProofVal];
+            }
 
             const ins = await client.query(
                 `INSERT INTO disputes (
                     match_id, submitted_by, reason, evidence_url, status,
                     dispute_kind, respond_by,
-                    reason_category, submitter_score_for, submitter_score_against, submitter_screenshots
-                ) VALUES ($1, $2, $3, $4, 'pending', 'player_claim', NOW() + INTERVAL '1 hour', $5, $6, $7, $8::jsonb)
+                    reason_category, submitter_score_for, submitter_score_against, submitter_screenshots,
+                    opponent_score_for, opponent_score_against, opponent_screenshots
+                ) VALUES ($1, $2, $3, $4, 'pending', 'player_claim', NOW() + INTERVAL '1 hour', $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb)
                 RETURNING *`,
                 [
                     id,
@@ -349,6 +404,9 @@ router.post("/:id/disputes", authenticateToken, async (req, res) => {
                     sf,
                     sa,
                     JSON.stringify(submitShots),
+                    osf,
+                    osa,
+                    JSON.stringify(oppShots),
                 ]
             );
 
@@ -470,6 +528,13 @@ router.post("/:id/disputes/:disputeId/respond", authenticateToken, async (req, r
                 `UPDATE matches SET status = 'cancelled', winner_id = NULL, match_code = 'DISPUTE_DOUBLE_DQ' WHERE id = $1`,
                 [id]
             );
+
+            // Set both players to 'out'
+            await client.query(
+                "UPDATE participants SET status = 'out' WHERE user_id IN ($1, $2) AND tournament_id = $3",
+                [match.player1_id, match.player2_id, match.tournament_id]
+            );
+
             await checkIfTournamentFinished(id, client);
             await client.query("COMMIT");
             emitMatchUpdate(req, id);
@@ -491,6 +556,12 @@ router.get("/:id", authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
 
+        // Auto-sweep active tournament checkins first
+        const mRes = await pool.query("SELECT tournament_id FROM matches WHERE id = $1", [id]);
+        if (mRes.rows.length > 0) {
+            await autoResolveExpiredMatches(mRes.rows[0].tournament_id);
+        }
+
         const ex = await pool.connect();
         try {
             await ex.query("BEGIN");
@@ -505,12 +576,14 @@ router.get("/:id", authenticateToken, async (req, res) => {
 
         const result = await pool.query(
             `SELECT m.*, 
-             p1.username as player1_name, 
-             p2.username as player2_name,
+             COALESCE(part1.alias, p1.email) as player1_name, 
+             COALESCE(part2.alias, p2.email) as player2_name,
              t.title as tournament_title,
              t.status as tournament_status,
              r.date as match_date
              FROM matches m
+             LEFT JOIN participants part1 ON m.player1_id = part1.user_id AND m.tournament_id = part1.tournament_id
+             LEFT JOIN participants part2 ON m.player2_id = part2.user_id AND m.tournament_id = part2.tournament_id
              LEFT JOIN users p1 ON m.player1_id = p1.id
              LEFT JOIN users p2 ON m.player2_id = p2.id
              JOIN tournaments t ON m.tournament_id = t.id
@@ -531,9 +604,11 @@ router.get("/:id", authenticateToken, async (req, res) => {
         match.isHome = isP1;
 
         const disputesRes = await pool.query(
-            `SELECT d.*, u.username AS submitted_by_name
+            `SELECT d.*, COALESCE(p.alias, u.email) AS submitted_by_name
              FROM disputes d
              JOIN users u ON d.submitted_by = u.id
+             JOIN matches m ON d.match_id = m.id
+             LEFT JOIN participants p ON p.user_id = u.id AND p.tournament_id = m.tournament_id
              WHERE d.match_id = $1
              ORDER BY d.created_at DESC`,
             [id]
@@ -641,11 +716,22 @@ router.post("/:id/check-walkover", authenticateToken, async (req, res) => {
             } else if (!match.player1_ready && match.player2_ready) {
                 winnerId = match.player2_id;
             } else if (!match.player1_ready && !match.player2_ready) {
-                // both lose/cancel - we set status to cancelled
-                await client.query("UPDATE matches SET status = 'cancelled' WHERE id = $1", [id]);
+                // both lose/cancel - we set status to cancelled and disqualify both players
+                await client.query(
+                    `UPDATE matches SET status = 'cancelled', match_code = 'DOUBLE_DQ' WHERE id = $1`,
+                    [id]
+                );
+
+                // Mark both absent players as eliminated ('out')
+                await client.query(
+                    "UPDATE participants SET status = 'out' WHERE user_id IN ($1, $2) AND tournament_id = $3",
+                    [match.player1_id, match.player2_id, match.tournament_id]
+                );
+
+                await checkIfTournamentFinished(id, client);
                 await client.query('COMMIT');
                 emitMatchUpdate(req, id);
-                return res.json({ message: "Match cancelled. Neither player checked in." });
+                return res.json({ message: "Match cancelled. Neither player checked in. Both disqualified.", reason: "double_dq" });
             } else {
                 throw new Error("Both players are ready. Play the match.");
             }
@@ -655,6 +741,14 @@ router.post("/:id/check-walkover", authenticateToken, async (req, res) => {
                 `UPDATE matches SET status = 'completed', winner_id = $1, match_code = 'WALKOVER' WHERE id = $2`,
                 [winnerId, id]
             );
+
+            // Set loser status to 'out'
+            const loserId = winnerId === match.player1_id ? match.player2_id : match.player1_id;
+            await client.query(
+                "UPDATE participants SET status = 'out' WHERE user_id = $1 AND tournament_id = $2",
+                [loserId, match.tournament_id]
+            );
+
             await checkIfTournamentFinished(id, client);
             await client.query('COMMIT');
             emitMatchUpdate(req, id);
@@ -705,6 +799,13 @@ router.post("/:id/check-timeout", authenticateToken, async (req, res) => {
                     `UPDATE matches SET status = 'completed', winner_id = $1, match_code = 'HOME_NO_CODE' WHERE id = $2`,
                     [match.player2_id, id]
                 );
+
+                // Home player (player1) is out
+                await client.query(
+                    "UPDATE participants SET status = 'out' WHERE user_id = $1 AND tournament_id = $2",
+                    [match.player1_id, match.tournament_id]
+                );
+
                 await checkIfTournamentFinished(id, client);
                 await client.query('COMMIT');
                 return res.json({ 
@@ -737,6 +838,13 @@ router.post("/:id/check-timeout", authenticateToken, async (req, res) => {
                     `UPDATE matches SET status = 'cancelled', match_code = 'DOUBLE_DQ' WHERE id = $1`,
                     [id]
                 );
+
+                // Both players out
+                await client.query(
+                    "UPDATE participants SET status = 'out' WHERE user_id IN ($1, $2) AND tournament_id = $3",
+                    [match.player1_id, match.player2_id, match.tournament_id]
+                );
+
                 await checkIfTournamentFinished(id, client);
                 await client.query("COMMIT");
                 return res.json({
@@ -751,6 +859,13 @@ router.post("/:id/check-timeout", authenticateToken, async (req, res) => {
                     `UPDATE matches SET status = 'completed', winner_id = $1, score_player1 = $2, score_player2 = $3, match_code = 'TIMEOUT_WIN' WHERE id = $4`,
                     [match.player1_id, match.p1_score, match.p1_opp_score, id]
                 );
+
+                // Opponent (player2) is out
+                await client.query(
+                    "UPDATE participants SET status = 'out' WHERE user_id = $1 AND tournament_id = $2",
+                    [match.player2_id, match.tournament_id]
+                );
+
                 await checkIfTournamentFinished(id, client);
                 await client.query('COMMIT');
                 return res.json({ 
@@ -766,6 +881,13 @@ router.post("/:id/check-timeout", authenticateToken, async (req, res) => {
                     `UPDATE matches SET status = 'completed', winner_id = $1, score_player1 = $2, score_player2 = $3, match_code = 'TIMEOUT_WIN' WHERE id = $4`,
                     [match.player2_id, match.p2_opp_score, match.p2_score, id]
                 );
+
+                // Opponent (player1) is out
+                await client.query(
+                    "UPDATE participants SET status = 'out' WHERE user_id = $1 AND tournament_id = $2",
+                    [match.player1_id, match.tournament_id]
+                );
+
                 await checkIfTournamentFinished(id, client);
                 await client.query('COMMIT');
                 return res.json({ 

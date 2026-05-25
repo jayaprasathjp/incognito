@@ -32,6 +32,8 @@ const PlayerDashboard = () => {
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
     const [joinStep, setJoinStep] = useState(null); // null, 'session', 'payment'
     const [sessionPreference, setSessionPreference] = useState(null);
+    const [tournamentAlias, setTournamentAlias] = useState('');
+    const [aliasError, setAliasError] = useState('');
     const [joinLoading, setJoinLoading] = useState(false);
 
     useEffect(() => {
@@ -63,6 +65,11 @@ const PlayerDashboard = () => {
                 api.get('/user/bank-details').catch(() => ({}))
             ]);
             setTournamentData(data);
+            if (data?.participation) {
+                localStorage.setItem('isParticipant', 'true');
+            } else {
+                localStorage.setItem('isParticipant', 'false');
+            }
             setHasBankDetails(!!bankData?.account_number);
         } catch (error) {
             console.error("Failed to fetch dashboard data", error);
@@ -93,7 +100,8 @@ const PlayerDashboard = () => {
             // 1. Initialize payment on backend
             const initData = await api.post('/payment/initialize', {
                 tournament_id: tournamentData.tournament.id,
-                session_preference: sessionPreference
+                session_preference: sessionPreference,
+                alias: tournamentAlias.trim()
             });
 
             if (initData.error) {
@@ -143,7 +151,8 @@ const PlayerDashboard = () => {
                             const verifyData = await api.post('/payment/verify', {
                                 transaction_id: response.transaction_id,
                                 tx_ref: response.tx_ref,
-                                session_preference: sessionPreference
+                                session_preference: sessionPreference,
+                                alias: tournamentAlias.trim()
                             });
 
                             if (verifyData.status === 'success') {
@@ -159,13 +168,24 @@ const PlayerDashboard = () => {
                             alert('Payment received but verification failed. Please contact support.');
                         }
                     } else {
-                        alert('Payment was not completed.');
+                        // Flutterwave returns 'failed' (card declined etc.) or 'cancelled' (user cancelled in-modal)
+                        const terminalStatus = response.status === 'failed' ? 'failed' : 'cancelled';
+                        try {
+                            await api.post('/payment/update-status', { tx_ref: initData.config.tx_ref, status: terminalStatus });
+                        } catch (_) { /* silent */ }
+                        const msg = response.status === 'failed' ? 'Payment failed. Please try again.' : 'Payment was cancelled.';
+                        alert(msg);
                     }
                     setJoinLoading(false);
                 },
-                onclose: () => {
+                onclose: async () => {
+                    // User closed the Flutterwave modal without completing payment
+                    try {
+                        await api.post('/payment/update-status', { tx_ref: initData.config.tx_ref, status: 'cancelled' });
+                    } catch (_) { /* silent */ }
                     setJoinLoading(false);
                 },
+
             });
 
         } catch (e) {
@@ -173,6 +193,35 @@ const PlayerDashboard = () => {
             alert('Error initiating payment. Please try again.');
             setJoinLoading(false);
         }
+    };
+
+    const resetJoinModal = () => {
+        setJoinStep(null);
+        setSessionPreference(null);
+        setTournamentAlias('');
+        setAliasError('');
+    };
+
+    const handleAliasContinue = () => {
+        setAliasError('');
+        const trimmed = tournamentAlias.trim();
+        if (!trimmed) {
+            setAliasError('Alias is required.');
+            return;
+        }
+        if (!/^[A-Z0-9]+$/.test(trimmed)) {
+            setAliasError('Alias must be uppercase alphanumeric. No spaces or special characters.');
+            return;
+        }
+        if (trimmed.length < 3 || trimmed.length > 20) {
+            setAliasError('Alias must be between 3 and 20 characters.');
+            return;
+        }
+        if (!sessionPreference) {
+            setAliasError('Please also select a session preference.');
+            return;
+        }
+        setJoinStep('payment');
     };
 
     return (
@@ -193,9 +242,10 @@ const PlayerDashboard = () => {
                     <h1 className="text-sm font-light text-slate-500 uppercase tracking-[0.2em] mb-1">
                         Welcome
                     </h1>
-                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
-                        {user?.username || 'PLAYER'}
+                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter truncate max-w-[280px] mx-auto px-4" title={tournamentData?.participation?.alias || user?.email}>
+                        {tournamentData?.participation?.alias || user?.email || 'PLAYER'}
                     </h2>
+
                 </div>
 
                 {/* Initial Loader */}
@@ -206,8 +256,44 @@ const PlayerDashboard = () => {
                     </div>
                 )}
 
+                {/* Eliminated Banner — shown when player has been knocked out */}
+                {!loading && tournamentData?.participation?.status === 'out' && (
+                    <div className="w-full max-w-sm mb-8 relative group animate-completion-card">
+                        {/* Soft ambient backdrop */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500 rounded-3xl blur-xl opacity-10 group-hover:opacity-20 transition-opacity duration-700 animate-glow-flow" />
+                        
+                        <div className="relative p-8 bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl text-center overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500 animate-glow-flow" />
+                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500 rounded-full blur-[80px] opacity-15" />
+                            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-amber-500 rounded-full blur-[80px] opacity-10" />
+                            
+                            <div className="relative z-10">
+                                <div className="text-5xl mb-4 animate-[pulse_2s_ease-in-out_infinite]">🎮</div>
+                                <h3 className="text-xs text-rose-400 font-black uppercase tracking-[0.3em] mb-2 drop-shadow-md">
+                                    Status: Eliminated
+                                </h3>
+                                <p className="text-2xl font-black text-white mb-2 uppercase tracking-tight">
+                                    Journey Completed
+                                </p>
+                                <p className="text-sm text-slate-400 font-medium mb-6">
+                                    You have been eliminated from <span className="text-slate-200 font-bold">{tournamentData.tournament?.title}</span>. Well played!
+                                </p>
+
+                                <div className="bg-white/5 backdrop-blur-md rounded-2xl px-5 py-4 border border-white/10 mb-6">
+                                    <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Your Tournament Alias</p>
+                                    <p className="text-lg font-black text-white font-mono">{tournamentData.participation.alias || 'N/A'}</p>
+                                </div>
+
+                                <p className="text-xs text-slate-400 leading-relaxed">
+                                    Thank you for competing! You can follow the rest of the bracket matches and see the final standings on the leaderboard.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Current Match Card via ActiveMatchCard */}
-                {!loading && tournamentData?.currentMatch && (tournamentData?.tournament?.status === 'active' || tournamentData?.tournament?.status === 'scheduled') && (
+                {!loading && tournamentData?.participation?.status !== 'out' && tournamentData?.currentMatch && (tournamentData?.tournament?.status === 'active' || tournamentData?.tournament?.status === 'scheduled') && (
                     <ActiveMatchCard 
                         matchId={tournamentData.currentMatch.id} 
                         round={tournamentData.currentMatch.round} 
@@ -234,12 +320,12 @@ const PlayerDashboard = () => {
                                 
                                 <div className="w-24 h-24 bg-gradient-to-br from-amber-400 via-yellow-500 to-orange-500 p-1 rounded-full mx-auto mb-6 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
                                     <div className="w-full h-full bg-slate-900 rounded-full flex items-center justify-center text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-amber-200 to-amber-500">
-                                        {tournamentData.tournament.winner_username?.[0]?.toUpperCase() || '?'}
+                                        {tournamentData.tournament.winner_display_name?.[0]?.toUpperCase() || '?'}
                                     </div>
                                 </div>
                                 
                                 <p className="text-3xl font-black text-white mb-2 drop-shadow-lg">
-                                    {tournamentData.tournament.winner_username || 'To be announced'}
+                                    {tournamentData.tournament.winner_display_name || 'To be announced'}
                                 </p>
                                 <p className="text-sm text-slate-400 font-medium mb-8">Master of {tournamentData.tournament.title}</p>
                                 
@@ -247,7 +333,7 @@ const PlayerDashboard = () => {
                                      <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-transparent to-amber-500/10"></div>
                                      <p className="text-xs text-amber-500 font-bold uppercase tracking-wider mb-1">Total Prize Pool</p>
                                      <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500">
-                                        ₦{(tournamentData.tournament.prize_pool || tournamentData.tournament.prizePool || 0).toLocaleString()}
+                                        ₦{(Number(tournamentData.tournament.prize_pool) || Number(tournamentData.tournament.prizePool) || 90000).toLocaleString()}
                                      </p>
                                 </div>
 
@@ -295,8 +381,9 @@ const PlayerDashboard = () => {
                 )}
                 
                 {/* Tournament Status Card */}
-                {/* Show if: (Not Completed) AND ( (No Match) OR (Match exists but Tourney NOT Active) ) */}
-                {!loading && tournamentData?.tournament && tournamentData?.tournament?.status !== 'completed' && 
+                {/* Show if: (Not Completed) AND (Not Eliminated) AND ( (No Match) OR (Match exists but Tourney NOT Active) ) */}
+                {!loading && tournamentData?.tournament && tournamentData?.tournament?.status !== 'completed' &&
+                    tournamentData?.participation?.status !== 'out' &&
                     (!tournamentData?.currentMatch || tournamentData?.tournament?.status !== 'active') && (
                     <div className={`w-full max-w-sm mb-8 p-6 text-center rounded-2xl border shadow-xl relative overflow-hidden transition-all duration-300 transform hover:scale-[1.02] ${
                         tournamentData?.tournament?.status === 'active' ? 'bg-white border-green-200 shadow-green-100' :
@@ -311,6 +398,10 @@ const PlayerDashboard = () => {
                         
                         <h3 className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">Current Tournament</h3>
                         <p className="text-2xl font-black text-slate-900 mb-1">{tournamentData.tournament.title}</p>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full font-bold text-xs mb-3 border border-green-100">
+                            <span>🏆 Prize Pool:</span>
+                            <span className="font-extrabold">₦{(Number(tournamentData.tournament.prize_pool) || Number(tournamentData.tournament.prizePool) || 90000).toLocaleString()}</span>
+                        </div>
                         
                         <div className="flex items-center justify-center gap-2 mb-6">
                             <p className={`text-sm font-bold uppercase tracking-wider ${
@@ -446,19 +537,31 @@ const PlayerDashboard = () => {
                                     </>
                                 )}
                                 
-                                {tournamentData.participation.session_preference && (
-                                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 inline-flex items-center gap-2 mb-3">
-                                        <span className="text-lg">
-                                            {tournamentData.participation.session_preference === 'morning' && '☀️'}
-                                            {tournamentData.participation.session_preference === 'afternoon' && '🌤️'}
-                                            {tournamentData.participation.session_preference === 'evening' && '🌙'}
-                                        </span>
-                                        <div className="text-left">
-                                            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Session Preference</p>
-                                            <p className="text-sm font-bold text-slate-900 capitalize">{tournamentData.participation.session_preference}</p>
+                                {/* Alias + Session badges */}
+                                <div className="flex flex-wrap justify-center gap-2 mb-3">
+                                    {tournamentData.participation.alias && (
+                                        <div className="bg-slate-900 rounded-xl px-4 py-2.5 inline-flex items-center gap-2">
+                                            <span className="text-sm">🎭</span>
+                                            <div className="text-left">
+                                                <p className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">Your Alias</p>
+                                                <p className="text-sm font-black text-white font-mono">{tournamentData.participation.alias}</p>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                    {tournamentData.participation.session_preference && (
+                                        <div className="bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-100 inline-flex items-center gap-2">
+                                            <span className="text-lg">
+                                                {tournamentData.participation.session_preference === 'morning' && '☀️'}
+                                                {tournamentData.participation.session_preference === 'afternoon' && '🌤️'}
+                                                {tournamentData.participation.session_preference === 'evening' && '🌙'}
+                                            </span>
+                                            <div className="text-left">
+                                                <p className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">Session</p>
+                                                <p className="text-sm font-bold text-slate-900 capitalize">{tournamentData.participation.session_preference}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 
                                 <div className="mt-2">
                                     <p className="text-xs text-slate-400 animate-pulse">
@@ -517,7 +620,7 @@ const PlayerDashboard = () => {
                 )}
 
                 {/* Action Buttons */}
-                {tournamentData?.tournament?.registration_end && new Date() > new Date(tournamentData.tournament.registration_end) && (
+                {tournamentData?.tournament && (
                 <div className="w-full max-w-xs space-y-4">
                     <Link to="/leaderboard" className="block w-full">
                         <button className="w-full py-4 bg-slate-900 text-white rounded-full text-lg font-bold shadow-lg hover:bg-slate-800 transition-all active:scale-95">
@@ -531,7 +634,7 @@ const PlayerDashboard = () => {
             {/* Join Tournament Modal */}
             {joinStep && (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setJoinStep(null); setSessionPreference(null); }} />
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={resetJoinModal} />
                     <div className="relative bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 pb-8 sm:p-8 shadow-2xl animate-in slide-in-from-bottom z-10">
                         
                         {/* Step Indicator */}
@@ -547,7 +650,7 @@ const PlayerDashboard = () => {
 
                         {/* Close Button */}
                         <button 
-                            onClick={() => { setJoinStep(null); setSessionPreference(null); }}
+                            onClick={resetJoinModal}
                             className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -557,11 +660,31 @@ const PlayerDashboard = () => {
 
                         {joinStep === 'session' && (
                             <>
-                                <h3 className="text-xl font-bold text-slate-900 text-center mb-2">Choose Your Session</h3>
-                                <p className="text-sm text-slate-500 text-center mb-2">When do you prefer to play your matches?</p>
-                                <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center mb-6">⚠️ Session preference is not guaranteed and may vary based on scheduling.</p>
+                                <h3 className="text-xl font-bold text-slate-900 text-center mb-1">Join Tournament</h3>
+                                <p className="text-sm text-slate-500 text-center mb-5">Choose your alias and preferred session</p>
+
+                                {/* Alias Input */}
+                                <div className="mb-5">
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Your Tournament Alias</label>
+                                    <input
+                                        type="text"
+                                        value={tournamentAlias}
+                                        onChange={(e) => { setTournamentAlias(e.target.value.toUpperCase()); setAliasError(''); }}
+                                        placeholder="e.g. UNKNOWN123"
+                                        maxLength={20}
+                                        className={`w-full p-3 border-2 rounded-xl outline-none transition-all text-slate-800 placeholder:text-slate-400 font-semibold ${
+                                            aliasError ? 'border-red-400 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-white'
+                                        }`}
+                                    />
+                                    <p className="text-[11px] text-slate-400 mt-1.5 ml-1">3–20 characters, uppercase alphanumeric only. This alias is only for this tournament.</p>
+                                    {aliasError && <p className="text-xs text-red-500 mt-1 ml-1">{aliasError}</p>}
+                                </div>
+
+                                {/* Session Preference */}
+                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Session Preference</label>
+                                <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center mb-3">⚠️ Session preference is not guaranteed and may vary based on scheduling.</p>
                                 
-                                <div className="space-y-3 mb-6">
+                                <div className="space-y-2 mb-6">
                                     {[
                                         { value: 'morning', label: 'Morning', icon: '☀️', time: '10:30 AM – 1:30 PM' },
                                         { value: 'afternoon', label: 'Afternoon', icon: '🌤️', time: '2:00 PM – 5:00 PM' },
@@ -570,20 +693,20 @@ const PlayerDashboard = () => {
                                         <button
                                             key={value}
                                             onClick={() => setSessionPreference(value)}
-                                            className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                                            className={`w-full flex items-center gap-4 p-3.5 rounded-xl border-2 transition-all ${
                                                 sessionPreference === value
                                                     ? 'border-blue-600 bg-blue-50 shadow-sm'
                                                     : 'border-slate-200 hover:border-slate-300 bg-white'
                                             }`}
                                         >
-                                            <span className="text-2xl">{icon}</span>
+                                            <span className="text-xl">{icon}</span>
                                             <div className="text-left">
-                                                <div className="font-bold text-slate-900">{label}</div>
+                                                <div className="font-bold text-slate-900 text-sm">{label}</div>
                                                 <div className="text-xs text-slate-500">{time}</div>
                                             </div>
                                             {sessionPreference === value && (
-                                                <div className="ml-auto w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <div className="ml-auto w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                                                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                                     </svg>
                                                 </div>
@@ -593,13 +716,8 @@ const PlayerDashboard = () => {
                                 </div>
 
                                 <button
-                                    disabled={!sessionPreference}
-                                    onClick={() => setJoinStep('payment')}
-                                    className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wide transition-all ${
-                                        sessionPreference
-                                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md active:scale-95'
-                                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                    }`}
+                                    onClick={handleAliasContinue}
+                                    className="w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wide transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-md active:scale-95"
                                 >
                                     Continue to Payment
                                 </button>
@@ -615,6 +733,10 @@ const PlayerDashboard = () => {
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-slate-500">Tournament</span>
                                         <span className="text-sm font-bold text-slate-900">{tournamentData?.tournament?.title}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm text-slate-500">Alias</span>
+                                        <span className="text-sm font-bold text-slate-900 font-mono">{tournamentAlias}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-slate-500">Session</span>

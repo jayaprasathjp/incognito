@@ -4,6 +4,27 @@ import { api } from '../utils/api';
 import { io } from 'socket.io-client';
 import { SOCKET_URL } from '../utils/api';
 
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return true;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const decoded = JSON.parse(jsonPayload);
+    if (!decoded || !decoded.exp) return true;
+    return decoded.exp * 1000 < Date.now();
+  } catch (error) {
+    console.error("Error decoding token:", error);
+    return true;
+  }
+};
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -18,17 +39,24 @@ export const AuthProvider = ({ children }) => {
     const storedUser = localStorage.getItem('user');
     
     if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error("Error parsing user data from localStorage:", error);
+      if (isTokenExpired(storedToken)) {
+        console.warn("Auth: Stored token is expired, clearing session");
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+      } else {
+        try {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+        } catch (error) {
+          console.error("Error parsing user data from localStorage:", error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
       }
     }
     setLoading(false);
   }, []);
+
 
   const refreshUnreadAnnouncements = useCallback(async () => {
     const activeToken = localStorage.getItem('token');

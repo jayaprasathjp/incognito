@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Initialize Payment — creates a tx_ref and returns config for Flutterwave inline
 router.post("/initialize", authenticateToken, async (req, res) => {
-    const { tournament_id, session_preference } = req.body;
+    const { tournament_id, session_preference, alias } = req.body;
     const userId = req.user.id;
 
     try {
@@ -20,6 +20,17 @@ router.post("/initialize", authenticateToken, async (req, res) => {
 
         if (tournament.status !== 'open') {
             return res.status(400).json({ error: "Tournament is not open for registration" });
+        }
+
+        // Validate alias
+        if (!alias || !alias.trim()) {
+            return res.status(400).json({ error: "Alias is required to join a tournament" });
+        }
+        if (!/^[A-Z0-9]+$/.test(alias.trim())) {
+            return res.status(400).json({ error: "Alias must be uppercase alphanumeric. No spaces or special characters allowed." });
+        }
+        if (alias.trim().length < 3 || alias.trim().length > 20) {
+            return res.status(400).json({ error: "Alias must be between 3 and 20 characters." });
         }
 
         // 2. Check registration window (date-only comparison to avoid timezone issues)
@@ -50,6 +61,15 @@ router.post("/initialize", authenticateToken, async (req, res) => {
             return res.status(400).json({ error: "Already joined this tournament" });
         }
 
+        // Check alias uniqueness within this tournament
+        const aliasCheck = await pool.query(
+            "SELECT id FROM participants WHERE tournament_id = $1 AND LOWER(alias) = LOWER($2)",
+            [tournament_id, alias.trim()]
+        );
+        if (aliasCheck.rows.length > 0) {
+            return res.status(400).json({ error: "This alias is already taken in this tournament. Please choose another." });
+        }
+
         // 5. Get user details for Flutterwave
         const userRes = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
         const user = userRes.rows[0];
@@ -62,8 +82,14 @@ router.post("/initialize", authenticateToken, async (req, res) => {
         if (process.env.PAYMENT_BYPASS === 'true') {
             // Dev mode: skip payment, join directly
             await pool.query(
-                "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'approved', $3)",
-                [tournament_id, userId, session_preference || null]
+                "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias) VALUES ($1, $2, 'in', $3, $4)",
+                [tournament_id, userId, session_preference || null, alias.trim()]
+            );
+
+            // Increment permanent tournament count in users table and set status to active
+            await pool.query(
+                "UPDATE users SET tournament_joined = tournament_joined + 1, status = 'active' WHERE id = $1 AND status != 'banned'",
+                [userId]
             );
 
             // Record a bypassed payment
@@ -92,13 +118,14 @@ router.post("/initialize", authenticateToken, async (req, res) => {
                 amount,
                 currency: "NGN",
                 customer: {
-                    email: user.email,
-                    name: user.username
+                    email: user.email || `player${userId}@incognito.ng`,
+                    name: alias.trim()
                 },
                 meta: {
                     tournament_id,
                     user_id: userId,
-                    session_preference: session_preference || null
+                    session_preference: session_preference || null,
+                    alias: alias.trim()
                 }
             }
         });
@@ -114,7 +141,7 @@ router.post("/initialize", authenticateToken, async (req, res) => {
 
 // Verify Payment — called after Flutterwave inline returns success
 router.post("/verify", authenticateToken, async (req, res) => {
-    const { transaction_id, tx_ref, session_preference } = req.body;
+    const { transaction_id, tx_ref, session_preference, alias } = req.body;
     const userId = req.user.id;
 
     try {
@@ -169,8 +196,14 @@ router.post("/verify", authenticateToken, async (req, res) => {
 
             // 4. Join the tournament
             await pool.query(
-                "INSERT INTO participants (tournament_id, user_id, status, session_preference) VALUES ($1, $2, 'approved', $3)",
-                [payment.tournament_id, userId, session_preference || null]
+                "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias) VALUES ($1, $2, 'in', $3, $4)",
+                [payment.tournament_id, userId, session_preference || null, alias ? alias.trim() : null]
+            );
+
+            // Increment permanent tournament count in users table and set status to active
+            await pool.query(
+                "UPDATE users SET tournament_joined = tournament_joined + 1, status = 'active' WHERE id = $1 AND status != 'banned'",
+                [userId]
             );
 
             return res.json({ status: "success", message: "Payment verified. Tournament joined!" });
@@ -193,6 +226,28 @@ router.post("/verify", authenticateToken, async (req, res) => {
         }
         console.error("Payment verification error:", error);
         res.status(500).json({ error: "Server error during verification" });
+    }
+});
+
+// Update payment status to 'cancelled' or 'failed' — called when user closes/cancels or payment fails
+router.post("/update-status", authenticateToken, async (req, res) => {
+    const { tx_ref, status } = req.body;
+    const userId = req.user.id;
+
+    const allowed = ['cancelled', 'failed'];
+    if (!allowed.includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+    }
+
+    try {
+        await pool.query(
+            "UPDATE payments SET status = $1 WHERE reference = $2 AND user_id = $3 AND status = 'pending'",
+            [status, tx_ref, userId]
+        );
+        res.json({ status: "ok" });
+    } catch (error) {
+        console.error("Payment status update error:", error);
+        res.status(500).json({ error: "Server error" });
     }
 });
 

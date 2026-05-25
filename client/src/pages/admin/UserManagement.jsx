@@ -22,7 +22,7 @@ function visiblePageItems(current, total, neighbor = 1) {
     return out;
 }
 
-const PlayerManagement = () => {
+const UserManagement = () => {
     const { token } = useAuth();
     const [players, setPlayers] = useState([]);
     const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -38,11 +38,11 @@ const PlayerManagement = () => {
             if (Array.isArray(data)) {
                 setPlayers(data);
             } else {
-                toast.error(data.error || "Failed to load players");
+                toast.error(data.error || "Failed to load users");
             }
         } catch (error) {
             console.error(error);
-            toast.error("Failed to load players");
+            toast.error("Failed to load users");
         } finally {
             setLoading(false);
         }
@@ -86,7 +86,7 @@ const PlayerManagement = () => {
     const pageItems = useMemo(() => visiblePageItems(currentPage, totalPages), [currentPage, totalPages]);
 
     if (selectedPlayer) {
-        const { profile, bankDetails, referralStats, recentMatches = [], recentPayments = [] } = selectedPlayer;
+        const { profile, bankDetails, referralStats, recentPayments = [] } = selectedPlayer;
         return (
             <div className="space-y-4 md:space-y-6 max-w-5xl mx-auto pb-10 px-2 sm:px-4 lg:px-8">
                 <div className="flex items-center gap-4 py-2 border-b border-slate-200 pb-3">
@@ -94,12 +94,12 @@ const PlayerManagement = () => {
                         <ChevronLeft size={18} />
                     </button>
                     <div>
-                        <h1 className="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">Player Profile</h1>
+                        <h1 className="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">User Profile</h1>
                         <p className="text-slate-500 font-medium text-xs sm:text-sm">Account ID #{profile.id}</p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                     {/* Left Column: Info & Bank & Referrals */}
                     <div className="space-y-4 md:space-y-6 lg:col-span-1">
                         {/* Player Info */}
@@ -107,20 +107,18 @@ const PlayerManagement = () => {
                             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
                                 <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Basic Info</h2>
                                 <div className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${
-                                    profile.status === 'banned' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                    profile.status === 'banned' ? 'bg-red-50 text-red-600 border-red-100' : 
+                                    profile.status === 'inactive' ? 'bg-slate-50 text-slate-500 border-slate-100' :
+                                    'bg-emerald-50 text-emerald-600 border-emerald-100'
                                 }`}>
-                                    {profile.status === 'banned' ? 'Banned' : 'Active'}
+                                    {profile.status === 'banned' ? 'Banned' : profile.status === 'inactive' ? 'Inactive' : 'Active'}
                                 </div>
                             </div>
                             <div className="space-y-4">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Alias</label>
-                                    <div className="text-sm font-bold text-slate-900 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">{profile.username}</div>
-                                </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="overflow-hidden sm:col-span-2">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Email</label>
-                                        <div className="text-sm font-medium text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 truncate" title={profile.email}>{profile.email}</div>
+                                        <div className="text-xs font-medium text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 truncate" title={profile.email}>{profile.email}</div>
                                     </div>
                                     <div className="overflow-hidden">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Phone Number</label>
@@ -151,7 +149,10 @@ const PlayerManagement = () => {
                                 </div>
                             </div>
                         </div>
+                    </div>
 
+                    {/* Right Column: Bank & Payments logs */}
+                    <div className="space-y-4 md:space-y-6 lg:col-span-1">
                         {/* Bank Details */}
                         <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200">
                             <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 border-b border-slate-100 pb-3 mb-3">Bank Details</h2>
@@ -178,55 +179,6 @@ const PlayerManagement = () => {
                                 </div>
                             )}
                         </div>
-                    </div>
-
-                    {/* Right Column: Content logs */}
-                    <div className="space-y-4 md:space-y-6 lg:col-span-2">
-                        {/* Matches Card */}
-                        <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200">
-                            <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-3">
-                                <Swords size={18} className="text-emerald-500" />
-                                <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Recent Matches</h2>
-                            </div>
-                            {recentMatches.length > 0 ? (
-                                <div className="overflow-x-auto w-full">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr>
-                                                <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">Date</th>
-                                                <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">Round</th>
-                                                <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">Status</th>
-                                                <th className="p-2 font-semibold text-slate-400 uppercase text-[10px] hidden sm:table-cell">Score</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {recentMatches.map(match => (
-                                                <tr key={match.id} className="text-sm hover:bg-slate-50">
-                                                    <td className="p-2 text-xs text-slate-500">{new Date(match.created_at).toLocaleDateString()}</td>
-                                                    <td className="p-2 font-medium text-slate-700">{match.round}</td>
-                                                    <td className="p-2">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                                                            match.status === 'completed' ? 'bg-emerald-50 text-emerald-600' :
-                                                            match.status === 'disputed' ? 'bg-amber-50 text-amber-600' :
-                                                            'bg-slate-100 text-slate-600'
-                                                        }`}>
-                                                            {match.status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-2 font-mono text-xs text-slate-600 hidden sm:table-cell">
-                                                        {match.score_player1 !== null ? `${match.score_player1} - ${match.score_player2}` : 'N/A'}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="p-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 border border-dashed border-slate-100 rounded-xl">
-                                    No recent matches
-                                </div>
-                            )}
-                        </div>
 
                         {/* Payments Card */}
                         <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200">
@@ -242,7 +194,6 @@ const PlayerManagement = () => {
                                                 <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">Date</th>
                                                 <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">Amount</th>
                                                 <th className="p-2 font-semibold text-slate-400 uppercase text-[10px]">Status</th>
-                                                <th className="hidden sm:table-cell p-2 font-semibold text-slate-400 uppercase text-[10px] text-right">Reference</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -257,9 +208,6 @@ const PlayerManagement = () => {
                                                         }`}>
                                                             {payment.status}
                                                         </span>
-                                                    </td>
-                                                    <td className="hidden sm:table-cell p-2 text-xs font-mono text-slate-400 text-right truncate max-w-[120px]">
-                                                        {payment.reference}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -283,7 +231,7 @@ const PlayerManagement = () => {
         <div className=" lg:space-y-8 max-w-7xl mx-auto pb-10 sm:px-6 lg:px-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
                 <div>
-                    <h1 className="text-xl lg:text-3xl font-black text-slate-900 tracking-tight">Players</h1>
+                    <h1 className="text-xl lg:text-3xl font-black text-slate-900 tracking-tight">Manage Users</h1>
                 </div>
                 
                 <div className="flex items-center gap-2 w-full md:w-auto">
@@ -291,7 +239,7 @@ const PlayerManagement = () => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
                         <input 
                             type="text" 
-                            placeholder="Search alias..." 
+                            placeholder="Search email..." 
                             className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 md:min-w-[280px]"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -310,7 +258,7 @@ const PlayerManagement = () => {
                         onClick={fetchPlayers}
                         disabled={loading}
                         className="p-3.5 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                        title="Refresh players"
+                        title="Refresh users"
                     >
                         <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
                     </button>
@@ -321,7 +269,7 @@ const PlayerManagement = () => {
                 {loading && players.length === 0 && (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-[2px] rounded-2xl">
                         <Loader />
-                        <p className="mt-4 text-slate-500 font-medium text-sm animate-pulse">Syncing player data...</p>
+                        <p className="mt-4 text-slate-500 font-medium text-sm animate-pulse">Syncing user data...</p>
                     </div>
                 )}
                 
@@ -330,8 +278,7 @@ const PlayerManagement = () => {
                     <table className="w-full text-left">
                         <thead className="bg-slate-50/80 border-b border-slate-200">
                             <tr>
-                                <th className="p-4 pl-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Player</th>
-                                <th className="hidden sm:table-cell p-4 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Email</th>
+                                <th className="p-4 pl-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">User Email</th>
                                 <th className="hidden sm:table-cell p-4 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Joined</th>
                                 <th className="p-4 font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Status</th>
                                 <th className="p-4 pr-6 font-semibold text-slate-500 uppercase tracking-widest text-[10px] text-right">Actions</th>
@@ -340,30 +287,31 @@ const PlayerManagement = () => {
                         <tbody className="divide-y divide-slate-100">
                             {currentPlayers.length === 0 && !loading ? (
                                 <tr>
-                                    <td colSpan="5" className="p-10 text-center text-slate-400 font-medium">No players found matching criteria.</td>
+                                    <td colSpan="4" className="p-10 text-center text-slate-400 font-medium">No users found matching criteria.</td>
                                 </tr>
                             ) : currentPlayers.map((player) => (
                                 <tr key={player.id} className="hover:bg-slate-50/80 transition-colors group">
-                                    <td className="p-2 pl-2">
+                                    <td className="p-4 pl-6">
                                         <div>
-                                            <div className="font-bold text-slate-900">{player.username}</div>
+                                            <div className="text-xs font-bold text-slate-900">{player.email}</div>
                                             <div className="text-[10px] text-slate-400 font-mono">ID: {player.id}</div>
                                         </div>
                                     </td>
-                                    <td className="hidden sm:table-cell p-2">
-                                        <div className="text-sm text-slate-500">{player.email}</div>
-                                    </td>
-                                    <td className="hidden sm:table-cell p-2">
+                                    <td className="hidden sm:table-cell p-4">
                                         <div className="text-[11px] text-slate-500 font-medium whitespace-nowrap">
                                             {player.created_at ? new Date(player.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
                                         </div>
                                     </td>
-                                    <td className="p-2">
-                                        <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-black tracking-widest inline-flex items-center gap-1.5 ${player.status === 'banned' ? 'bg-red-100/50 text-red-700 ring-1 ring-red-500/20' : 'bg-emerald-100/50 text-emerald-700 ring-1 ring-emerald-500/20'}`}>
-                                            {player.status === 'banned' ? 'Banned' : 'Active'}
+                                    <td className="p-4">
+                                        <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-black tracking-widest inline-flex items-center gap-1.5 ${
+                                            player.status === 'banned' ? 'bg-red-100/50 text-red-700 ring-1 ring-red-500/20' : 
+                                            player.status === 'inactive' ? 'bg-slate-100/50 text-slate-600 ring-1 ring-slate-500/20' :
+                                            'bg-emerald-100/50 text-emerald-700 ring-1 ring-emerald-500/20'
+                                        }`}>
+                                            {player.status === 'banned' ? 'Banned' : player.status === 'inactive' ? 'Inactive' : 'Active'}
                                         </span>
                                     </td>
-                                    <td className="p-2 pr-2 text-right">
+                                    <td className="p-4 pr-6 text-right">
                                         <button 
                                             onClick={() => handleViewPlayer(player.id)}
                                             className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95 inline-flex"
@@ -428,5 +376,4 @@ const PlayerManagement = () => {
     );
 };
 
-export default PlayerManagement;
-
+export default UserManagement;

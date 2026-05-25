@@ -6,24 +6,25 @@ import appIcon from '../assets/app-icon.png';
 const ForgotPassword = () => {
     const [email, setEmail] = useState('');
     const [message, setMessage] = useState('');
-    const [error, setError] = useState('');
+    const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         setMessage('');
-        setError('');
+        setErrors({});
         
         try {
             const data = await api.post('/auth/forgot-password', { email });
-            if (data.error) {
-                setError(data.error);
-            } else {
-                setMessage(data.message || 'Success! A password reset link has been sent.');
-            }
+            setMessage(data.message || 'Success! A password reset link has been sent.');
         } catch (err) {
-            setError('Failed to send reset email. Please try again.');
+            const data = err.response?.data;
+            if (data?.field) {
+                setErrors({ [data.field]: data.error });
+            } else {
+                setErrors({ submit: data?.error || 'Failed to send reset email. Please try again.' });
+            }
         } finally {
             setLoading(false);
         }
@@ -44,22 +45,26 @@ const ForgotPassword = () => {
                     </div>
                 )}
 
-                {error && (
+                {errors.submit && (
                     <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center mb-6 border border-red-100">
-                        {error}
+                        {errors.submit}
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    <div>
-                        <input 
-                            type="email" 
-                            placeholder="Email Address" 
-                            value={email} 
-                            onChange={(e) => setEmail(e.target.value)} 
-                            required 
-                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
-                        />
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm text-slate-600 ml-1">Email Address</label>
+                        <div className="flex flex-col gap-1">
+                            <input 
+                                type="email" 
+                                placeholder="Email Address" 
+                                value={email} 
+                                onChange={(e) => setEmail(e.target.value)} 
+                                required 
+                                className={`w-full p-4 bg-slate-50 border rounded-xl outline-none focus:bg-white transition-all text-slate-800 placeholder:text-slate-400 ${errors.email ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-slate-400'}`}
+                            />
+                            {errors.email && <span className="text-xs text-red-500 ml-1">{errors.email}</span>}
+                        </div>
                     </div>
                     
                     <button 
@@ -77,6 +82,7 @@ const ForgotPassword = () => {
                     </div>
                 </form>
             </div>
+
         </div>
     );
 };
