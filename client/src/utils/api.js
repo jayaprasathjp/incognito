@@ -1,5 +1,5 @@
 // Configure base URL based on environment
-export const SOCKET_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://incognito-ebvk.onrender.com' : 'http://localhost:5000');
+export const SOCKET_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://www.playincognito.ng' : 'http://localhost:5000');
 const API_URL = SOCKET_URL + "/api";
 
 export const api = {

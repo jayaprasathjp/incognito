@@ -16,7 +16,7 @@ const Welcome = () => {
                 const headers = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
-                const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://incognito-ebvk.onrender.com' : 'http://localhost:5000')}/api/tournaments/current`, {
+                const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://www.playincognito.ng' : 'http://localhost:5000')}/api/tournaments/current`, {
                     headers
                 });
                 
