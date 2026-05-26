@@ -147,12 +147,92 @@ router.post("/forgot-password", async (req, res) => {
         const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
         const message = `
-            <h1>Password Reset Request</h1>
-            <p>You have requested to reset your password.</p>
-            <p>Please click on the following link to verify your email and set a new password:</p>
-            <a href="${resetUrl}" clicktracking=off>${resetUrl}</a>
-            <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Password Reset Request</title>
+          </head>
+          <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; padding: 40px 20px;">
+              <tr>
+                <td align="center">
+                  <table width="100%" style="max-width: 500px; background-color: #ffffff; border-radius: 24px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);" border="0" cellspacing="0" cellpadding="0">
+                    <!-- Top Accent Header Bar -->
+                    <tr>
+                      <td height="6" style="background: linear-gradient(90deg, #6366f1 0%, #3b82f6 100%);"></td>
+                    </tr>
+                    <!-- Body Content -->
+                    <tr>
+                      <td style="padding: 40px 32px;">
+                        <!-- Brand Header -->
+                        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 32px;">
+                          <tr>
+                            <td align="center">
+                              <span style="font-size: 22px; font-weight: 900; letter-spacing: 0.1em; color: #1e293b; text-transform: uppercase;">INCØGNITØ</span>
+                            </td>
+                          </tr>
+                        </table>
+                        
+                        <!-- Icon Indicator -->
+                        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
+                          <tr>
+                            <td align="center">
+                              <div style="width: 56px; height: 56px; line-height: 56px; border-radius: 18px; background-color: #e0e7ff; color: #4f46e5; font-size: 24px; text-align: center;">🔑</div>
+                            </td>
+                          </tr>
+                        </table>
+
+                        <!-- Main Title -->
+                        <h2 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 800; text-align: center; color: #0f172a; letter-spacing: -0.02em;">Reset Your Password</h2>
+                        
+                        <!-- Paragraph 1 -->
+                        <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 24px; text-align: center; color: #475569;">
+                          We received a request to reset the password for your Incognito account. No worries, we've got you covered!
+                        </p>
+
+                        <!-- Reset Button -->
+                        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
+                          <tr>
+                            <td align="center">
+                              <a href="${resetUrl}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color: #ffffff; font-size: 15px; font-weight: 700; text-decoration: none; border-radius: 14px; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25); text-transform: uppercase; letter-spacing: 0.05em;" clicktracking="off">
+                                Verify & Reset Password
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+
+                        <!-- Expiry Alert -->
+                        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; border-radius: 12px; margin-bottom: 24px;">
+                          <tr>
+                            <td style="padding: 12px 16px; font-size: 12px; line-height: 18px; color: #64748b; text-align: center;">
+                              ⏳ This link is secure and will expire in <strong>1 hour</strong>.
+                            </td>
+                          </tr>
+                        </table>
+
+                        <!-- Paragraph 2 (Security) -->
+                        <p style="margin: 0; font-size: 13px; line-height: 20px; text-align: center; color: #94a3b8;">
+                          If you did not request this change, you can safely ignore this email. Your password will remain unchanged.
+                        </p>
+                      </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 24px 32px; text-align: center;">
+                        <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;">Campus Esports League</p>
+                        <p style="margin: 0; font-size: 11px; color: #94a3b8;">&copy; 2026 INCØGNITØ. All rights reserved.</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+          </html>
         `;
+
 
         try {
             await sendEmail({
