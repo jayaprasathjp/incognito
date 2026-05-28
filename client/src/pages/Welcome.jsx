@@ -233,7 +233,7 @@ const Welcome = () => {
         </p>
       </div>
 
-      {/* Middle Section: Actions- */}
+      {/* Middle Section: Actions */}
       <div className="w-full max-w-md space-y-4 mb-10">
         {isSpectatorEnabled ? (
           <Link to="/leaderboard" className="block w-full">
