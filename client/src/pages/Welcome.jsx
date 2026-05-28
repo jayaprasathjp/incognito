@@ -8,6 +8,89 @@ const Welcome = () => {
   const [activeModal, setActiveModal] = useState(null);
   const [isSpectatorEnabled, setIsSpectatorEnabled] = useState(false);
 
+  const faqs = [
+    {
+      q: "Is this legitimate?",
+      a: (
+        <span>
+          Yes. INCØGNITØ ran its first season successfully. You can verify us on X and Instagram{" "}
+          <a
+            href="https://instagram.com/playincognitohq"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 font-semibold hover:underline"
+          >
+            @playincognitohq
+          </a>
+          .
+        </span>
+      ),
+    },
+    {
+      q: "Who can participate?",
+      a: "University and campus students across Nigeria only. You will be required to select your university when registering.",
+    },
+    {
+      q: "How do I register?",
+      a: (
+        <span>
+          Visit{" "}
+          <a
+            href="https://www.playincognito.ng"
+            className="text-blue-600 font-semibold hover:underline"
+          >
+            www.playincognito.ng
+          </a>{" "}
+          and complete registration and payment entirely on the website.
+        </span>
+      ),
+    },
+    {
+      q: "How much is the entry fee?",
+      a: "₦446 only.",
+    },
+    {
+      q: "What is the prize?",
+      a: "₦90,000 to the winner. Single elimination format, one loss and you're out.",
+    },
+    {
+      q: "What if not enough people register?",
+      a: "The tournament holds regardless of how many players register. The winner gets paid no matter what.",
+    },
+    {
+      q: "When does registration open and close?",
+      a: "Opens May 29th. Closes June 19th.",
+    },
+    {
+      q: "What happens after I register?",
+      a: "You'll have access to a personal dashboard showing your full match roadmap and round schedule.",
+    },
+    {
+      q: "What platform is the tournament on?",
+      a: "eFootball, fully automated and anonymous on our website.",
+    },
+    {
+      q: "What does anonymous mean?",
+      a: "Every player competes under an alias. Nobody knows who they're playing against.",
+    },
+    {
+      q: "Who do I contact if I have an issue?",
+      a: (
+        <span>
+          Reach out to our dedicated support WhatsApp number —{" "}
+          <a
+            href="https://wa.me/2348080433495"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 font-semibold hover:underline"
+          >
+            +234 808 043 3495
+          </a>
+        </span>
+      ),
+    },
+  ];
+
   useEffect(() => {
     const checkTournament = async () => {
       try {
@@ -190,16 +273,8 @@ const Welcome = () => {
             Register now
           </Link>
         </div>
-
-        <div className="text-center mt-8 cursor-pointer">
-          <Link
-            to="/admin/login"
-            className="text-xs text-slate-300 hover:text-slate-500 transition-colors uppercase tracking-widest font-medium"
-          >
-            Staff Access
-          </Link>
-        </div>
       </div>
+
 
       {/* Bottom Section: Footer Links */}
       <div className="w-full text-center space-y-6 mb-4">
@@ -209,6 +284,12 @@ const Welcome = () => {
             className="hover:text-slate-900 transition-colors hover:underline"
           >
             About
+          </button>
+          <button
+            onClick={() => setActiveModal("faq")}
+            className="hover:text-slate-900 transition-colors hover:underline"
+          >
+            FAQ
           </button>
           <button
             onClick={() => setActiveModal("contact")}
@@ -339,6 +420,26 @@ const Welcome = () => {
                 <p className="font-bold">@playincognitohq</p>
               </div>
             </a>
+          </div>
+        </Modal>
+      )}
+
+      {activeModal === "faq" && (
+        <Modal title="Frequently Asked Questions" onClose={() => setActiveModal(null)}>
+          <div className="space-y-4 pt-2">
+            {faqs.map((faq, index) => (
+              <div
+                key={index}
+                className="p-4 bg-slate-50 rounded-xl border border-slate-100/80 shadow-sm"
+              >
+                <h4 className="font-extrabold text-slate-900 text-sm md:text-base mb-1.5 leading-snug">
+                  {faq.q}
+                </h4>
+                <div className="text-xs md:text-sm text-slate-650 leading-relaxed font-normal">
+                  {faq.a}
+                </div>
+              </div>
+            ))}
           </div>
         </Modal>
       )}
