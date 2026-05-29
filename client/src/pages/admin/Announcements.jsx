@@ -234,7 +234,7 @@ const Announcements = () => {
                                 type="text"
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
-                                placeholder="Search by username or email"
+                                placeholder="Search by email or alias"
                                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:border-slate-900"
                             />
 
@@ -247,17 +247,23 @@ const Announcements = () => {
                                             key={player.id}
                                             type="button"
                                             onClick={() => toggleRecipient(player.id)}
-                                            className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all ${
+                                            className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all w-full ${
                                                 checked
                                                     ? 'border-slate-900 bg-slate-900 text-white'
                                                     : 'border-slate-200 bg-white hover:border-slate-300'
                                             }`}
                                         >
-                                            <div>
-                                                <div className={`font-bold ${checked ? 'text-white' : 'text-slate-900'}`}>{player.username}</div>
-                                                <div className={`text-sm ${checked ? 'text-slate-200' : 'text-slate-500'}`}>{player.email}</div>
+                                            <div className="min-w-0 flex-1 mr-3">
+                                                {player.username !== player.email && (
+                                                    <div className={`font-bold truncate ${checked ? 'text-white' : 'text-slate-900'}`}>
+                                                        {player.username}
+                                                    </div>
+                                                )}
+                                                <div className={`text-sm truncate ${checked ? 'text-slate-200' : 'text-slate-500'}`}>
+                                                    {player.email}
+                                                </div>
                                             </div>
-                                            <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${checked ? 'border-white bg-white text-slate-900' : 'border-slate-300 text-transparent'}`}>
+                                            <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${checked ? 'border-white bg-white text-slate-900' : 'border-slate-300 text-transparent'}`}>
                                                 <Check size={14} />
                                             </div>
                                         </button>
