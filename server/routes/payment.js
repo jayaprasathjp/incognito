@@ -284,4 +284,114 @@ router.post("/update-status", authenticateToken, async (req, res) => {
     }
 });
 
+// Flutterwave Webhook Receiver — handles users who close the payment popup early
+router.post("/webhook", async (req, res) => {
+    // 1. Verify the signature hash to ensure this request genuinely came from Flutterwave
+    const signature = req.headers["verif-hash"];
+    const localHash = process.env.FLW_WEBHOOK_HASH || "incognito_flw_webhook_secret_2026";
+
+    if (!signature || signature !== localHash) {
+        console.warn("[WARNING] Webhook received with invalid or missing verification hash.");
+        return res.status(401).send("Unauthorized");
+    }
+
+    const payload = req.body;
+    console.log(`[DEBUG] Webhook received event: "${payload.event}"`);
+
+    if (payload.event === "charge.completed" && payload.data) {
+        const transaction = payload.data;
+
+        if (transaction.status === "successful") {
+            const tx_ref = transaction.tx_ref;
+            const transaction_id = transaction.id;
+            
+            console.log(`[DEBUG] Processing successful webhook for reference: ${tx_ref}`);
+
+            const client = await pool.connect();
+            try {
+                await client.query("BEGIN");
+
+                // Find the payment record in our DB
+                const paymentRes = await client.query(
+                    "SELECT * FROM payments WHERE reference = $1 FOR UPDATE",
+                    [tx_ref]
+                );
+
+                if (paymentRes.rows.length === 0) {
+                    console.warn(`[WARNING] Webhook paid reference "${tx_ref}" not found in payments table. Skipping.`);
+                    await client.query("COMMIT");
+                    return res.status(200).send("Reference not found");
+                }
+
+                const payment = paymentRes.rows[0];
+
+                if (payment.status === "completed") {
+                    console.log(`[DEBUG] Payment "${tx_ref}" was already verified and completed. Skipping duplicate registration.`);
+                    await client.query("COMMIT");
+                    return res.status(200).send("Already completed");
+                }
+
+                // Recover metadata
+                const meta = transaction.meta || {};
+                let alias = meta.alias || transaction.customer?.name || "PLAYER";
+                let session_preference = meta.session_preference || "morning";
+
+                alias = String(alias).trim().toUpperCase();
+
+                // 1. Update payment status to completed
+                await client.query(
+                    "UPDATE payments SET status = 'completed', flw_transaction_id = $1 WHERE id = $2",
+                    [String(transaction_id), payment.id]
+                );
+
+                // 2. Double check if already registered in participants
+                const participantCheck = await client.query(
+                    "SELECT id FROM participants WHERE tournament_id = $1 AND user_id = $2",
+                    [payment.tournament_id, payment.user_id]
+                );
+
+                if (participantCheck.rows.length > 0) {
+                    console.log(`[DEBUG] User is already in participants table. Skipping duplicate insertion.`);
+                } else {
+                    // Check if alias is unique, append numbers if taken
+                    let finalAlias = alias;
+                    const aliasCheck = await client.query(
+                        "SELECT id FROM participants WHERE tournament_id = $1 AND LOWER(alias) = LOWER($2)",
+                        [payment.tournament_id, finalAlias]
+                    );
+                    if (aliasCheck.rows.length > 0) {
+                        finalAlias = `${alias}${Math.floor(100 + Math.random() * 900)}`;
+                        console.warn(`[WARNING] Alias "${alias}" taken. Assigned alternative "${finalAlias}".`);
+                    }
+
+                    // Insert participant
+                    await client.query(
+                        "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias) VALUES ($1, $2, 'in', $3, $4)",
+                        [payment.tournament_id, payment.user_id, session_preference || null, finalAlias]
+                    );
+                    console.log(`[DEBUG] Successfully inserted user ${payment.user_id} into participants table under alias "${finalAlias}".`);
+                }
+
+                // 3. Increment tournament_joined and activate user
+                await client.query(
+                    "UPDATE users SET tournament_joined = tournament_joined + 1, status = 'active' WHERE id = $1 AND status != 'banned'",
+                    [payment.user_id]
+                );
+
+                await client.query("COMMIT");
+                console.log(`🎉 Webhook processed and committed successfully for reference: ${tx_ref}`);
+            } catch (dbErr) {
+                await client.query("ROLLBACK");
+                console.error(`[ERROR] Webhook DB transaction failed for reference "${tx_ref}":`, dbErr);
+                return res.status(500).send("Database error");
+            } finally {
+                client.release();
+            }
+        }
+    }
+
+    // Always respond with a 200 OK so Flutterwave doesn't keep retrying the webhook
+    return res.status(200).send("OK");
+});
+
 export default router;
