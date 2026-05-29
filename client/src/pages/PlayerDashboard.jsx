@@ -149,7 +149,7 @@ const PlayerDashboard = () => {
                         // 4. Verify payment on backend
                         try {
                             const verifyData = await api.post('/payment/verify', {
-                                transaction_id: response.transaction_id,
+                                transaction_id: response.transaction_id || response.id,
                                 tx_ref: response.tx_ref,
                                 session_preference: sessionPreference,
                                 alias: tournamentAlias.trim()
