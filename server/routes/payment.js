@@ -144,6 +144,19 @@ router.post("/verify", authenticateToken, async (req, res) => {
     const { transaction_id, tx_ref, session_preference, alias } = req.body;
     const userId = req.user.id;
 
+    console.log("[DEBUG] Verification parameters received:", {
+        userId,
+        transaction_id,
+        tx_ref,
+        session_preference,
+        alias
+    });
+
+    if (!transaction_id || String(transaction_id).trim() === "" || String(transaction_id) === "undefined") {
+        console.error("[ERROR] Payment verification request received with missing or invalid transaction_id.");
+        return res.status(400).json({ error: "Invalid transaction ID" });
+    }
+
     try {
         // 1. Find the pending payment
         const paymentRes = await pool.query(
@@ -170,8 +183,11 @@ router.post("/verify", authenticateToken, async (req, res) => {
             return res.status(500).json({ error: "Payment verification unavailable" });
         }
 
+        const targetUrl = `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`;
+        console.log(`[DEBUG] Attempting to contact Flutterwave API at: ${targetUrl}`);
+
         const verifyResponse = await fetch(
-            `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`,
+            targetUrl,
             {
                 headers: {
                     Authorization: `Bearer ${FLW_SECRET_KEY}`
@@ -179,7 +195,24 @@ router.post("/verify", authenticateToken, async (req, res) => {
             }
         );
 
-        const verifyData = await verifyResponse.json();
+        const contentType = verifyResponse.headers.get("content-type") || "";
+        let verifyData;
+
+        if (contentType.includes("application/json")) {
+            verifyData = await verifyResponse.json();
+        } else {
+            const rawBody = await verifyResponse.text();
+            console.error(
+                `[ERROR] Flutterwave verification returned a non-JSON response.\n` +
+                `Status Code: ${verifyResponse.status}\n` +
+                `Content-Type: ${contentType}\n` +
+                `Response body preview (first 1000 chars):\n${rawBody.substring(0, 1000)}`
+            );
+            return res.status(502).json({
+                error: "Payment verification failed",
+                details: `Flutterwave API returned a non-JSON response with status code ${verifyResponse.status}.`
+            });
+        }
 
         if (
             verifyData.status === "success" &&
