@@ -9,7 +9,7 @@ import MenuButton from '../components/MenuButton';
 const ReferralProgram = () => {
     const { token } = useAuth();
     const [referralCode, setReferralCode] = useState("");
-    const [stats, setStats] = useState({ totalReferrals: 0 });
+    const [stats, setStats] = useState({ totalReferrals: 0, usersJoinedTournament: 0 });
     const [copied, setCopied] = useState(false);
     const [shareCopied, setShareCopied] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -22,7 +22,8 @@ const ReferralProgram = () => {
                 const data = await api.get('/user/referral');
                 setReferralCode(data.referralCode);
                 setStats({
-                    totalReferrals: data.totalReferrals
+                    totalReferrals: data.totalReferrals,
+                    usersJoinedTournament: data.usersJoinedTournament
                 });
             } catch (error) {
                 console.error("Failed to fetch referral data", error);
@@ -147,9 +148,15 @@ const ReferralProgram = () => {
 
                 {/* Stats */}
                 <h3 className="text-slate-900 font-bold mb-4 px-1">Your Stats</h3>
-                <div className="bg-white border border-slate-100 rounded-2xl p-6 flex flex-col items-center justify-center shadow-sm">
-                    <span className="text-4xl font-light text-slate-900 mb-1">{stats.totalReferrals}</span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Referrals</span>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white border border-slate-100 rounded-2xl p-6 flex flex-col items-center justify-center shadow-sm">
+                        <span className="text-4xl font-light text-slate-900 mb-1">{stats.totalReferrals}</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider text-center">Referrals</span>
+                    </div>
+                    <div className="bg-white border border-slate-100 rounded-2xl p-6 flex flex-col items-center justify-center shadow-sm">
+                        <span className="text-4xl font-light text-slate-900 mb-1">{stats.usersJoinedTournament}</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider text-center">Joined Tournament</span>
+                    </div>
                 </div>
             </div>
             </div>
