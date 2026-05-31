@@ -57,70 +57,65 @@ export default function NotificationPermissionBanner() {
   if (!visible) return null;
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.banner}>
-        {/* Animated bell icon */}
-        <div style={styles.iconWrap}>
-          <span style={styles.bell}>🔔</span>
+    <div className="push-banner-overlay">
+      <div className="push-banner-card">
+        {/* Banner Header with Bell & Title */}
+        <div className="push-banner-header">
+          <div className="push-banner-icon-wrap">
+            <span className="push-banner-bell">🔔</span>
+          </div>
+          <h4 className="push-banner-title">
+            {status === 'success' && "Notifications Enabled!"}
+            {status === 'denied' && "Notifications Blocked"}
+            {status === 'error' && "Something went wrong"}
+            {!status && "Enable Match Notifications"}
+          </h4>
         </div>
 
-        <div style={styles.textWrap}>
-          {status === 'success' ? (
-            <>
-              <p style={styles.title}>✅ Notifications Enabled!</p>
-              <p style={styles.sub}>You'll get match reminders and announcements.</p>
-            </>
-          ) : status === 'denied' ? (
-            <>
-              <p style={styles.title}>Notifications Blocked</p>
-              <p style={styles.sub}>
-                Enable them in your browser settings to get match alerts.
-              </p>
-            </>
-          ) : status === 'error' ? (
-            <>
-              <p style={styles.title}>Something went wrong</p>
-              <p style={styles.sub}>Could not enable notifications. Try again later.</p>
-            </>
-          ) : (
-            <>
-              <p style={styles.title}>Enable Match Notifications</p>
-              <p style={styles.sub}>
+        {/* Banner Body with details */}
+        <div className="push-banner-body">
+          <p className="push-banner-sub">
+            {status === 'success' && "✅ You'll get match reminders and announcements."}
+            {status === 'denied' && "Please enable notifications in your browser settings to receive match alerts."}
+            {status === 'error' && "Could not enable notifications. Please try again later."}
+            {!status && (
+              <>
                 Tap <strong style={{ color: '#a5b4fc' }}>Allow</strong> below, then confirm in the browser popup that appears — and you'll get match reminders &amp; announcements even when this tab is closed.
-              </p>
-            </>
-          )}
+              </>
+            )}
+          </p>
         </div>
 
+        {/* Action Buttons */}
         {!status && (
-          <div style={styles.actions}>
-            <button
-              id="enable-push-btn"
-              style={{ ...styles.btn, ...styles.btnPrimary }}
-              onClick={handleEnable}
-              disabled={loading}
-            >
-              {loading ? (
-                <span style={styles.spinner} />
-              ) : (
-                'Allow'
-              )}
-            </button>
+          <div className="push-banner-actions">
             <button
               id="dismiss-push-btn"
-              style={{ ...styles.btn, ...styles.btnSecondary }}
+              className="push-banner-btn push-banner-btn-secondary"
               onClick={handleDismiss}
             >
               Not Now
             </button>
+            <button
+              id="enable-push-btn"
+              className="push-banner-btn push-banner-btn-primary"
+              onClick={handleEnable}
+              disabled={loading}
+            >
+              {loading ? (
+                <span className="push-banner-spinner" />
+              ) : (
+                'Allow'
+              )}
+            </button>
           </div>
         )}
 
-        {/* Close X */}
+        {/* Close Button for status alerts */}
         {(status === 'success' || status === 'denied' || status === 'error') && (
           <button
             onClick={() => setVisible(false)}
-            style={styles.closeBtn}
+            className="push-banner-close-btn"
             aria-label="Close"
           >
             ✕
@@ -130,112 +125,3 @@ export default function NotificationPermissionBanner() {
     </div>
   );
 }
-
-const styles = {
-  overlay: {
-    position: 'fixed',
-    bottom: '24px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    zIndex: 9999,
-    width: 'min(420px, calc(100vw - 32px))',
-    animation: 'slideUpBanner 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both',
-  },
-  banner: {
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
-    border: '1px solid rgba(99, 102, 241, 0.4)',
-    borderRadius: '16px',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)',
-    padding: '20px',
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '14px',
-    backdropFilter: 'blur(20px)',
-    position: 'relative',
-  },
-  iconWrap: {
-    flexShrink: 0,
-    width: '44px',
-    height: '44px',
-    borderRadius: '12px',
-    background: 'rgba(99, 102, 241, 0.2)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    border: '1px solid rgba(99, 102, 241, 0.3)',
-  },
-  bell: {
-    fontSize: '22px',
-    display: 'block',
-    animation: 'bellRing 1.5s ease-in-out infinite',
-  },
-  textWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  title: {
-    margin: 0,
-    fontSize: '14px',
-    fontWeight: 700,
-    color: '#f1f5f9',
-    letterSpacing: '0.01em',
-    lineHeight: 1.3,
-  },
-  sub: {
-    margin: '4px 0 0',
-    fontSize: '12px',
-    color: '#94a3b8',
-    lineHeight: 1.5,
-  },
-  actions: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    flexShrink: 0,
-  },
-  btn: {
-    border: 'none',
-    borderRadius: '8px',
-    padding: '8px 16px',
-    fontSize: '12px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-    letterSpacing: '0.03em',
-    minWidth: '80px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnPrimary: {
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    color: '#fff',
-    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
-  },
-  btnSecondary: {
-    background: 'rgba(255,255,255,0.05)',
-    color: '#94a3b8',
-    border: '1px solid rgba(255,255,255,0.1)',
-  },
-  closeBtn: {
-    position: 'absolute',
-    top: '10px',
-    right: '12px',
-    background: 'transparent',
-    border: 'none',
-    color: '#64748b',
-    cursor: 'pointer',
-    fontSize: '14px',
-    padding: '2px 4px',
-    lineHeight: 1,
-  },
-  spinner: {
-    display: 'inline-block',
-    width: '14px',
-    height: '14px',
-    border: '2px solid rgba(255,255,255,0.3)',
-    borderTop: '2px solid #fff',
-    borderRadius: '50%',
-    animation: 'spin 0.7s linear infinite',
-  },
-};
