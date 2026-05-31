@@ -11,14 +11,24 @@ export default function NotificationPermissionBanner() {
   useEffect(() => {
     // Only show the banner if:
     // 1. Browser supports push
-    // 2. Permission is not yet granted
+    // 2. Permission is not yet asked ('default')
     // 3. User hasn't permanently dismissed it
     if (!('Notification' in window) || !('PushManager' in window)) return;
-    if (Notification.permission === 'granted') return;
-    if (Notification.permission === 'denied') return;
-    if (localStorage.getItem(DISMISS_KEY) === 'true') return;
 
-    // Show after a short delay so it doesn't flash immediately on load
+    // Already denied → nothing we can do, don't show banner
+    if (Notification.permission === 'denied') return;
+
+    if (Notification.permission === 'granted') {
+      // Permission was already granted (e.g. user re-logged in).
+      // Re-subscribe silently — no banner needed.
+      if (!localStorage.getItem('push_subscribed')) {
+        requestPermissionAndSubscribe().catch(() => {});
+      }
+      return;
+    }
+
+    // permission === 'default' — show the banner after a short delay
+    if (localStorage.getItem(DISMISS_KEY) === 'true') return;
     const timer = setTimeout(() => setVisible(true), 1500);
     return () => clearTimeout(timer);
   }, []);
@@ -76,7 +86,7 @@ export default function NotificationPermissionBanner() {
             <>
               <p style={styles.title}>Enable Match Notifications</p>
               <p style={styles.sub}>
-                Get real-time alerts for fixtures, reminders &amp; announcements — even when this tab is closed.
+                Tap <strong style={{ color: '#a5b4fc' }}>Allow</strong> below, then confirm in the browser popup that appears — and you'll get match reminders &amp; announcements even when this tab is closed.
               </p>
             </>
           )}
