@@ -181,7 +181,7 @@ async function runMatchReminders() {
         icon: "/web-icon.png",
         badge: "/web-icon.png",
         tag: `match-15m-${m.id}`,
-        data: { url: "/matches" },
+        data: { url: "/dashboard" },
       });
 
       await pool.query(
