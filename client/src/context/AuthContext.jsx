@@ -114,30 +114,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(userData));
     setToken(newToken);
     setUser(userData);
-
-    // Silently attempt to subscribe to push notifications after login.
-    // We only prompt if permission is still 'default' (not yet asked).
-    // This is fire-and-forget — login always succeeds even if push fails.
-    if (
-      typeof window !== 'undefined' &&
-      'Notification' in window &&
-      Notification.permission === 'default'
-    ) {
-      // Small delay so the login UX doesn't feel interrupted
-      setTimeout(() => {
-        requestPermissionAndSubscribe().catch(() => {});
-      }, 3000);
-    } else if (
-      typeof window !== 'undefined' &&
-      'Notification' in window &&
-      Notification.permission === 'granted' &&
-      !localStorage.getItem('push_subscribed')
-    ) {
-      // Already granted but never subscribed (e.g. fresh install)
-      setTimeout(() => {
-        requestPermissionAndSubscribe().catch(() => {});
-      }, 1000);
-    }
+    // Push subscription is handled by NotificationPermissionBanner on the dashboard.
+    // We do NOT auto-prompt here to avoid the double-dialog UX issue.
   };
 
   const logout = () => {
