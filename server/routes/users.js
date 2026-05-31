@@ -58,13 +58,19 @@ router.get("/referral", authenticateToken, async (req, res) => {
 
         // 2. Get Stats
         const statsResult = await pool.query(
-            "SELECT COUNT(*) as total_referrals FROM referrals WHERE referrer_id = $1", 
+            `SELECT 
+                (SELECT COUNT(*) FROM referrals WHERE referrer_id = $1) as total_referrals,
+                (SELECT COUNT(DISTINCT r.referred_user_id) 
+                 FROM referrals r 
+                 JOIN participants p ON r.referred_user_id = p.user_id 
+                 WHERE r.referrer_id = $1) as users_joined_tournament`, 
             [userId]
         );
         
         res.json({
             referralCode,
             totalReferrals: parseInt(statsResult.rows[0].total_referrals) || 0,
+            usersJoinedTournament: parseInt(statsResult.rows[0].users_joined_tournament) || 0,
             rewardsEarned: 0 // Placeholder logic for now
         });
 
