@@ -8,6 +8,7 @@ import Sidebar from '../components/Sidebar';
 import MenuButton from '../components/MenuButton';
 import { api } from '../utils/api';
 import ActiveMatchCard from '../components/ActiveMatchCard';
+import NotificationPermissionBanner from '../components/NotificationPermissionBanner';
 const FLW_PUBLIC_KEY = import.meta.env.VITE_FLW_PUBLIC_KEY || '';
 
 // Helper: compare registration dates by date-only (ignores time/timezone)
@@ -226,6 +227,8 @@ const PlayerDashboard = () => {
 
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans relative">
+            {/* Push Notification Permission Banner */}
+            <NotificationPermissionBanner />
             
             {/* Header / Menu Icon */}
             <div className="flex items-center justify-center p-4 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm relative">

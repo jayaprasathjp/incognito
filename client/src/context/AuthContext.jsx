@@ -3,6 +3,7 @@ import Loader from '../components/Loader';
 import { api } from '../utils/api';
 import { io } from 'socket.io-client';
 import { SOCKET_URL } from '../utils/api';
+import { requestPermissionAndSubscribe, unsubscribePush } from '../utils/pushNotifications';
 
 const isTokenExpired = (token) => {
   if (!token) return true;
@@ -113,9 +114,36 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(userData));
     setToken(newToken);
     setUser(userData);
+
+    // Silently attempt to subscribe to push notifications after login.
+    // We only prompt if permission is still 'default' (not yet asked).
+    // This is fire-and-forget — login always succeeds even if push fails.
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'default'
+    ) {
+      // Small delay so the login UX doesn't feel interrupted
+      setTimeout(() => {
+        requestPermissionAndSubscribe().catch(() => {});
+      }, 3000);
+    } else if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'granted' &&
+      !localStorage.getItem('push_subscribed')
+    ) {
+      // Already granted but never subscribed (e.g. fresh install)
+      setTimeout(() => {
+        requestPermissionAndSubscribe().catch(() => {});
+      }, 1000);
+    }
   };
 
   const logout = () => {
+    // Unsubscribe from push notifications
+    unsubscribePush().catch(() => {});
+
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);
