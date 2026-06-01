@@ -331,10 +331,28 @@ router.post("/webhook", async (req, res) => {
                     return res.status(200).send("Already completed");
                 }
 
+                // Fetch full verified data from Flutterwave to guarantee metadata is present
+                const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY;
+                let finalMeta = transaction.meta || {};
+                
+                if (FLW_SECRET_KEY) {
+                    try {
+                        const targetUrl = `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`;
+                        const verifyRes = await fetch(targetUrl, {
+                            headers: { Authorization: `Bearer ${FLW_SECRET_KEY}` }
+                        });
+                        const verifyData = await verifyRes.json();
+                        if (verifyData.status === 'success' && verifyData.data && verifyData.data.meta) {
+                            finalMeta = verifyData.data.meta;
+                        }
+                    } catch (e) {
+                        console.error("[ERROR] Failed to fetch transaction meta from flutterwave API in webhook:", e);
+                    }
+                }
+
                 // Recover metadata
-                const meta = transaction.meta || {};
-                let alias = meta.alias || transaction.customer?.name || "PLAYER";
-                let session_preference = meta.session_preference || "morning";
+                let alias = finalMeta.alias || transaction.customer?.name || "PLAYER";
+                let session_preference = finalMeta.session_preference || "morning";
 
                 alias = String(alias).trim().toUpperCase();
 
