@@ -78,9 +78,9 @@ router.post("/initialize", authenticateToken, async (req, res) => {
         const tx_ref = `INCOG-${tournament_id}-${userId}-${Date.now()}`;
         const amount = parseFloat(tournament.entry_fee) || 0;
 
-        // 7. Check for developer bypass
-        if (process.env.PAYMENT_BYPASS === 'true') {
-            // Dev mode: skip payment, join directly
+        // 7. Check for developer bypass (TEMPORARILY ALWAYS TRUE FOR FREE TOURNAMENT)
+        if (true || process.env.PAYMENT_BYPASS === 'true') {
+            // Dev mode / Free mode: skip payment, join directly
             await pool.query(
                 "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias) VALUES ($1, $2, 'in', $3, $4)",
                 [tournament_id, userId, session_preference || null, alias.trim()]
@@ -92,15 +92,10 @@ router.post("/initialize", authenticateToken, async (req, res) => {
                 [userId]
             );
 
-            // Record a bypassed payment
-            await pool.query(
-                "INSERT INTO payments (user_id, tournament_id, amount, status, reference, flw_transaction_id) VALUES ($1, $2, $3, 'completed', $4, 'BYPASS')",
-                [userId, tournament_id, amount, tx_ref]
-            );
 
             return res.json({ 
                 status: "bypass", 
-                message: "Payment bypassed (dev mode). Tournament joined successfully." 
+                message: "Tournament joined successfully!" 
             });
         }
 

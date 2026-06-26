@@ -714,7 +714,7 @@ router.post("/tournaments/control", async (req, res) => {
       // Calculate prize pool (Now fixed at 90,000 NGN)
       const fee = parseFloat(entry_fee) || 0;
       const cap = parseInt(capacity) || 0;
-      const prize_pool = 90000;
+      const prize_pool = 20000;
 
       const newTourney = await pool.query(
         `INSERT INTO tournaments 
@@ -907,7 +907,7 @@ router.post("/tournaments/cycle", async (req, res) => {
     const nextNum = parseInt(countRes.rows[0].count) + 1;
 
     const newTourney = await client.query(
-      "INSERT INTO tournaments (title, status, prize_pool) VALUES ($1, 'open', 90000) RETURNING *",
+      "INSERT INTO tournaments (title, status, prize_pool) VALUES ($1, 'open', 20000) RETURNING *",
       [`Tournament #${nextNum}`],
     );
 
