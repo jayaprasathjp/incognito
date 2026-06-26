@@ -1068,7 +1068,7 @@ const TournamentControl = () => {
     }
   };
 
-  const fixedPrizePool = 90000;
+  const fixedPrizePool = 20000;
   const estimatedRounds = Math.log2(formData.capacity);
 
   const handleCreate = async (e) => {
@@ -2007,7 +2007,7 @@ const TournamentControl = () => {
                   <DollarSign size={16} /> Prize Pool
                 </span>
                 <span className="font-bold text-green-600">
-                  ₦{Number(tournament.prize_pool || 90000).toLocaleString()}
+                  ₦{(Number(tournament.prize_pool) === 90000 ? 20000 : Number(tournament.prize_pool || 20000)).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">

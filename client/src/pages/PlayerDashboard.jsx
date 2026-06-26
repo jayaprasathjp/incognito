@@ -113,7 +113,7 @@ const PlayerDashboard = () => {
 
             // 2. Dev bypass mode — server handled everything
             if (initData.status === 'bypass') {
-                alert(initData.message || 'Joined successfully (dev bypass)!');
+                alert(initData.message || 'Joined successfully!');
                 setJoinStep(null);
                 setSessionPreference(null);
                 await fetchTournament();
@@ -336,7 +336,7 @@ const PlayerDashboard = () => {
                                      <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-transparent to-amber-500/10"></div>
                                      <p className="text-xs text-amber-500 font-bold uppercase tracking-wider mb-1">Total Prize Pool</p>
                                      <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500">
-                                        ₦{(Number(tournamentData.tournament.prize_pool) || Number(tournamentData.tournament.prizePool) || 90000).toLocaleString()}
+                                        ₦{(Number(tournamentData.tournament.prize_pool) === 90000 ? 20000 : (Number(tournamentData.tournament.prize_pool) || Number(tournamentData.tournament.prizePool) || 20000)).toLocaleString()}
                                      </p>
                                 </div>
 
@@ -403,7 +403,7 @@ const PlayerDashboard = () => {
                         <p className="text-2xl font-black text-slate-900 mb-1">{tournamentData.tournament.title}</p>
                         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full font-bold text-xs mb-3 border border-green-100">
                             <span>🏆 Prize Pool:</span>
-                            <span className="font-extrabold">₦{(Number(tournamentData.tournament.prize_pool) || Number(tournamentData.tournament.prizePool) || 90000).toLocaleString()}</span>
+                            <span className="font-extrabold">₦{(Number(tournamentData.tournament.prize_pool) === 90000 ? 20000 : (Number(tournamentData.tournament.prize_pool) || Number(tournamentData.tournament.prizePool) || 20000)).toLocaleString()}</span>
                         </div>
                         
                         <div className="flex items-center justify-center gap-2 mb-6">
@@ -722,14 +722,14 @@ const PlayerDashboard = () => {
                                     onClick={handleAliasContinue}
                                     className="w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wide transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-md active:scale-95"
                                 >
-                                    Continue to Payment
+                                    Continue to Registration
                                 </button>
                             </>
                         )}
 
                         {joinStep === 'payment' && (
                             <>
-                                <h3 className="text-xl font-bold text-slate-900 text-center mb-2">Payment Summary</h3>
+                                <h3 className="text-xl font-bold text-slate-900 text-center mb-2">Registration Summary</h3>
                                 <p className="text-sm text-slate-500 text-center mb-6">Review and confirm your entry</p>
 
                                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-100 space-y-4 mb-6">
@@ -752,7 +752,7 @@ const PlayerDashboard = () => {
                                     </div>
                                     <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
                                         <span className="text-sm font-bold text-slate-700">Entry Fee</span>
-                                        <span className="text-lg font-black text-slate-900">₦{tournamentData?.tournament?.entry_fee || 0}</span>
+                                        <span className="text-lg font-black text-emerald-600">FREE</span>
                                     </div>
                                 </div>
 
@@ -771,12 +771,10 @@ const PlayerDashboard = () => {
                                         {joinLoading ? (
                                             <Loader2 className="w-5 h-5 animate-spin" />
                                         ) : (
-                                            <>PAY ₦{tournamentData?.tournament?.entry_fee || 0}</>
+                                            <>CONFIRM ENTRY</>
                                         )}
                                     </button>
                                 </div>
-
-                                <p className="text-[10px] text-slate-400 text-center mt-4">Payments powered by Flutterwave 🔒</p>
                             </>
                         )}
                     </div>

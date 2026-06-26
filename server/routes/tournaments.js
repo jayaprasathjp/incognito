@@ -206,7 +206,7 @@ router.post("/", authenticateToken, authorizeAdmin, async (req, res) => {
         const result = await pool.query(
             `INSERT INTO tournaments 
             (title, status, registration_start, registration_end, capacity, entry_fee, prize_pool, created_at) 
-            VALUES ($1, 'open', $2, $3, $4, $5, 90000, NOW()) 
+            VALUES ($1, 'open', $2, $3, $4, $5, 20000, NOW()) 
             RETURNING *`,
             [title, registration_start, registration_end, cap, fee]
         );
