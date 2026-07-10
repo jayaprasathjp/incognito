@@ -3,6 +3,7 @@ import Loader from '../components/Loader';
 import { api } from '../utils/api';
 import { io } from 'socket.io-client';
 import { SOCKET_URL } from '../utils/api';
+import { requestPermissionAndSubscribe, unsubscribePush } from '../utils/pushNotifications';
 
 const isTokenExpired = (token) => {
   if (!token) return true;
@@ -113,9 +114,14 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(userData));
     setToken(newToken);
     setUser(userData);
+    // Push subscription is handled by NotificationPermissionBanner on the dashboard.
+    // We do NOT auto-prompt here to avoid the double-dialog UX issue.
   };
 
   const logout = () => {
+    // Unsubscribe from push notifications
+    unsubscribePush().catch(() => {});
+
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);

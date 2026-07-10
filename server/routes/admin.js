@@ -7,6 +7,7 @@ import {
   getAnnouncementAudience,
   resolveAnnouncementRecipients,
 } from "../utils/announcementHelpers.js";
+import { sendPushToUsers } from "../utils/pushHelpers.js";
 
 const router = express.Router();
 
@@ -713,7 +714,7 @@ router.post("/tournaments/control", async (req, res) => {
       // Calculate prize pool (Now fixed at 90,000 NGN)
       const fee = parseFloat(entry_fee) || 0;
       const cap = parseInt(capacity) || 0;
-      const prize_pool = 90000;
+      const prize_pool = 20000;
 
       const newTourney = await pool.query(
         `INSERT INTO tournaments 
@@ -906,7 +907,7 @@ router.post("/tournaments/cycle", async (req, res) => {
     const nextNum = parseInt(countRes.rows[0].count) + 1;
 
     const newTourney = await client.query(
-      "INSERT INTO tournaments (title, status, prize_pool) VALUES ($1, 'open', 90000) RETURNING *",
+      "INSERT INTO tournaments (title, status, prize_pool) VALUES ($1, 'open', 20000) RETURNING *",
       [`Tournament #${nextNum}`],
     );
 
@@ -1581,6 +1582,16 @@ router.post("/announcements", async (req, res) => {
         }
       }
 
+      // Also send a real OS push notification (works even when site is closed)
+      sendPushToUsers(recipientUserIds, {
+        title: "📢 New Announcement",
+        body: trimmedMessage.length > 100 ? trimmedMessage.slice(0, 97) + "..." : trimmedMessage,
+        icon: "/web-icon.png",
+        badge: "/web-icon.png",
+        tag: `announcement-${announcement.id}`,
+        data: { url: "/announcements" },
+      }).catch((err) => console.error("[Push] Announcement push error:", err.message));
+
       res.json({
         message: "Announcement sent",
         announcement,
@@ -1966,6 +1977,25 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
     console.log(
       `[FIXTURES] Total: ${matchesCreated} matches for tournament ${tournamentId}, round ${roundNumber}`,
     );
+
+    // ── Push notification: tell each player their match has been scheduled ──
+    if (schedMatchData.length > 0) {
+      const allPlayerIds = [
+        ...new Set(schedMatchData.flatMap((m) => [m.p1Id, m.p2Id])),
+      ];
+      // Fire-and-forget — don't let push failure break fixture creation
+      sendPushToUsers(allPlayerIds, {
+        title: "🏟️ Your Match Is Scheduled!",
+        body: `Round ${roundNumber} fixtures are ready. Check your match time and be on time!`,
+        icon: "/web-icon.png",
+        badge: "/web-icon.png",
+        tag: `fixture-r${roundNumber}-${tournamentId}`,
+        data: { url: "/matches" },
+      }).catch((err) =>
+        console.error("[Push] Fixture notification error:", err.message)
+      );
+    }
+
     return {
       total: matchesCreated,
       byes: byeMatchPlayerIds.length,
