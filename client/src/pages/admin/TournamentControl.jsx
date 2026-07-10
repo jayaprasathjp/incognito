@@ -958,7 +958,9 @@ const TournamentControl = () => {
         rounds_config: roundsSchedule,
       });
       toast.success("Schedule saved successfully!");
-      fetchTournament(); // Refresh data
+      await fetchTournament(); // Refresh data before changing visible state
+      setActiveTab("control");
+      setShowSettingsOnMobile(false);
     } catch (error) {
       console.error("Save schedule error:", error);
       const errorMsg = error.response?.data?.error || "Failed to save schedule";
@@ -1467,6 +1469,86 @@ const TournamentControl = () => {
                     const nextUngenerated = tournament.next_ungenerated_round;
                     const isRoundLive =
                       activeRound && tournament.is_active_round_ongoing;
+
+                    // ── STATE 0: Schedule saved, tournament active, but no fixtures generated yet ──
+                    const initialRound =
+                      nextRound ||
+                      nextUngenerated ||
+                      roundsSchedule.rounds.find((r) => !r.fixtures_generated) ||
+                      roundsSchedule.rounds[0] ||
+                      null;
+
+                    if (!activeRound && initialRound) {
+                      const initialRoundNum =
+                        initialRound.round_number ||
+                        roundsSchedule.rounds.findIndex(
+                          (r) => r.name === initialRound.name,
+                        ) + 1;
+                      return (
+                        <div className="w-full space-y-4 animate-in fade-in duration-500">
+                          <div className="relative p-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 to-blue-50/60 text-center overflow-hidden">
+                            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-indigo-500 to-blue-500" />
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                              <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
+                                Next Round
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-extrabold tracking-wider uppercase border border-indigo-200">
+                                Ready to Generate
+                              </span>
+                            </div>
+
+                            <h3 className="text-2xl font-black tracking-tight text-slate-900">
+                              {initialRound.name || `Round ${initialRoundNum}`}
+                            </h3>
+
+                            <p className="text-xs text-slate-500 font-semibold mt-1">
+                              Scheduled for{" "}
+                              {initialRound.date &&
+                                format(new Date(initialRound.date), "PPP")}
+                            </p>
+
+                            <RoundTimer
+                              targetDate={`${initialRound.date}T00:00:00`}
+                            />
+
+                            <div className="flex justify-between items-center text-xs text-slate-500 font-semibold mb-4 border-t border-indigo-100/50 pt-3 text-left">
+                              <span>Players</span>
+                              <span className="font-bold text-indigo-600">
+                                {statsMap[initialRoundNum]
+                                  ? statsMap[initialRoundNum].players
+                                  : initialRound.players} Players
+                              </span>
+                            </div>
+
+                            {initialRound.fixtures_generated ? (
+                              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold justify-center border border-green-100">
+                                <CheckCircle2 size={14} />
+                                Fixtures Ready
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() =>
+                                  handleGenerateFixtures(initialRoundNum)
+                                }
+                                disabled={
+                                  actionLoading ===
+                                  `generate_fixtures_${initialRoundNum}`
+                                }
+                                className="w-full inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl text-sm font-bold transition-all active:scale-95 shadow-md justify-center"
+                              >
+                                {actionLoading ===
+                                `generate_fixtures_${initialRoundNum}` ? (
+                                  <Loader2 className="animate-spin" size={16} />
+                                ) : (
+                                  <Zap size={16} />
+                                )}
+                                Generate {initialRound.name || `Round ${initialRoundNum}`} Fixtures
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
 
                     // ── STATE 1: A round is LIVE right now (matches still pending) ──
                     if (isRoundLive) {
