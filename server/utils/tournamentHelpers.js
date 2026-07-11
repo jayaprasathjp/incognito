@@ -83,13 +83,13 @@ export const autoResolveExpiredMatches = async (tournamentId, client = pool) => 
         const now = new Date();
 
         for (const match of unresolvedRes.rows) {
-            // Parse match date and time
-            const matchDate = match.round_date ? new Date(match.round_date) : new Date();
+            let matchDate = match.round_date ? new Date(match.round_date) : new Date();
+            if (isNaN(matchDate.getTime())) matchDate = new Date();
+            const dateStr = matchDate.toISOString().split('T')[0];
+
             if (match.match_time && typeof match.match_time === 'string') {
-                const parts = match.match_time.split(':');
-                if (parts.length >= 2) {
-                    matchDate.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-                }
+                const timeStr = match.match_time.length === 5 ? match.match_time + ':00' : match.match_time;
+                matchDate = new Date(`${dateStr}T${timeStr}+01:00`);
             } else {
                 // If no match_time is set, skip
                 continue;
