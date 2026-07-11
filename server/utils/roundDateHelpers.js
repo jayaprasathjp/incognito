@@ -25,23 +25,11 @@ export async function getMatchDateTime(matchId) {
   // round_date is a Postgres DATE — comes as a JS Date object (midnight UTC)
   const base = new Date(round_date);
 
-  // Parse HH:mm
-  const [hours, minutes] = match_time.split(":").map(Number);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  const dateStr = base.toISOString().split('T')[0];
+  const timeStr = match_time.length === 5 ? match_time + ':00' : match_time;
+  const matchDt = new Date(`${dateStr}T${timeStr}+01:00`);
 
-  // Build a local-time Date using the date part from round_date
-  // and the time part from match_time.
-  const matchDt = new Date(
-    base.getUTCFullYear(),
-    base.getUTCMonth(),
-    base.getUTCDate(),
-    hours,
-    minutes,
-    0,
-    0
-  );
-
-  return matchDt;
+  return isNaN(matchDt.getTime()) ? null : matchDt;
 }
 
 /**
@@ -75,18 +63,11 @@ export async function getMatchesNeedingReminder(windowStartMs, windowEndMs) {
 
   for (const row of result.rows) {
     const base = new Date(row.round_date);
-    const [hh, mm] = row.match_time.split(":").map(Number);
-    if (!Number.isFinite(hh) || !Number.isFinite(mm)) continue;
+    const dateStr = base.toISOString().split('T')[0];
+    const timeStr = row.match_time.length === 5 ? row.match_time + ':00' : row.match_time;
+    const matchDt = new Date(`${dateStr}T${timeStr}+01:00`);
 
-    const matchDt = new Date(
-      base.getUTCFullYear(),
-      base.getUTCMonth(),
-      base.getUTCDate(),
-      hh,
-      mm,
-      0,
-      0
-    );
+    if (isNaN(matchDt.getTime())) continue;
 
     const msUntil = matchDt.getTime() - now.getTime();
     if (msUntil >= windowStartMs && msUntil < windowEndMs) {

@@ -52,10 +52,12 @@ const ActiveMatch = () => {
             return;
         }
 
-        const [hours, minutes] = m.match_time.split(':').map(Number);
+        const timePart = m.match_time.length === 5 ? m.match_time + ':00' : m.match_time;
+        let datePart = m.match_date ? new Date(m.match_date) : new Date();
+        if (isNaN(datePart.getTime())) datePart = new Date();
+        datePart = datePart.toISOString().split('T')[0];
         
-        const matchTimeDate = new Date();
-        matchTimeDate.setHours(hours, minutes, 0, 0);
+        const matchTimeDate = new Date(`${datePart}T${timePart}+01:00`);
 
         const checkInOpens = new Date(matchTimeDate.getTime() - 15 * 60000);
         const checkInCloses = new Date(matchTimeDate.getTime() + 30 * 60000);

@@ -577,14 +577,18 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
         }
 
         const parseMatchDateTime = (dateStr, timeStr) => {
-            const d = dateStr ? new Date(dateStr) : new Date();
-            if (timeStr && typeof timeStr === 'string') {
-                const parts = timeStr.split(':');
-                if (parts.length >= 2) {
-                    d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-                }
+            let datePart;
+            if (dateStr) {
+                const d = new Date(dateStr);
+                datePart = !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            } else {
+                datePart = new Date().toISOString().split('T')[0];
             }
-            return d;
+            
+            const timePart = timeStr && timeStr.length === 5 ? timeStr + ':00' : (timeStr || '00:00:00');
+            // Force WAT (UTC+1)
+            const d = new Date(`${datePart}T${timePart}+01:00`);
+            return isNaN(d.getTime()) ? new Date() : d;
         };
         
         const now = new Date();
