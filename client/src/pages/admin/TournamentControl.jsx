@@ -611,6 +611,8 @@ const TournamentControl = () => {
       let lost = 0;
       let dq = 0;
       let eliminated = 0;
+      let completed_matches = r.completed_match_count || 0;
+      let pending_matches = r.pending_match_count || 0;
 
       if (i === 0) {
         players = activeParticipants;
@@ -706,6 +708,8 @@ const TournamentControl = () => {
           lost = matches;
           dq = 0;
           eliminated = lost;
+          completed_matches = state === "completed" ? matches : 0;
+          pending_matches = state === "completed" ? 0 : matches;
         }
       } else if (state === "skipped") {
         matches = 0;
@@ -714,11 +718,15 @@ const TournamentControl = () => {
         dq = 0;
         eliminated = 0;
         byes = players;
+        completed_matches = 0;
+        pending_matches = 0;
       } else {
         winners = matches;
         lost = matches;
         dq = 0;
         eliminated = lost;
+        completed_matches = 0;
+        pending_matches = matches;
       }
 
       statsMap[r.round_number] = {
@@ -729,6 +737,8 @@ const TournamentControl = () => {
         lost,
         dq,
         eliminated,
+        completed_matches,
+        pending_matches,
       };
     }
     return statsMap;
