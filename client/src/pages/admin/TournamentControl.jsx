@@ -217,6 +217,9 @@ const RoundsRoadmapView = ({ tournament, onRefresh, lastRefreshed }) => {
         }
       }
 
+      let completed_matches = r.completed_match_count || 0;
+      let pending_matches = r.pending_match_count || 0;
+
       // Completed / Live rounds override stats from SQL database values
       if (state === "completed" || state === "live") {
         const actualMatches = r.actual_match_count || 0;
@@ -232,6 +235,9 @@ const RoundsRoadmapView = ({ tournament, onRefresh, lastRefreshed }) => {
           lost = matches;
           dq = 0;
           eliminated = lost;
+          // Fallback logic for complete/pending if db isn't populated yet
+          completed_matches = state === "completed" ? matches : 0;
+          pending_matches = state === "completed" ? 0 : matches;
         }
       } else if (state === "skipped") {
         matches = 0;
@@ -240,12 +246,16 @@ const RoundsRoadmapView = ({ tournament, onRefresh, lastRefreshed }) => {
         dq = 0;
         eliminated = 0;
         byes = players;
+        completed_matches = 0;
+        pending_matches = 0;
       } else {
         // Next Up / Scheduled
         winners = matches;
         lost = matches;
         dq = 0;
         eliminated = lost;
+        completed_matches = 0;
+        pending_matches = matches;
       }
 
       statsMap[r.round_number] = {
@@ -256,6 +266,8 @@ const RoundsRoadmapView = ({ tournament, onRefresh, lastRefreshed }) => {
         lost,
         dq,
         eliminated,
+        completed_matches,
+        pending_matches,
       };
     }
 
@@ -391,8 +403,8 @@ const LiveRoundCard = ({ round, stats, formatDate }) => {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <StatPill icon={<Swords size={13} />} label="Matches Created" value={stats.matches || "—"} light />
-          <StatPill icon={<TrendingUp size={13} />} label="Won / Advancing" value={stats.winners || "—"} light />
-          <StatPill icon={<UserX size={13} />} label="Eliminated" value={stats.eliminated > 0 ? `${stats.eliminated} (${stats.lost}L + ${stats.dq}DQ)` : "—"} light />
+          <StatPill icon={<Activity size={13} />} label="Status" value={`${stats.completed_matches ?? 0}C / ${stats.pending_matches ?? 0}P`} light />
+          <StatPill icon={<Users size={13} />} label="Yet To Play" value={(stats.pending_matches * 2) || 0} light />
           <StatPill icon={<ArrowRight size={13} />} label="Byes" value={stats.byes || "—"} light />
         </div>
 
@@ -1591,15 +1603,23 @@ const TournamentControl = () => {
                                   {statsMap[activeRound.round_number] ? statsMap[activeRound.round_number].matches : (activeRound.actual_match_count || activeRound.matches)}
                                 </div>
                                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">
-                                  Matches
+                                  Matches Created
                                 </div>
                               </div>
                               <div className="flex-1 bg-white/70 rounded-xl p-3 text-center border border-green-100">
                                 <div className="text-xl font-black text-slate-900">
-                                  {activeRound.players}
+                                  {statsMap[activeRound.round_number] ? `${statsMap[activeRound.round_number].completed_matches ?? 0}C / ${statsMap[activeRound.round_number].pending_matches ?? 0}P` : '—'}
                                 </div>
                                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">
-                                  Players
+                                  Status
+                                </div>
+                              </div>
+                              <div className="flex-1 bg-white/70 rounded-xl p-3 text-center border border-green-100">
+                                <div className="text-xl font-black text-slate-900">
+                                  {statsMap[activeRound.round_number] ? ((statsMap[activeRound.round_number].pending_matches || 0) * 2) : '—'}
+                                </div>
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">
+                                  Yet To Play
                                 </div>
                               </div>
                             </div>

@@ -448,8 +448,10 @@ router.get("/tournaments/control", async (req, res) => {
       const roundStatsRes = await pool.query(
         `SELECT 
            round AS round_number,
-           COUNT(CASE WHEN match_code != 'BYE' THEN 1 END) AS actual_match_count,
-           COUNT(CASE WHEN status = 'completed' AND winner_id IS NOT NULL AND match_code != 'BYE' THEN 1 END) AS winners_count,
+           COUNT(CASE WHEN match_code IS DISTINCT FROM 'BYE' THEN 1 END) AS actual_match_count,
+           COUNT(CASE WHEN status IN ('completed', 'cancelled') AND match_code IS DISTINCT FROM 'BYE' THEN 1 END) AS completed_match_count,
+           COUNT(CASE WHEN status NOT IN ('completed', 'cancelled') AND match_code IS DISTINCT FROM 'BYE' THEN 1 END) AS pending_match_count,
+           COUNT(CASE WHEN status = 'completed' AND winner_id IS NOT NULL AND match_code IS DISTINCT FROM 'BYE' THEN 1 END) AS winners_count,
            SUM(CASE 
              WHEN match_code IN ('DOUBLE_DQ', 'DISPUTE_DOUBLE_DQ') THEN 2
              WHEN match_code IN ('HOME_NO_CODE', 'TIMEOUT_WIN', 'WALKOVER') THEN 1
@@ -469,6 +471,8 @@ router.get("/tournaments/control", async (req, res) => {
       for (const row of roundStatsRes.rows) {
         roundStatsMap[row.round_number] = {
           actual_match_count: parseInt(row.actual_match_count) || 0,
+          completed_match_count: parseInt(row.completed_match_count) || 0,
+          pending_match_count: parseInt(row.pending_match_count) || 0,
           winners_count: parseInt(row.winners_count) || 0,
           dq_count: parseInt(row.dq_count) || 0,
           lost_count: parseInt(row.lost_count) || 0,
@@ -483,6 +487,8 @@ router.get("/tournaments/control", async (req, res) => {
         rounds: roundsRes.rows.map((r) => {
           const stats = roundStatsMap[r.round_number] || {
             actual_match_count: 0,
+            completed_match_count: 0,
+            pending_match_count: 0,
             winners_count: 0,
             dq_count: 0,
             lost_count: 0,
@@ -492,6 +498,8 @@ router.get("/tournaments/control", async (req, res) => {
             ...r,
             fixtures_generated: r.fixtures_generated || false,
             actual_match_count: stats.actual_match_count,
+            completed_match_count: stats.completed_match_count,
+            pending_match_count: stats.pending_match_count,
             winners_count: stats.winners_count,
             dq_count: stats.dq_count,
             lost_count: stats.lost_count,
