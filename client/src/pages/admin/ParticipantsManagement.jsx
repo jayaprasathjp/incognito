@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  Filter,
   Users,
   ShieldCheck,
   Activity,
@@ -41,6 +42,7 @@ const ParticipantsManagement = () => {
   const [participants, setParticipants] = useState([]);
   const [selectedParticipant, setSelectedParticipant] = useState(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -92,11 +94,17 @@ const ParticipantsManagement = () => {
     setSelectedParticipant(null);
   };
 
+  // Filter by status
+  const filteredParticipants = useMemo(() => {
+    if (statusFilter === "all") return participants;
+    return participants.filter((p) => p.status === statusFilter);
+  }, [participants, statusFilter]);
+
   // Pagination Logic
-  const totalPages = Math.max(1, Math.ceil(participants.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / itemsPerPage));
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentParticipants = participants.slice(
+  const currentParticipants = filteredParticipants.slice(
     indexOfFirstItem,
     indexOfLastItem,
   );
@@ -409,14 +417,31 @@ const ParticipantsManagement = () => {
   // LIST VIEW
   return (
     <div className=" lg:space-y-8 max-w-7xl mx-auto pb-10 sm:px-6 lg:px-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
-        <div>
-          <h1 className="text-xl lg:text-3xl font-black text-slate-900 tracking-tight">
+      <div className="space-y-3 py-2">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-xl lg:text-3xl font-black text-slate-900 tracking-tight shrink-0">
             Participants
           </h1>
+
+          {/* Status Filter */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+            {["all", "in", "out"].map((f) => (
+              <button
+                key={f}
+                onClick={() => { setStatusFilter(f); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                  statusFilter === f
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                }`}
+              >
+                {f === "all" ? "All" : f === "in" ? "In" : "Out"}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2">
           <div className="relative flex-1 group">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors"
@@ -425,7 +450,7 @@ const ParticipantsManagement = () => {
             <input
               type="text"
               placeholder="Search alias or email..."
-              className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 md:min-w-[280px]"
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -442,10 +467,10 @@ const ParticipantsManagement = () => {
           <button
             onClick={fetchParticipants}
             disabled={loading}
-            className="p-3.5 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            className="p-2.5 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             title="Refresh participants"
           >
-            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
@@ -543,10 +568,10 @@ const ParticipantsManagement = () => {
         </div>
 
         {/* Pagination Controls */}
-        {!loading && participants.length > 0 && totalPages > 1 && (
+        {!loading && filteredParticipants.length > 0 && totalPages > 1 && (
           <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest tabular-nums font-bold">
-              Showing {currentParticipants.length} of {participants.length}{" "}
+              Showing {currentParticipants.length} of {filteredParticipants.length}{" "}
               records
             </p>
             <nav className="flex items-center gap-1.5 overflow-x-auto pb-2 sm:pb-0 max-w-full">
