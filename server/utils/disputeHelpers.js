@@ -38,6 +38,16 @@ export async function expirePlayerDisputes(client, matchId) {
              WHERE id = $3`,
             [winnerId, isP1, matchId]
         );
+
+        // Mark the loser as eliminated
+        const loserId = isP1 ? match.player2_id : match.player1_id;
+        if (loserId) {
+            await client.query(
+                "UPDATE participants SET status = 'out' WHERE user_id = $1 AND tournament_id = $2",
+                [loserId, match.tournament_id]
+            );
+        }
+
         await checkIfTournamentFinished(matchId, client);
     }
 }
