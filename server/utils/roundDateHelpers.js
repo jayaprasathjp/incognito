@@ -1,6 +1,20 @@
 import { pool } from "../db.js";
 
 /**
+ * Extracts the YYYY-MM-DD date string in WAT (West Africa Time, UTC+1).
+ * This prevents the timezone bug where dates stored from a non-UTC browser
+ * (e.g. IST) appear as the previous day when extracted via toISOString().
+ *
+ * Example: "2026-07-14T18:30:00.000Z" (midnight IST) → WAT date = "2026-07-14" (19:30 WAT)
+ *          "2026-07-14T23:30:00.000Z" → WAT date = "2026-07-15" (00:30 WAT next day)
+ */
+export function toWATDateStr(date) {
+  const WAT_OFFSET_MS = 60 * 60 * 1000; // UTC+1
+  const watTime = new Date(date.getTime() + WAT_OFFSET_MS);
+  return watTime.toISOString().split('T')[0];
+}
+
+/**
  * Given a matchId, resolve the absolute JS Date of the match start time
  * by combining rounds.date (YYYY-MM-DD) + matches.match_time (HH:mm).
  *
@@ -25,7 +39,7 @@ export async function getMatchDateTime(matchId) {
   // round_date is a Postgres DATE — comes as a JS Date object (midnight UTC)
   const base = new Date(round_date);
 
-  const dateStr = base.toISOString().split('T')[0];
+  const dateStr = toWATDateStr(base);
   const timeStr = match_time.length === 5 ? match_time + ':00' : match_time;
   const matchDt = new Date(`${dateStr}T${timeStr}+01:00`);
 
@@ -63,7 +77,7 @@ export async function getMatchesNeedingReminder(windowStartMs, windowEndMs) {
 
   for (const row of result.rows) {
     const base = new Date(row.round_date);
-    const dateStr = base.toISOString().split('T')[0];
+    const dateStr = toWATDateStr(base);
     const timeStr = row.match_time.length === 5 ? row.match_time + ':00' : row.match_time;
     const matchDt = new Date(`${dateStr}T${timeStr}+01:00`);
 
