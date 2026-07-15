@@ -16,7 +16,7 @@ router.get("/", async (req, res) => {
 
         // Fetch participants FOR THIS TOURNAMENT ONLY — use tournament alias
         const playersResult = await pool.query(`
-            SELECT u.id, COALESCE(p.alias, u.email) AS display_name, u.institution 
+            SELECT u.id, COALESCE(p.alias, u.email) AS display_name, u.institution, p.status as participant_status 
             FROM participants p
             JOIN users u ON p.user_id = u.id
             WHERE p.tournament_id = $1
@@ -37,6 +37,7 @@ router.get("/", async (req, res) => {
                 id: p.id,
                 alias: p.display_name,
                 institution: p.institution || 'N/A',
+                status: p.participant_status,
                 pts: 0,
                 gf: 0, // Goals For (Scored)
                 ga: 0  // Goals Against (Conceded)
@@ -66,10 +67,14 @@ router.get("/", async (req, res) => {
             }
         });
 
-        // Compute Goal Difference and Sort: PTS DESC -> GD DESC -> GF DESC -> Alias ASC
+        // Compute Goal Difference and Sort: Status ('in' first) -> PTS DESC -> GD DESC -> GF DESC -> Alias ASC
         const leaderboard = Object.values(standings)
             .map(p => ({ ...p, gd: p.gf - p.ga }))
             .sort((a, b) => {
+                // First prioritize 'in' over 'out'
+                if (a.status === 'in' && b.status !== 'in') return -1;
+                if (a.status !== 'in' && b.status === 'in') return 1;
+
                 if (b.pts !== a.pts) return b.pts - a.pts;   // Highest points first
                 if (b.gd  !== a.gd)  return b.gd  - a.gd;   // Then highest goal difference
                 if (b.gf  !== a.gf)  return b.gf  - a.gf;   // Then highest goals for
