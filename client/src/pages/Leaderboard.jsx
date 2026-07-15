@@ -212,6 +212,7 @@ const Leaderboard = () => {
                                         <tr className="bg-slate-900 text-slate-400 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] border-b border-slate-800/10">
                                             <th className="p-2 sm:p-5 text-center w-12 sm:w-20">Rank</th>
                                             <th className="p-2 sm:p-5">Alias</th>
+                                            <th className="p-2 sm:p-5 text-center w-14 sm:w-20">Status</th>
                                             <th className="p-2 sm:p-5 text-center w-14 sm:w-24">PTS</th>
                                             <th className="p-2 sm:p-5 text-center w-14 sm:w-24">GD</th>
                                             <th className="p-2 sm:p-5 text-center w-14 sm:w-24">GF</th>
@@ -227,7 +228,7 @@ const Leaderboard = () => {
                                             return (
                                                 <tr 
                                                     key={player.id} 
-                                                    className="group hover:bg-slate-50/50 transition-colors"
+                                                    className={`group transition-colors ${player.status === 'out' ? 'bg-slate-50/30 opacity-60 grayscale-[0.5] hover:bg-slate-100/50' : 'hover:bg-slate-50/50'}`}
                                                 >
                                                     <td className="p-2 sm:p-5 text-center">
                                                         {isPreGame ? (
@@ -267,6 +268,19 @@ const Leaderboard = () => {
                                                                 </span>
                                                             )}
                                                         </div>
+                                                    </td>
+                                                    <td className="p-2 sm:p-5 text-center">
+                                                        {player.status === 'out' ? (
+                                                            <span className="bg-rose-100 text-rose-600 border border-rose-200 text-[8px] sm:text-[9px] font-black uppercase px-2 py-1 rounded-md shrink-0 inline-block min-w-[32px]">
+                                                                OUT
+                                                            </span>
+                                                        ) : player.status === 'in' ? (
+                                                            <span className="bg-emerald-100 text-emerald-600 border border-emerald-200 text-[8px] sm:text-[9px] font-black uppercase px-2 py-1 rounded-md shrink-0 inline-block min-w-[32px]">
+                                                                IN
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-300">-</span>
+                                                        )}
                                                     </td>
                                                     <td className="p-2 sm:p-5 text-center">
                                                         <span className={`font-black text-sm sm:text-xl ${isPreGame ? 'text-slate-300' : 'text-indigo-600'}`}>
