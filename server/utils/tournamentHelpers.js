@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { toWATDateStr } from "./roundDateHelpers.js";
 
 /**
  * Checks if the completed match is the final match of the tournament.
@@ -85,7 +86,7 @@ export const autoResolveExpiredMatches = async (tournamentId, client = pool) => 
         for (const match of unresolvedRes.rows) {
             let matchDate = match.round_date ? new Date(match.round_date) : new Date();
             if (isNaN(matchDate.getTime())) matchDate = new Date();
-            const dateStr = matchDate.toISOString().split('T')[0];
+            const dateStr = toWATDateStr(matchDate);
 
             if (match.match_time && typeof match.match_time === 'string') {
                 const timeStr = match.match_time.length === 5 ? match.match_time + ':00' : match.match_time;

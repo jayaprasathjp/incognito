@@ -2,6 +2,7 @@ import express from "express";
 import { pool } from "../db.js";
 import { authenticateToken, authorizeAdmin } from "../middleware/auth.js";
 import { checkIfTournamentFinished, autoResolveExpiredMatches } from "../utils/tournamentHelpers.js";
+import { toWATDateStr } from "../utils/roundDateHelpers.js";
 import {
   ensureAnnouncementTables,
   getAnnouncementAudience,
@@ -396,15 +397,12 @@ router.get("/tournaments/control", async (req, res) => {
       // Auto-generate fixtures for rounds whose date has arrived
       if (tournament.status === "active" || tournament.status === "scheduled") {
         const now = new Date();
-        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const todayStr = toWATDateStr(now);
         let fixturesGeneratedNow = false;
 
         for (const round of roundsRes.rows) {
           const roundDateStr = round.date
-            ? (() => {
-                const d = new Date(round.date);
-                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-              })()
+            ? toWATDateStr(new Date(round.date))
             : null;
 
           if (
@@ -505,10 +503,7 @@ router.get("/tournaments/control", async (req, res) => {
             lost_count: stats.lost_count,
             byes_count: stats.byes_count,
             date: r.date
-              ? (() => {
-                  const d = new Date(r.date);
-                  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-                })()
+              ? toWATDateStr(new Date(r.date))
               : "",
           };
         }),
