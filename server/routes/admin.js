@@ -1234,7 +1234,7 @@ router.post("/disputes/:id/resolve", async (req, res) => {
     try {
       await client.query("BEGIN");
       const dRes = await client.query(
-        `SELECT d.*, m.player1_id AS match_p1, m.player2_id AS match_p2
+        `SELECT d.*, m.player1_id AS match_p1, m.player2_id AS match_p2, m.tournament_id AS tournament_id
                  FROM disputes d
                  JOIN matches m ON m.id = d.match_id
                  WHERE d.id = $1
@@ -1270,8 +1270,12 @@ router.post("/disputes/:id/resolve", async (req, res) => {
           [w, s1, s2, matchId],
         );
 
-        // Set loser to 'out'
+        // Set winner to 'in' and loser to 'out'
         const loserId = w === d.match_p1 ? d.match_p2 : d.match_p1;
+        await client.query(
+          "UPDATE participants SET status = 'in' WHERE user_id = $1 AND tournament_id = $2",
+          [w, d.tournament_id],
+        );
         await client.query(
           "UPDATE participants SET status = 'out' WHERE user_id = $1 AND tournament_id = $2",
           [loserId, d.tournament_id],
@@ -1341,6 +1345,12 @@ router.post("/disputes/:id/resolve", async (req, res) => {
                         match_time = $2
                      WHERE id = $1`,
           [matchId, time],
+        );
+
+        // For a replay, ensure both players are active ('in')
+        await client.query(
+          "UPDATE participants SET status = 'in' WHERE user_id IN ($1, $2) AND tournament_id = $3",
+          [d.match_p1, d.match_p2, d.tournament_id],
         );
         await client.query(
           `UPDATE disputes SET status = 'resolved', resolved_outcome = 'match_replay_scheduled',
