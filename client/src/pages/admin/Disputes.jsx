@@ -586,18 +586,23 @@ const Disputes = () => {
                             </div>
 
                             {/* Action-specific inputs */}
-                            {activeAction === "winner_updated" && (
+                            {activeAction === "winner_updated" && (() => {
+                                const isP1Sub = selected.submitted_by === selected.player1_id;
+                                const p1Name = isP1Sub ? selected.submitted_by_name : (selected.opponent_name || "Opponent");
+                                const p2Name = isP1Sub ? (selected.opponent_name || "Opponent") : selected.submitted_by_name;
+                                
+                                return (
                                 <div className="bg-green-50 border border-green-100 rounded-xl p-4 space-y-3">
                                     <p className="text-xs font-bold text-green-800 uppercase">Set Winner & Scores</p>
                                     <select value={adminWinnerId} onChange={e => setAdminWinnerId(e.target.value)}
                                         className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white">
                                         <option value="">— Select winner —</option>
-                                        <option value={selected.player1_id}>Home — {selected.submitted_by_name}</option>
-                                        <option value={selected.player2_id}>Away — {selected.opponent_name || "Opponent"}</option>
+                                        <option value={selected.player1_id}>Home — {p1Name}</option>
+                                        <option value={selected.player2_id}>Away — {p2Name}</option>
                                     </select>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <label className="text-xs font-bold text-slate-500 block mb-1">Score (Home)</label>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Score ({p1Name})</label>
                                             <input type="number" min="0" value={adminS1}
                                                 onKeyDown={(e) => {
                                                     if (["e", "E", "+", "-", "."].includes(e.key)) {
@@ -608,7 +613,7 @@ const Disputes = () => {
                                                 className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white" />
                                         </div>
                                         <div>
-                                            <label className="text-xs font-bold text-slate-500 block mb-1">Score (Away)</label>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Score ({p2Name})</label>
                                             <input type="number" min="0" value={adminS2}
                                                 onKeyDown={(e) => {
                                                     if (["e", "E", "+", "-", "."].includes(e.key)) {
@@ -620,7 +625,8 @@ const Disputes = () => {
                                         </div>
                                     </div>
                                 </div>
-                            )}
+                                );
+                            })}
 
                             {activeAction === "match_replay_scheduled" && (
                                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2">
