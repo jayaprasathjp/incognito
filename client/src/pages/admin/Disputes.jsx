@@ -602,7 +602,7 @@ const Disputes = () => {
                                     </select>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <label className="text-xs font-bold text-slate-500 block mb-1">Score ({p1Name})</label>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Home ({p1Name})</label>
                                             <input type="number" min="0" value={adminS1}
                                                 onKeyDown={(e) => {
                                                     if (["e", "E", "+", "-", "."].includes(e.key)) {
@@ -613,7 +613,7 @@ const Disputes = () => {
                                                 className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white" />
                                         </div>
                                         <div>
-                                            <label className="text-xs font-bold text-slate-500 block mb-1">Score ({p2Name})</label>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Away ({p2Name})</label>
                                             <input type="number" min="0" value={adminS2}
                                                 onKeyDown={(e) => {
                                                     if (["e", "E", "+", "-", "."].includes(e.key)) {
@@ -626,7 +626,7 @@ const Disputes = () => {
                                     </div>
                                 </div>
                                 );
-                            })}
+                            })()}
 
                             {activeAction === "match_replay_scheduled" && (
                                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2">
