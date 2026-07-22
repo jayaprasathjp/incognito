@@ -1475,6 +1475,29 @@ const TournamentControl = () => {
                       (r) => r.date,
                     );
                     const isActive = tournament.status === "active";
+                    const isCompleted = tournament.status === "completed";
+
+                    if (isCompleted) {
+                      return (
+                        <div className="w-full animate-in fade-in duration-500">
+                          <div className="relative p-5 bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-2xl text-center overflow-hidden">
+                            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-400 to-green-500" />
+                            <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                              <Trophy size={26} className="text-emerald-600" />
+                            </div>
+                            <h3 className="text-xl font-black text-slate-900">
+                              All Rounds Completed!
+                            </h3>
+                            <p className="text-sm text-slate-500 mt-1">
+                              The tournament has successfully concluded.
+                            </p>
+                            <div className="mt-4 inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-extrabold uppercase tracking-wider border border-emerald-200">
+                              <CheckCircle2 size={12} /> Tournament Complete
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     if (!isConfigured && !isActive) {
                       return renderConfigUI();
