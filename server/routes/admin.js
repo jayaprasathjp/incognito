@@ -292,7 +292,7 @@ router.get("/participants/:id", async (req, res) => {
 
     // Get tournament-specific alias
     const partResult = await pool.query(
-      "SELECT alias, session_preference FROM participants WHERE tournament_id = $1 AND user_id = $2",
+      "SELECT alias, session_preference, in_game_name, team_picture_url FROM participants WHERE tournament_id = $1 AND user_id = $2",
       [tournamentId, id],
     );
     const tournamentAlias = partResult.rows[0]?.alias || null;
@@ -334,12 +334,16 @@ router.get("/participants/:id", async (req, res) => {
       [id],
     );
 
+    const profile = {
+      ...user.rows[0],
+      tournament_alias: tournamentAlias,
+      session_preference: sessionPreference,
+      in_game_name: partResult.rows[0]?.in_game_name || null,
+      team_picture_url: partResult.rows[0]?.team_picture_url || null,
+    };
+
     res.json({
-      profile: {
-        ...user.rows[0],
-        tournament_alias: tournamentAlias,
-        session_preference: sessionPreference,
-      },
+      profile,
       recentMatches: matches.rows || [],
       disputes: disputes.rows || [],
       recentPayments: payments.rows || [],

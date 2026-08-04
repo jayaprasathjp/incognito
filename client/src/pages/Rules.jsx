@@ -67,6 +67,16 @@ const Rules = () => {
             id: 12,
             title: 'Sponsored Quests & Referrals',
             description: 'Sponsored gifts will be given in-between tournament to the highest referral as well as to those taking on quests.'
+        },
+        {
+            id: 13,
+            title: 'Single Account Policy',
+            description: 'Only 1 account should be used per player during the tournament. Players should upload a picture of their team for verification.'
+        },
+        {
+            id: 14,
+            title: 'In-Game Name Verification',
+            description: 'If your opponent\'s in-game name doesn\'t match the one on the platform, do not proceed with the match.'
         }
     ];
 

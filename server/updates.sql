@@ -10,9 +10,11 @@ ADD COLUMN IF NOT EXISTS prize_pool DECIMAL(10, 2) DEFAULT 0;
 -- Optional: Add check constraint for dates if supported/desired
 -- ALTER TABLE tournaments ADD CONSTRAINT check_dates CHECK (registration_end > registration_start);
 
--- Add session preference to participants
+-- Add session preference and team picture to participants
 ALTER TABLE participants
-ADD COLUMN IF NOT EXISTS session_preference VARCHAR(20);
+ADD COLUMN IF NOT EXISTS session_preference VARCHAR(20),
+ADD COLUMN IF NOT EXISTS team_picture_url TEXT,
+ADD COLUMN IF NOT EXISTS in_game_name VARCHAR(100);
 
 -- ── Dispute System Enhancements ──────────────────────────────────────────────
 
@@ -27,3 +29,7 @@ ALTER TABLE disputes ADD COLUMN IF NOT EXISTS admin_notes TEXT;
 -- Reason shared with players when dispute is rejected
 ALTER TABLE disputes ADD COLUMN IF NOT EXISTS admin_reason TEXT;
 
+-- Dual Screenshots support
+ALTER TABLE disputes ADD COLUMN IF NOT EXISTS proof_url_2 TEXT;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS p1_proof_2 TEXT;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS p2_proof_2 TEXT;

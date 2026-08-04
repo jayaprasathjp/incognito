@@ -11,42 +11,59 @@ const MatchSubmission = ({ match, user, onSuccess }) => {
     const [oppScore, setOppScore] = useState('');
     const [proofFile, setProofFile] = useState(null);
     const [proofPreview, setProofPreview] = useState(null);
+    const [proofFile2, setProofFile2] = useState(null);
+    const [proofPreview2, setProofPreview2] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
-    const handleFileChange = (e) => {
+    const handleFileChange = (e, index) => {
         const file = e.target.files[0];
         if (!file) return;
         if (file.size > 5 * 1024 * 1024) {
             alert("File is too large. Max 5MB allowed.");
             return;
         }
-        setProofFile(file);
-        setProofPreview(URL.createObjectURL(file));
+        if (index === 1) {
+            setProofFile(file);
+            setProofPreview(URL.createObjectURL(file));
+        } else {
+            setProofFile2(file);
+            setProofPreview2(URL.createObjectURL(file));
+        }
     };
 
     const handleSubmit = async () => {
         if (!myScore || !oppScore) return alert("Please enter the scores.");
-        if (isWin && !proofFile) return alert("Please upload a screenshot as proof of your win.");
+        if (isWin && !proofFile) return alert("Please upload your first screenshot as proof of your win.");
 
         if (!confirm(isWin ? "Are you sure you want to report a WIN?" : "Are you sure you want to report a LOSS? This will be verified.")) return;
 
         setSubmitting(true);
         try {
             let proofUrl = null;
+            let proofUrl2 = null;
 
-            // Upload proof image first if claiming a win
+            // Upload proof images first if claiming a win
             if (isWin && proofFile) {
                 const formData = new FormData();
                 formData.append("proof", proofFile);
                 const uploadRes = await api.upload("/matches/upload-proof", formData);
                 if (uploadRes.error) throw new Error(uploadRes.error);
                 proofUrl = uploadRes.url;
+
+                if (proofFile2) {
+                    const formData2 = new FormData();
+                    formData2.append("proof", proofFile2);
+                    const uploadRes2 = await api.upload("/matches/upload-proof", formData2);
+                    if (uploadRes2.error) throw new Error(uploadRes2.error);
+                    proofUrl2 = uploadRes2.url;
+                }
             }
 
             const body = {
                 my_score: parseInt(myScore),
                 opp_score: parseInt(oppScore),
-                proof_image: proofUrl
+                proof_image: proofUrl,
+                proof_url_2: proofUrl2
             };
 
             const data = await api.post(`/matches/${match.id}/submit`, body);
@@ -70,8 +87,11 @@ const MatchSubmission = ({ match, user, onSuccess }) => {
         setMyScore('');
         setOppScore('');
         setProofFile(null);
-        if (proofPreview) URL.revokeObjectURL(proofPreview);
         setProofPreview(null);
+        setProofFile2(null);
+        setProofPreview2(null);
+        setStep('select');
+        setIsWin(true);
     };
 
     if (step === 'select') {
@@ -137,37 +157,71 @@ const MatchSubmission = ({ match, user, onSuccess }) => {
             </div>
 
             {isWin && (
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 text-left">Upload Proof Screenshot</label>
-                    
-                    {!proofPreview ? (
-                        <label className="flex flex-col items-center justify-center w-full h-28 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition-colors">
-                            <div className="text-2xl mb-1">📸</div>
-                            <p className="text-xs text-slate-500 font-medium">Tap to upload screenshot</p>
-                            <p className="text-[10px] text-slate-400">JPG, PNG, WEBP • Max 5MB</p>
-                            <input 
-                                type="file" 
-                                accept="image/jpeg,image/png,image/gif,image/webp"
-                                className="hidden"
-                                onChange={handleFileChange}
-                            />
-                        </label>
-                    ) : (
-                        <div className="relative">
-                            <img 
-                                src={proofPreview} 
-                                alt="Proof preview" 
-                                className="w-full h-40 object-cover rounded-xl border border-emerald-200 shadow-sm"
-                            />
-                            <button 
-                                onClick={() => { setProofFile(null); URL.revokeObjectURL(proofPreview); setProofPreview(null); }}
-                                className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-md hover:bg-red-600"
-                            >
-                                ✕
-                            </button>
-                            <p className="text-[10px] text-emerald-600 font-medium mt-1 text-left">{proofFile?.name}</p>
-                        </div>
-                    )}
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 text-left">Upload First Proof Screenshot</label>
+                        
+                        {!proofPreview ? (
+                            <label className="flex flex-col items-center justify-center w-full h-28 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition-colors">
+                                <div className="text-2xl mb-1">📸</div>
+                                <p className="text-xs text-slate-500 font-medium">Tap to upload first screenshot</p>
+                                <p className="text-[10px] text-slate-400">JPG, PNG, WEBP • Max 5MB</p>
+                                <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleFileChange(e, 1)}
+                                />
+                            </label>
+                        ) : (
+                            <div className="relative">
+                                <img 
+                                    src={proofPreview} 
+                                    alt="Proof preview" 
+                                    className="w-full h-40 object-cover rounded-xl border border-emerald-200 shadow-sm"
+                                />
+                                <button 
+                                    onClick={() => { setProofFile(null); URL.revokeObjectURL(proofPreview); setProofPreview(null); }}
+                                    className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-md hover:bg-red-600"
+                                >
+                                    ✕
+                                </button>
+                                <p className="text-[10px] text-emerald-600 font-medium mt-1 text-left">{proofFile?.name}</p>
+                            </div>
+                        )}
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 text-left">Match History Screenshot (Optional)</label>
+                        
+                        {!proofPreview2 ? (
+                            <label className="flex flex-col items-center justify-center w-full h-28 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition-colors">
+                                <div className="text-2xl mb-1">📸</div>
+                                <p className="text-xs text-slate-500 font-medium">Tap to upload match history</p>
+                                <p className="text-[10px] text-slate-400">JPG, PNG, WEBP • Max 5MB</p>
+                                <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleFileChange(e, 2)}
+                                />
+                            </label>
+                        ) : (
+                            <div className="relative">
+                                <img 
+                                    src={proofPreview2} 
+                                    alt="Proof preview 2" 
+                                    className="w-full h-40 object-cover rounded-xl border border-emerald-200 shadow-sm"
+                                />
+                                <button 
+                                    onClick={() => { setProofFile2(null); URL.revokeObjectURL(proofPreview2); setProofPreview2(null); }}
+                                    className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-md hover:bg-red-600"
+                                >
+                                    ✕
+                                </button>
+                                <p className="text-[10px] text-emerald-600 font-medium mt-1 text-left">{proofFile2?.name}</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -360,7 +414,7 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                     />
                     <input
                         type="file"
-                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        accept="image/*"
                         multiple
                         onChange={(e) => setResponseFiles(Array.from(e.target.files || []))}
                         className="text-xs w-full mb-3"
@@ -441,14 +495,14 @@ const DisputePanel = ({ match, matchId, onSuccess }) => {
                             <label className="block text-[10px] text-slate-500 font-bold">Proof image (optional)</label>
                             <input
                                 type="file"
-                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                accept="image/*"
                                 onChange={(e) => setProofFile(e.target.files?.[0] || null)}
                                 className="text-xs w-full"
                             />
                             <label className="block text-[10px] text-slate-500 font-bold">Game screenshots</label>
                             <input
                                 type="file"
-                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                accept="image/*"
                                 multiple
                                 onChange={(e) => setSubmitScreenshots(Array.from(e.target.files || []))}
                                 className="text-xs w-full"
@@ -676,6 +730,8 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
     const myInitial = (myName || user?.email || 'Y')[0].toUpperCase();
     const amIReady = isPlayer1 ? match.player1_ready : match.player2_ready;
     const isOpponentReady = isPlayer1 ? match.player2_ready : match.player1_ready;
+    const opponentPic = isPlayer1 ? match.player2_team_picture : match.player1_team_picture;
+    const myPic = isPlayer1 ? match.player1_team_picture : match.player2_team_picture;
     const canEditRoomCode = match.isHome && (matchState === 'waiting_checkin' || matchState === 'checking_in' || matchState === 'ready_waiting' || (matchState === 'active' && remaining !== null && remaining >= 50 * 60));
 
     return (
@@ -701,18 +757,29 @@ const ActiveMatchCard = ({ matchId, round, currentRound, nextRound, onComplete }
                     <div className="flex-1 min-w-0 text-center relative">
                         {match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">HOME</div>}
                         {!match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">AWAY</div>}
-                        <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
-                            {myInitial}
-                        </div>
+                        {myPic ? (
+                            <img src={myPic} alt="My Team" className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 object-cover border border-slate-200" />
+                        ) : (
+                            <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
+                                {myInitial}
+                            </div>
+                        )}
                         <p className="font-bold text-sm text-slate-900 truncate px-1">You</p>
                     </div>
                     <div className="text-slate-300 font-black text-xl shrink-0">VS</div>
                     <div className="flex-1 min-w-0 text-center relative">
                         {!match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">HOME</div>}
                         {match?.isHome && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm whitespace-nowrap">AWAY</div>}
-                        <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
-                            {match?.match_code === 'BYE' ? '⭐' : (opponentName?.[0]?.toUpperCase() || '?')}
-                        </div>
+                        
+                        {match?.match_code === 'BYE' ? (
+                            <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">⭐</div>
+                        ) : opponentPic ? (
+                            <img src={opponentPic} alt={opponentName} className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 object-cover border border-slate-200" />
+                        ) : (
+                            <div className="w-12 h-12 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center text-xl font-bold text-slate-700">
+                                {opponentName?.[0]?.toUpperCase() || '?'}
+                            </div>
+                        )}
                         <p className="font-bold text-sm text-slate-900 truncate px-1" title={opponentName}>{match?.match_code === 'BYE' ? 'No Opponent' : (opponentName || 'Waiting')}</p>
                     </div>
                 </div>
