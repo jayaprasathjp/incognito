@@ -35,6 +35,10 @@ const PlayerDashboard = () => {
     const [sessionPreference, setSessionPreference] = useState(null);
     const [tournamentAlias, setTournamentAlias] = useState('');
     const [aliasError, setAliasError] = useState('');
+    const [inGameName, setInGameName] = useState('');
+    const [inGameNameError, setInGameNameError] = useState('');
+    const [teamPicture, setTeamPicture] = useState(null);
+    const [teamPictureError, setTeamPictureError] = useState('');
     const [joinLoading, setJoinLoading] = useState(false);
 
     useEffect(() => {
@@ -102,7 +106,9 @@ const PlayerDashboard = () => {
             const initData = await api.post('/payment/initialize', {
                 tournament_id: tournamentData.tournament.id,
                 session_preference: sessionPreference,
-                alias: tournamentAlias.trim()
+                alias: tournamentAlias.trim(),
+                in_game_name: inGameName.trim(),
+                team_picture_url: teamPicture ? teamPicture.url : null
             });
 
             if (initData.error) {
@@ -153,7 +159,9 @@ const PlayerDashboard = () => {
                                 transaction_id: response.transaction_id || response.id,
                                 tx_ref: response.tx_ref,
                                 session_preference: sessionPreference,
-                                alias: tournamentAlias.trim()
+                                alias: tournamentAlias.trim(),
+                                in_game_name: inGameName.trim(),
+                                team_picture_url: teamPicture ? teamPicture.url : null
                             });
 
                             if (verifyData.status === 'success') {
@@ -201,10 +209,16 @@ const PlayerDashboard = () => {
         setSessionPreference(null);
         setTournamentAlias('');
         setAliasError('');
+        setInGameName('');
+        setInGameNameError('');
+        setTeamPicture(null);
+        setTeamPictureError('');
     };
 
-    const handleAliasContinue = () => {
+    const handleAliasContinue = async () => {
         setAliasError('');
+        setInGameNameError('');
+        setTeamPictureError('');
         const trimmed = tournamentAlias.trim();
         if (!trimmed) {
             setAliasError('Alias is required.');
@@ -218,11 +232,38 @@ const PlayerDashboard = () => {
             setAliasError('Alias must be between 3 and 20 characters.');
             return;
         }
+        
+        const trimmedInGame = inGameName.trim();
+        if (!trimmedInGame) {
+            setInGameNameError('In-Game Name is required.');
+            return;
+        }
         if (!sessionPreference) {
             setAliasError('Please also select a session preference.');
             return;
         }
-        setJoinStep('payment');
+        if (!teamPicture || !teamPicture.file) {
+            setTeamPictureError('Please upload a picture of your team.');
+            return;
+        }
+
+        setJoinLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append("proof", teamPicture.file);
+            const uploadRes = await api.upload("/matches/upload-proof", formData);
+            if (uploadRes.url) {
+                setTeamPicture({ ...teamPicture, url: uploadRes.url });
+                setJoinStep('payment');
+            } else {
+                setTeamPictureError('Failed to upload image. Please try again.');
+            }
+        } catch (err) {
+            console.error("Team picture upload error:", err);
+            setTeamPictureError('Failed to upload image. Please try again.');
+        } finally {
+            setJoinLoading(false);
+        }
     };
 
     return (
@@ -718,10 +759,76 @@ const PlayerDashboard = () => {
                                     ))}
                                 </div>
 
+                                {/* In-Game Name Input */}
+                                <div className="mb-5">
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">In-Game Name</label>
+                                    <input
+                                        type="text"
+                                        value={inGameName}
+                                        onChange={(e) => { setInGameName(e.target.value); setInGameNameError(''); }}
+                                        placeholder="Type your in-game name"
+                                        maxLength={50}
+                                        className={`w-full p-3 border-2 rounded-xl outline-none transition-all text-slate-800 placeholder:text-slate-400 font-semibold ${
+                                            inGameNameError ? 'border-red-400 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-white'
+                                        }`}
+                                    />
+                                    <p className="text-[11px] text-slate-400 mt-1.5 ml-1">Required. This will be shown to your opponent. Cannot be changed later.</p>
+                                    {inGameNameError && <p className="text-xs text-red-500 mt-1 ml-1">{inGameNameError}</p>}
+                                </div>
+
+                                {/* Team Picture Upload */}
+                                <div className="mb-5">
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Team Picture</label>
+                                    <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+                                        Upload a screenshot/picture of your team for verification to ensure one account per player.
+                                    </p>
+                                    <div className="relative">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                    setTeamPicture({ file, preview: URL.createObjectURL(file) });
+                                                    setTeamPictureError('');
+                                                }
+                                            }}
+                                            className="hidden"
+                                            id="teamPictureInput"
+                                        />
+                                        <label 
+                                            htmlFor="teamPictureInput"
+                                            className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
+                                                teamPictureError ? 'border-red-400 bg-red-50' :
+                                                teamPicture ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300 hover:border-slate-400 bg-slate-50'
+                                            }`}
+                                        >
+                                            {teamPicture ? (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="w-10 h-10 rounded-lg overflow-hidden border border-blue-200">
+                                                        <img src={teamPicture.preview} alt="Team" className="w-full h-full object-cover" />
+                                                    </div>
+                                                    <span className="text-xs font-semibold text-blue-600">Picture selected (Click to change)</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-2 text-slate-400">
+                                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                    <span className="text-xs font-medium">Click to upload team picture</span>
+                                                </div>
+                                            )}
+                                        </label>
+                                    </div>
+                                    {teamPictureError && <p className="text-xs text-red-500 mt-2 ml-1">{teamPictureError}</p>}
+                                </div>
+
                                 <button
                                     onClick={handleAliasContinue}
-                                    className="w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wide transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-md active:scale-95"
+                                    disabled={joinLoading}
+                                    className="w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wide transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
+                                    {joinLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                                     Continue to Registration
                                 </button>
                             </>

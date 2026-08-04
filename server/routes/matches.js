@@ -71,8 +71,8 @@ router.post("/upload-proof", authenticateToken, upload.single("proof"), async (r
 // Submit Match Result (Independent Claim & Auto-Resolve)
 router.post("/:id/submit", authenticateToken, async (req, res) => {
     const { id } = req.params;
-    // We expect the client to send 'my_score', 'opp_score', and optionally 'proof_image'
-    const { my_score, opp_score, proof_image } = req.body;
+    // We expect the client to send 'my_score', 'opp_score', and optionally 'proof_image' and 'proof_url_2'
+    const { my_score, opp_score, proof_image, proof_url_2 } = req.body;
     
     try {
         const client = await pool.connect();
@@ -110,15 +110,15 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
             // Save the claim for the specific player
             if (isP1) {
                 await client.query(
-                    `UPDATE matches SET p1_score = $1, p1_opp_score = $2, p1_proof = $3 WHERE id = $4`,
-                    [my_score, opp_score, proof_image, id]
+                    `UPDATE matches SET p1_score = $1, p1_opp_score = $2, p1_proof = $3, p1_proof_2 = $4 WHERE id = $5`,
+                    [my_score, opp_score, proof_image, proof_url_2, id]
                 );
                 match.p1_score = my_score;
                 match.p1_opp_score = opp_score;
             } else {
                 await client.query(
-                    `UPDATE matches SET p2_score = $1, p2_opp_score = $2, p2_proof = $3 WHERE id = $4`,
-                    [my_score, opp_score, proof_image, id]
+                    `UPDATE matches SET p2_score = $1, p2_opp_score = $2, p2_proof = $3, p2_proof_2 = $4 WHERE id = $5`,
+                    [my_score, opp_score, proof_image, proof_url_2, id]
                 );
                 match.p2_score = my_score;
                 match.p2_opp_score = opp_score;
@@ -238,8 +238,10 @@ router.get("/my-matches", authenticateToken, async (req, res) => {
 
         const result = await pool.query(
             `SELECT m.*, 
-             COALESCE(part1.alias, p1.email) as player1_name, 
-             COALESCE(part2.alias, p2.email) as player2_name,
+             COALESCE(part1.in_game_name, part1.alias, p1.email) as player1_name, 
+             COALESCE(part2.in_game_name, part2.alias, p2.email) as player2_name,
+             part1.team_picture_url as player1_team_picture,
+             part2.team_picture_url as player2_team_picture,
              t.title as tournament_title,
              t.status as tournament_status
              FROM matches m
@@ -576,8 +578,10 @@ router.get("/:id", authenticateToken, async (req, res) => {
 
         const result = await pool.query(
             `SELECT m.*, 
-             COALESCE(part1.alias, p1.email) as player1_name, 
-             COALESCE(part2.alias, p2.email) as player2_name,
+             COALESCE(part1.in_game_name, part1.alias, p1.email) as player1_name, 
+             COALESCE(part2.in_game_name, part2.alias, p2.email) as player2_name,
+             part1.team_picture_url as player1_team_picture,
+             part2.team_picture_url as player2_team_picture,
              t.title as tournament_title,
              t.status as tournament_status,
              r.date as match_date

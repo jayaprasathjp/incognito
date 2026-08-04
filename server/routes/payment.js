@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Initialize Payment — creates a tx_ref and returns config for Flutterwave inline
 router.post("/initialize", authenticateToken, async (req, res) => {
-    const { tournament_id, session_preference, alias } = req.body;
+    const { tournament_id, session_preference, alias, team_picture_url, in_game_name } = req.body;
     const userId = req.user.id;
 
     try {
@@ -82,8 +82,8 @@ router.post("/initialize", authenticateToken, async (req, res) => {
         if (true || process.env.PAYMENT_BYPASS === 'true') {
             // Dev mode / Free mode: skip payment, join directly
             await pool.query(
-                "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias) VALUES ($1, $2, 'in', $3, $4)",
-                [tournament_id, userId, session_preference || null, alias.trim()]
+                "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias, team_picture_url, in_game_name) VALUES ($1, $2, 'in', $3, $4, $5, $6)",
+                [tournament_id, userId, session_preference || null, alias.trim(), team_picture_url || null, in_game_name ? in_game_name.trim() : null]
             );
 
             // Increment permanent tournament count in users table and set status to active
@@ -120,7 +120,9 @@ router.post("/initialize", authenticateToken, async (req, res) => {
                     tournament_id,
                     user_id: userId,
                     session_preference: session_preference || null,
-                    alias: alias.trim()
+                    alias: alias.trim(),
+                    team_picture_url: team_picture_url || null,
+                    in_game_name: in_game_name ? in_game_name.trim() : null
                 }
             }
         });
@@ -136,7 +138,7 @@ router.post("/initialize", authenticateToken, async (req, res) => {
 
 // Verify Payment — called after Flutterwave inline returns success
 router.post("/verify", authenticateToken, async (req, res) => {
-    const { transaction_id, tx_ref, session_preference, alias } = req.body;
+    const { transaction_id, tx_ref, session_preference, alias, team_picture_url, in_game_name } = req.body;
     const userId = req.user.id;
 
     console.log("[DEBUG] Verification parameters received:", {
@@ -144,7 +146,9 @@ router.post("/verify", authenticateToken, async (req, res) => {
         transaction_id,
         tx_ref,
         session_preference,
-        alias
+        alias,
+        team_picture_url,
+        in_game_name
     });
 
     if (!transaction_id || String(transaction_id).trim() === "" || String(transaction_id) === "undefined") {
@@ -224,8 +228,8 @@ router.post("/verify", authenticateToken, async (req, res) => {
 
             // 4. Join the tournament
             await pool.query(
-                "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias) VALUES ($1, $2, 'in', $3, $4)",
-                [payment.tournament_id, userId, session_preference || null, alias ? alias.trim() : null]
+                "INSERT INTO participants (tournament_id, user_id, status, session_preference, alias, team_picture_url, in_game_name) VALUES ($1, $2, 'in', $3, $4, $5, $6)",
+                [payment.tournament_id, userId, session_preference || null, alias ? alias.trim() : null, team_picture_url || null, in_game_name ? in_game_name.trim() : null]
             );
 
             // Increment permanent tournament count in users table and set status to active

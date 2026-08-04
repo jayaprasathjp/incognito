@@ -168,6 +168,14 @@ const ParticipantsManagement = () => {
                 </div>
                 <div className="overflow-hidden">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1 truncate">
+                    In-Game Name
+                  </label>
+                  <div className="text-sm font-bold font-mono text-slate-900 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 truncate">
+                    {profile.in_game_name || "N/A"}
+                  </div>
+                </div>
+                <div className="overflow-hidden">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1 truncate">
                     Session Preference
                   </label>
                   <div className="text-sm font-bold text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 capitalize truncate">
@@ -176,6 +184,20 @@ const ParticipantsManagement = () => {
                     {profile.session_preference === "evening" && "🌙 "}
                     {profile.session_preference || "N/A"}
                   </div>
+                </div>
+                <div className="overflow-hidden col-span-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
+                    Team Picture
+                  </label>
+                  {profile.team_picture_url ? (
+                    <img 
+                      src={profile.team_picture_url} 
+                      alt="Team Picture" 
+                      className="w-24 h-24 object-cover rounded-xl border border-slate-200" 
+                    />
+                  ) : (
+                    <div className="text-sm font-medium text-slate-500 italic">No picture uploaded</div>
+                  )}
                 </div>
                 <div className="overflow-hidden col-span-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
