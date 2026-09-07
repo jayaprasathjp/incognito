@@ -951,6 +951,58 @@ router.get("/rounds/current", async (req, res) => {
   }
 });
 
+router.get("/tournaments/:id/rounds/:round_number/details", async (req, res) => {
+  try {
+    const { id, round_number } = req.params;
+    
+    const matchesRes = await pool.query(
+      `SELECT m.*, 
+        u1.email as p1_email, COALESCE(part1.alias, u1.email) as p1_name, part1.in_game_name as p1_ign,
+        u2.email as p2_email, COALESCE(part2.alias, u2.email) as p2_name, part2.in_game_name as p2_ign
+       FROM matches m
+       LEFT JOIN users u1 ON m.player1_id = u1.id
+       LEFT JOIN users u2 ON m.player2_id = u2.id
+       LEFT JOIN participants part1 ON m.player1_id = part1.user_id AND m.tournament_id = part1.tournament_id
+       LEFT JOIN participants part2 ON m.player2_id = part2.user_id AND m.tournament_id = part2.tournament_id
+       WHERE m.tournament_id = $1 AND m.round = $2`,
+      [id, round_number]
+    );
+
+    const won = [];
+    const eliminated = [];
+    const byes = [];
+
+    matchesRes.rows.forEach(m => {
+      const p1 = m.player1_id ? { id: m.player1_id, name: m.p1_name, email: m.p1_email, ign: m.p1_ign } : null;
+      const p2 = m.player2_id ? { id: m.player2_id, name: m.p2_name, email: m.p2_email, ign: m.p2_ign } : null;
+
+      if (m.match_code === 'BYE') {
+         if (p1) byes.push(p1);
+      } else if (m.status === 'completed') {
+         const dqCodes = ['WALKOVER', 'TIMEOUT_WIN', 'HOME_NO_CODE', 'DISPUTE_SUBMITTER_WIN'];
+         const isDQ = dqCodes.includes(m.match_code);
+         if (m.winner_id) {
+           if (m.winner_id === m.player1_id) {
+             if (p1) won.push(p1);
+             if (p2) eliminated.push({ ...p2, reason: isDQ ? 'DQ' : 'Loss' });
+           } else {
+             if (p2) won.push(p2);
+             if (p1) eliminated.push({ ...p1, reason: isDQ ? 'DQ' : 'Loss' });
+           }
+         }
+      } else if (m.status === 'cancelled') {
+         if (p1) eliminated.push({ ...p1, reason: 'DQ' });
+         if (p2) eliminated.push({ ...p2, reason: 'DQ' });
+      }
+    });
+
+    res.json({ won, eliminated, byes });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // === MATCHES & DISPUTES ===
 router.get("/matches", async (req, res) => {
   try {

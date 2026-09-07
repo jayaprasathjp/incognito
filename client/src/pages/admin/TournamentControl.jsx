@@ -22,6 +22,7 @@ import {
   ArrowRight,
   Activity,
   TrendingUp,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../../utils/api";
@@ -80,9 +81,80 @@ const RoundTimer = ({ targetDate }) => {
 };
 
 // ─────────────────────────────────────────────────────────────
+// ROUND DETAILS MODAL
+// ─────────────────────────────────────────────────────────────
+const RoundDetailsModal = ({ isOpen, onClose, type, round, tournamentId }) => {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && type && round) {
+      setLoading(true);
+      api.get(`/admin/tournaments/${tournamentId}/rounds/${round.round_number}/details`)
+        .then(res => {
+          if (type === 'won') setData(res.data.won || []);
+          if (type === 'eliminated') setData(res.data.eliminated || []);
+          if (type === 'byes') setData(res.data.byes || []);
+        })
+        .catch(err => {
+          toast.error("Failed to load details");
+          console.error(err);
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [isOpen, type, round, tournamentId]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div>
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              {type === 'won' && <><TrendingUp size={16} className="text-emerald-500" /> Won / Advancing</>}
+              {type === 'eliminated' && <><UserX size={16} className="text-red-500" /> Eliminated</>}
+              {type === 'byes' && <><ArrowRight size={16} className="text-indigo-500" /> Byes</>}
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">{round.name}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500">
+             <X size={16} />
+          </button>
+        </div>
+        <div className="p-5 overflow-y-auto flex-1">
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="animate-spin text-indigo-500" size={24} /></div>
+          ) : data.length === 0 ? (
+            <div className="text-center py-10 text-slate-400">No players found</div>
+          ) : (
+            <div className="space-y-3">
+              {data.map((p, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50">
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-sm text-slate-700">{p.name || p.ign || "Unknown"}</span>
+                    <span className="text-xs text-slate-500">{p.email}</span>
+                  </div>
+                  {p.reason && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.reason === 'DQ' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                      {p.reason}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────
 // ROUNDS ROADMAP VIEW
 // ─────────────────────────────────────────────────────────────
 const RoundsRoadmapView = ({ tournament, onRefresh, lastRefreshed }) => {
+  const [detailsModal, setDetailsModal] = useState({ isOpen: false, type: null, round: null });
   const rounds = tournament?.rounds_config?.rounds || [];
   const activeRound = tournament?.active_round || null;
   const nextRound = tournament?.next_target_round || null;
@@ -353,9 +425,9 @@ const RoundsRoadmapView = ({ tournament, onRefresh, lastRefreshed }) => {
 
                 {/* Card */}
                 <div className="w-full">
-                  {state === "live" && <LiveRoundCard round={round} stats={stats} formatDate={formatDate} />}
+                  {state === "live" && <LiveRoundCard round={round} stats={stats} formatDate={formatDate} onStatClick={(type, r) => setDetailsModal({ isOpen: true, type, round: r })} />}
                   {state === "next" && <NextUpRoundCard round={round} stats={stats} formatDate={formatDate} />}
-                  {state === "completed" && <CompletedRoundCard round={round} stats={stats} formatDate={formatDate} />}
+                  {state === "completed" && <CompletedRoundCard round={round} stats={stats} formatDate={formatDate} onStatClick={(type, r) => setDetailsModal({ isOpen: true, type, round: r })} />}
                   {state === "upcoming" && <UpcomingRoundCard round={round} formatDate={formatDate} />}
                   {state === "skipped" && <SkippedRoundCard round={round} stats={stats} formatDate={formatDate} />}
                 </div>
@@ -364,12 +436,19 @@ const RoundsRoadmapView = ({ tournament, onRefresh, lastRefreshed }) => {
           })}
         </div>
       </div>
+      <RoundDetailsModal 
+        isOpen={detailsModal.isOpen} 
+        onClose={() => setDetailsModal({ ...detailsModal, isOpen: false })} 
+        type={detailsModal.type} 
+        round={detailsModal.round} 
+        tournamentId={tournament.id} 
+      />
     </div>
   );
 };
 
 // ── Live Round Card ──────────────────────────────────────
-const LiveRoundCard = ({ round, stats, formatDate }) => {
+const LiveRoundCard = ({ round, stats, formatDate, onStatClick }) => {
   return (
     <div className="relative w-full rounded-2xl border border-indigo-300 bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-lg overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-indigo-300 to-purple-400" />
@@ -405,7 +484,7 @@ const LiveRoundCard = ({ round, stats, formatDate }) => {
           <StatPill icon={<Swords size={13} />} label="Matches Created" value={stats.matches || "—"} light />
           <StatPill icon={<Activity size={13} />} label="Status" value={`${stats.completed_matches ?? 0}C / ${stats.pending_matches ?? 0}P`} light />
           <StatPill icon={<Users size={13} />} label="Yet To Play" value={(stats.pending_matches * 2) || 0} light />
-          <StatPill icon={<ArrowRight size={13} />} label="Byes" value={stats.byes || "—"} light />
+          <StatPill icon={<ArrowRight size={13} />} label="Byes" value={stats.byes || "—"} light clickable={stats.byes > 0} onClick={() => stats.byes > 0 && onStatClick('byes', round)} />
         </div>
 
         {stats.matches > 0 && (
@@ -468,7 +547,7 @@ const NextUpRoundCard = ({ round, stats, formatDate }) => (
 );
 
 // ── Completed Round Card ─────────────────────────────────
-const CompletedRoundCard = ({ round, stats, formatDate }) => {
+const CompletedRoundCard = ({ round, stats, formatDate, onStatClick }) => {
   return (
     <div className="w-full rounded-2xl border border-slate-200 bg-white/80 overflow-hidden hover:bg-white transition-all duration-200">
       <div className="p-4 sm:p-5">
@@ -497,9 +576,9 @@ const CompletedRoundCard = ({ round, stats, formatDate }) => {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <StatPill icon={<Swords size={13} />} label="Matches Played" value={stats.matches || "—"} muted />
-          <StatPill icon={<TrendingUp size={13} />} label="Won / Advancing" value={stats.winners || "—"} muted />
-          <StatPill icon={<UserX size={13} />} label="Eliminated" value={stats.eliminated > 0 ? `${stats.eliminated} (${stats.lost}L + ${stats.dq}DQ)` : "—"} muted />
-          <StatPill icon={<ArrowRight size={13} />} label="Byes" value={stats.byes || "—"} muted />
+          <StatPill icon={<TrendingUp size={13} />} label="Won / Advancing" value={stats.winners || "—"} muted clickable={stats.winners > 0} onClick={() => stats.winners > 0 && onStatClick('won', round)} />
+          <StatPill icon={<UserX size={13} />} label="Eliminated" value={stats.eliminated > 0 ? `${stats.eliminated} (${stats.lost}L + ${stats.dq}DQ)` : "—"} muted clickable={stats.eliminated > 0} onClick={() => stats.eliminated > 0 && onStatClick('eliminated', round)} />
+          <StatPill icon={<ArrowRight size={13} />} label="Byes" value={stats.byes || "—"} muted clickable={stats.byes > 0} onClick={() => stats.byes > 0 && onStatClick('byes', round)} />
         </div>
       </div>
     </div>
@@ -540,14 +619,16 @@ const SkippedRoundCard = ({ round, stats, formatDate }) => (
 );
 
 // ── Stat Pill ─────────────────────────────────────────────
-const StatPill = ({ icon, label, value, light, muted, valueClass }) => (
-  <div className={`rounded-xl p-2.5 flex flex-col gap-0.5 border ${
+const StatPill = ({ icon, label, value, light, muted, valueClass, onClick, clickable }) => (
+  <div 
+    onClick={onClick}
+    className={`rounded-xl p-2.5 flex flex-col gap-0.5 border ${
     light
       ? "bg-white/15 border-white/20"
       : muted
         ? "bg-slate-50 border-slate-100"
         : "bg-indigo-50 border-indigo-100"
-  }`}>
+  } ${clickable ? 'cursor-pointer hover:scale-105 hover:shadow-md transition-all' : ''}`}>
     <div className={`text-base sm:text-lg font-black tabular-nums ${
       valueClass || (light ? "text-white" : muted ? "text-slate-600" : "text-indigo-700")
     }`}>
