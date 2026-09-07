@@ -14,6 +14,7 @@ import PlayerDashboard from './pages/PlayerDashboard';
 import PlayerAnnouncements from './pages/PlayerAnnouncements';
 import Roadmap from './pages/Roadmap';
 import Rules from './pages/Rules';
+import Fixtures from './pages/Fixtures';
 import MyMatches from './pages/MyMatches';
 import ReferralProgram from './pages/ReferralProgram';
 import BankDetails from './pages/BankDetails';
@@ -69,6 +70,7 @@ function App() {
             {/* Public Info Pages - Not Protected for SEO */}
             <Route path="/roadmap" element={<Roadmap />} />
             <Route path="/rules" element={<Rules />} />
+            <Route path="/fixtures" element={<Fixtures />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />

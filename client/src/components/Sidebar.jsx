@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { createPortal } from 'react-dom';
 import { api } from '../utils/api';
-import { Bell, Landmark, LayoutDashboard, Megaphone, ScrollText, Swords, Trophy, Users, User } from 'lucide-react';
+import { Bell, Landmark, LayoutDashboard, Megaphone, ScrollText, Swords, Trophy, Users, User, Network } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose }) => {
     const { logout, user, token, unreadAnnouncements } = useAuth();
@@ -37,6 +37,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         { to: '/announcements', label: 'Announcements', icon: <Megaphone size={18} />, badge: unreadAnnouncements },
         { to: '/rules', label: 'Rules', icon: <ScrollText size={18} /> },
         { to: '/roadmap', label: 'Roadmap', icon: <Bell size={18} /> },
+        { to: '/fixtures', label: 'Fixtures', icon: <Network size={18} /> },
         { to: '/personal-details', label: 'Personal Details', icon: <User size={18} /> },
         { to: '/bank-details', label: 'Bank Details', icon: <Landmark size={18} /> },
         { to: '/referral', label: 'Referral Program', icon: <Users size={18} /> },
@@ -131,6 +132,33 @@ const Sidebar = ({ isOpen, onClose }) => {
                                     onClick={onClose}
                                 >
                                     Register
+                                </Link>
+                                <Link 
+                                    to="/roadmap" 
+                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
+                                        isActive('/roadmap') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                                    }`}
+                                    onClick={onClose}
+                                >
+                                    Roadmap
+                                </Link>
+                                <Link 
+                                    to="/rules" 
+                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
+                                        isActive('/rules') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                                    }`}
+                                    onClick={onClose}
+                                >
+                                    Rules
+                                </Link>
+                                <Link 
+                                    to="/fixtures" 
+                                    className={`block p-4 rounded-xl text-sm font-medium transition-all ${
+                                        isActive('/fixtures') ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                                    }`}
+                                    onClick={onClose}
+                                >
+                                    Fixtures
                                 </Link>
                             </>
                         ) : (
