@@ -501,12 +501,14 @@ const Matches = () => {
                                         <ProofImage url={winnerProof} label="View winner's screenshot" />
                                     </div>
                                     {/* Both proofs if they differ — for admin comparison */}
-                                    {selectedMatch.p1_proof && selectedMatch.p2_proof && (
+                                    {(selectedMatch.p1_proof || selectedMatch.p2_proof) && (
                                         <div className="border-t border-emerald-200 pt-3 space-y-1.5">
                                             <p className="text-[10px] font-bold text-slate-400 uppercase">All submitted proofs</p>
                                             <div className="flex flex-col gap-1.5">
-                                                <ProofImage url={selectedMatch.p1_proof} label={`${selectedMatch.p1_name}'s screenshot`} />
-                                                <ProofImage url={selectedMatch.p2_proof} label={`${selectedMatch.p2_name}'s screenshot`} />
+                                                {selectedMatch.p1_proof && <ProofImage url={selectedMatch.p1_proof} label={`${selectedMatch.p1_name}'s screenshot`} />}
+                                                {selectedMatch.p1_proof_2 && <ProofImage url={selectedMatch.p1_proof_2} label={`${selectedMatch.p1_name}'s 2nd screenshot`} />}
+                                                {selectedMatch.p2_proof && <ProofImage url={selectedMatch.p2_proof} label={`${selectedMatch.p2_name}'s screenshot`} />}
+                                                {selectedMatch.p2_proof_2 && <ProofImage url={selectedMatch.p2_proof_2} label={`${selectedMatch.p2_name}'s 2nd screenshot`} />}
                                             </div>
                                         </div>
                                     )}
@@ -520,7 +522,9 @@ const Matches = () => {
                                     <p className="text-xs text-amber-700">This match has an active dispute. Resolve it from the Disputes page.</p>
                                     <div className="flex flex-col gap-1.5">
                                         {selectedMatch.p1_proof && <ProofImage url={selectedMatch.p1_proof} label={`${selectedMatch.p1_name}'s screenshot`} />}
+                                        {selectedMatch.p1_proof_2 && <ProofImage url={selectedMatch.p1_proof_2} label={`${selectedMatch.p1_name}'s 2nd screenshot`} />}
                                         {selectedMatch.p2_proof && <ProofImage url={selectedMatch.p2_proof} label={`${selectedMatch.p2_name}'s screenshot`} />}
+                                        {selectedMatch.p2_proof_2 && <ProofImage url={selectedMatch.p2_proof_2} label={`${selectedMatch.p2_name}'s 2nd screenshot`} />}
                                     </div>
                                 </div>
                             )}

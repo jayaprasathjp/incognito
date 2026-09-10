@@ -1231,8 +1231,8 @@ router.get("/disputes", async (req, res) => {
     const result = await pool.query(`
             SELECT d.*,
                    m.match_code, m.player1_id, m.player2_id, m.status AS match_status,
-                   m.p1_score, m.p1_opp_score, m.p1_proof,
-                   m.p2_score, m.p2_opp_score, m.p2_proof,
+                   m.p1_score, m.p1_opp_score, m.p1_proof, m.p1_proof_2,
+                   m.p2_score, m.p2_opp_score, m.p2_proof, m.p2_proof_2,
                    COALESCE(p1.alias, u1.email) AS submitted_by_name,
                    COALESCE(p2.alias, u2.email) AS opponent_name
             FROM disputes d
@@ -1255,13 +1255,15 @@ router.get("/disputes", async (req, res) => {
         row.submitter_score_for = isP1Submitter ? row.p1_score : row.p2_score;
         row.submitter_score_against = isP1Submitter ? row.p1_opp_score : row.p2_opp_score;
         const subProof = isP1Submitter ? row.p1_proof : row.p2_proof;
-        row.submitter_screenshots = subProof ? [subProof] : [];
+        const subProof2 = isP1Submitter ? row.p1_proof_2 : row.p2_proof_2;
+        row.submitter_screenshots = [subProof, subProof2].filter(Boolean);
         
         row.opponent_action = 'submitted';
         row.opponent_score_for = isP1Submitter ? row.p2_score : row.p1_score;
         row.opponent_score_against = isP1Submitter ? row.p2_opp_score : row.p1_opp_score;
         const oppProof = isP1Submitter ? row.p2_proof : row.p1_proof;
-        row.opponent_screenshots = oppProof ? [oppProof] : [];
+        const oppProof2 = isP1Submitter ? row.p2_proof_2 : row.p1_proof_2;
+        row.opponent_screenshots = [oppProof, oppProof2].filter(Boolean);
       }
       return row;
     });
@@ -1852,16 +1854,23 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
       }
     } else {
       // ═══ ROUND 2+: Winners from previous round ═══
+      // Find the last round that actually has matches generated
+      const lastRoundRes = await client.query(
+        "SELECT COALESCE(MAX(round), $2) as last_round FROM matches WHERE tournament_id = $1 AND round < $3",
+        [tournamentId, roundNumber - 1, roundNumber]
+      );
+      const lastRound = lastRoundRes.rows[0].last_round;
+
       const winnersRes = await client.query(
         `SELECT m.winner_id as id, COALESCE(p.session_preference, 'morning') as session_preference
                  FROM matches m
                  JOIN participants p ON m.winner_id = p.user_id AND p.tournament_id = $1
                  WHERE m.tournament_id = $1 AND m.round = $2 AND m.winner_id IS NOT NULL AND p.status = 'in'`,
-        [tournamentId, roundNumber - 1],
+        [tournamentId, lastRound],
       );
       let allPlayers = winnersRes.rows;
       if (allPlayers.length === 0)
-        throw new Error(`No active winners found from Round ${roundNumber - 1}`);
+        throw new Error(`No active winners found from Round ${lastRound}`);
       if (allPlayers.length < 2) throw new Error("Not enough players remaining in the tournament");
 
       // 1. Fetch expected capacity for the current round
@@ -1894,11 +1903,7 @@ async function generateFixturesForRound(tournamentId, roundNumber) {
         if (targetRoundNumber > roundNumber) {
           console.log(`[FIXTURES] Jumping from Round ${roundNumber} to Round ${targetRoundNumber}`);
           
-          // A. Relabel completed matches from the previous round so they serve as input to targetRoundNumber
-          await client.query(
-            "UPDATE matches SET round = $1 WHERE tournament_id = $2 AND round = $3",
-            [targetRoundNumber - 1, tournamentId, roundNumber - 1]
-          );
+          // A. (Removed) We no longer relabel completed matches. They stay in their original round.
           
           // B. Mark skipped rounds as generated and append ' (Skipped)' to their names without deleting
           await client.query(
