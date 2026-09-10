@@ -21,7 +21,7 @@ const Rules = () => {
         {
             id: 3,
             title: '15 Mins Early & Room Setup',
-            description: 'Ensure you are ready 15 mins before the scheduled match time to avoid complications. Chat box will be opened so that "home" players create the match room and send the code and "away" players receives match codes sent.'
+            description: 'Ensure you are ready 15 mins before the scheduled match time to avoid complications. Chat box will be opened so that "home" players create the match room and send the code and "away" players receives match codes sent. Note: Home players are able to resend the match code if needed.'
         },
         {
             id: 4,

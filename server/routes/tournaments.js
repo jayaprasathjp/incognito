@@ -11,6 +11,54 @@ function nextPowerOf2(n) {
     return p;
 }
 
+// Get Current Round Fixtures
+router.get("/current/fixtures", async (req, res) => {
+    try {
+        const result = await pool.query("SELECT id, status FROM tournaments ORDER BY created_at DESC LIMIT 1");
+        if (result.rows.length === 0) return res.json({ round: null, matches: [] });
+        const tournament = result.rows[0];
+
+        let currentRound = 0;
+        if (['active', 'paused', 'completed'].includes(tournament.status)) {
+             const roundRes = await pool.query("SELECT MAX(round) FROM matches WHERE tournament_id = $1", [tournament.id]);
+             currentRound = roundRes.rows[0].max || 1;
+        } else {
+             return res.json({ round: null, matches: [] });
+        }
+
+        const matchesRes = await pool.query(
+            `SELECT m.id, m.round, m.status, m.match_code, m.winner_id, m.player1_id, m.player2_id,
+              COALESCE(part1.alias, part1.in_game_name, u1.email) as p1_name,
+              COALESCE(part2.alias, part2.in_game_name, u2.email) as p2_name
+             FROM matches m
+             LEFT JOIN participants part1 ON m.player1_id = part1.user_id AND m.tournament_id = part1.tournament_id
+             LEFT JOIN users u1 ON m.player1_id = u1.id
+             LEFT JOIN participants part2 ON m.player2_id = part2.user_id AND m.tournament_id = part2.tournament_id
+             LEFT JOIN users u2 ON m.player2_id = u2.id
+             WHERE m.tournament_id = $1 AND m.round = $2
+             ORDER BY m.id ASC`,
+            [tournament.id, currentRound]
+        );
+
+        // Sanitize data before sending
+        const matches = matchesRes.rows.map(m => ({
+            id: m.id,
+            status: m.status,
+            winner_id: m.winner_id,
+            player1_id: m.player1_id,
+            player2_id: m.player2_id,
+            p1_name: m.p1_name || "Unknown",
+            p2_name: m.p2_name || "Unknown",
+            is_bye: m.match_code === 'BYE'
+        }));
+
+        res.json({ round: currentRound, matches });
+    } catch (err) {
+        console.error("Error fetching fixtures:", err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
 // Get Current/Latest Tournament & User Status
 router.get("/current", optionalAuthenticateToken, async (req, res) => {
     try {

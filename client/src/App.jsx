@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Invite from './pages/Invite';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
@@ -13,6 +14,7 @@ import PlayerDashboard from './pages/PlayerDashboard';
 import PlayerAnnouncements from './pages/PlayerAnnouncements';
 import Roadmap from './pages/Roadmap';
 import Rules from './pages/Rules';
+import Fixtures from './pages/Fixtures';
 import MyMatches from './pages/MyMatches';
 import ReferralProgram from './pages/ReferralProgram';
 import BankDetails from './pages/BankDetails';
@@ -59,6 +61,7 @@ function App() {
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/invite" element={<Invite />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
 
@@ -67,6 +70,7 @@ function App() {
             {/* Public Info Pages - Not Protected for SEO */}
             <Route path="/roadmap" element={<Roadmap />} />
             <Route path="/rules" element={<Rules />} />
+            <Route path="/fixtures" element={<Fixtures />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />

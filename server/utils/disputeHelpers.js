@@ -99,6 +99,18 @@ export async function ensureScoreConflictDispute(client, matchId, submittedByUse
     const oppProof = isP1Submitter ? match.p2_proof : match.p1_proof;
     const oppScreenshots = oppProof ? [oppProof] : [];
 
+    let disputeReason = "Players submitted conflicting scores. Admin must review proofs and decide.";
+    const subFor = parseInt(subScoreFor, 10);
+    const subAgainst = parseInt(subScoreAgainst, 10);
+    const oppFor = parseInt(oppScoreFor, 10);
+    const oppAgainst = parseInt(oppScoreAgainst, 10);
+
+    if (subFor > subAgainst && oppFor > oppAgainst) {
+        disputeReason = "Both players claimed a win with conflicting scores. Admin must review proofs and decide.";
+    } else if (subFor === oppAgainst && subAgainst === oppFor && subFor === subAgainst) {
+        disputeReason = "Match ended in a tie. Admin must review proofs and decide.";
+    }
+
     await client.query(
         `INSERT INTO disputes (
             match_id, submitted_by, reason, status, dispute_kind, evidence_url,
@@ -109,7 +121,7 @@ export async function ensureScoreConflictDispute(client, matchId, submittedByUse
         [
             matchId,
             submittedByUserId,
-            "Both players claimed a win with conflicting scores. Admin must review proofs and decide.",
+            disputeReason,
             subScoreFor,
             subScoreAgainst,
             JSON.stringify(subScreenshots),

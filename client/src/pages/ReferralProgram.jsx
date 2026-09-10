@@ -49,7 +49,7 @@ const ReferralProgram = () => {
             return;
         }
 
-        const registrationUrl = `${window.location.origin}/register?ref=${encodeURIComponent(referralCode)}`;
+        const registrationUrl = `${window.location.origin}/invite?ref=${encodeURIComponent(referralCode)}`;
         const shareText = `Join INCØGNITØ with my referral code ${referralCode}. Register here: ${registrationUrl}`;
 
         try {
