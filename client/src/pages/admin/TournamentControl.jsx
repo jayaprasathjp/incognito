@@ -92,9 +92,9 @@ const RoundDetailsModal = ({ isOpen, onClose, type, round, tournamentId }) => {
       setLoading(true);
       api.get(`/admin/tournaments/${tournamentId}/rounds/${round.round_number}/details`)
         .then(res => {
-          if (type === 'won') setData(res.data.won || []);
-          if (type === 'eliminated') setData(res.data.eliminated || []);
-          if (type === 'byes') setData(res.data.byes || []);
+          if (type === 'won') setData(res.won || []);
+          if (type === 'eliminated') setData(res.eliminated || []);
+          if (type === 'byes') setData(res.byes || []);
         })
         .catch(err => {
           toast.error("Failed to load details");
