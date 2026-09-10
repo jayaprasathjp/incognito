@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
-import Navbar from '../components/layout/Navbar';
+import appIcon from '../assets/app-icon.png';
+import Sidebar from '../components/Sidebar';
+import MenuButton from '../components/MenuButton';
 import { Loader2, Swords, Trophy, Network, UserX } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Fixtures = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     useEffect(() => {
         api.get('/tournaments/current/fixtures')
@@ -22,7 +25,20 @@ const Fixtures = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
-            <Navbar />
+            {/* Header */}
+            <div className="flex items-center justify-center p-4 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm relative z-20">
+                <img
+                    src={appIcon}
+                    alt="Logo"
+                    className="absolute left-4 w-8 h-8 object-contain"
+                />
+                <span className="font-bold text-lg tracking-wider text-slate-800">
+                    INCØGNITØ
+                </span>
+                <MenuButton onClick={() => setIsMenuOpen(true)} />
+            </div>
+
+            <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
             <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                     <div>
